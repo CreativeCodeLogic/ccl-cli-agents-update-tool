@@ -70,14 +70,15 @@ Do these in order. Claude never changes repository visibility or publishes to np
 ## Cutting a release (after 1.0.0)
 
 1. Move the entries under `## [Unreleased]` in `CHANGELOG.md` to a new `## [x.y.z] - YYYY-MM-DD` section and update the compare links at the bottom.
-2. Bump, tag and push:
+2. Update `ROADMAP.md` (move shipped items to "Now", adjust "Next") and close the matching GitHub milestone.
+3. Bump, tag and push:
 
    ```bash
    npm version x.y.z -m "Release v%s"   # updates package.json + lock, commits, tags vx.y.z
    git push --follow-tags
    ```
 
-3. **Actions → Release** runs typecheck, tests and build, publishes to npm through trusted publishing (OIDC, with provenance) and creates the GitHub Release. Pre-release versions (`x.y.z-beta.1`) go to the `next` dist-tag and are marked as pre-releases.
+4. **Actions → Release** runs typecheck, tests and build, publishes to npm through trusted publishing (OIDC, with provenance) and creates the GitHub Release. Pre-release versions (`x.y.z-beta.1`) go to the `next` dist-tag and are marked as pre-releases.
 
 Published npm versions are immutable: if something is wrong, fix it and release a new patch version.
 

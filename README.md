@@ -214,6 +214,10 @@ export const mytool = createNpmPackageTool({
 
 Then add it to the list in [`src/registry/index.ts`](src/registry/index.ts). Tools with their own installer implement the `ToolDescriptor` interface directly (see `antigravity.ts`, `cursor.ts` and `gcloud.ts`): read the installed version, look up the latest one, and return an `auto` or `manual` update plan per install method. Optional fields cover `deprecation`, `selfUpdating` and `identify` (for generic binary names). See [CONTRIBUTING.md](CONTRIBUTING.md) for tests.
 
+## Roadmap
+
+What's next (Dev CLIs, more agents, polish) and what's deliberately not planned: see [ROADMAP.md](ROADMAP.md).
+
 ## License
 
 MIT © Creative Code Logic. See [LICENSE](LICENSE).
