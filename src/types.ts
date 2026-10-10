@@ -70,12 +70,20 @@ export interface ToolDescriptor {
    * shim that delegates to another install. Such copies are not reported as shadowed.
    */
   runsThrough?(active: BinaryInstance, other: BinaryInstance): boolean | Promise<boolean>;
+  /**
+   * For generic binary names (e.g. Cursor's `agent`): false = this file is some
+   * other program and is ignored. Path-based; never runs unknown binaries.
+   */
+  identify?(instance: Omit<BinaryInstance, "installMethod">): boolean;
   getInstalledVersion(instance: BinaryInstance): Promise<string | null>;
-  /** Latest release for the given install channel (channels can differ, e.g. legacy pip builds). */
-  getLatestVersion(method?: InstallMethod): Promise<string | null>;
+  /**
+   * Latest release for an install channel (channels can differ, e.g. legacy pip
+   * builds, or OpenCode v1 vs v2 told apart by the installed major version).
+   */
+  getLatestVersion(method?: InstallMethod, installedVersion?: string | null): Promise<string | null>;
   getUpdatePlan(instance: BinaryInstance): Promise<UpdatePlan>;
   /** Cache key for latest-version lookups per install method (default: one channel per tool). */
-  latestChannel?(method?: InstallMethod): string;
+  latestChannel?(method?: InstallMethod, installedVersion?: string | null): string;
   /**
    * Explain an update command that succeeded but left the version unchanged,
    * when that is expected (e.g. a staged rollout). null = genuinely unchanged.

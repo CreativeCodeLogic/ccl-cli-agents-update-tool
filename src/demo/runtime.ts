@@ -31,14 +31,27 @@ interface FixtureBinary {
 
 interface FixtureTool {
   binaries: FixtureBinary[];
-  latest: string;
+  /** null = no public latest version (self-updating tools). */
+  latest: string | null;
 }
 
-/** A mix that shows everything: up-to-date, updates, not installed, a hidden copy, a manual plan. */
+/**
+ * A v1.0 tour: up-to-date tools, updates, a self-updating tool (Cursor), a
+ * retired one (Gemini), a hidden copy (Kimi), a remembered "skip" (gcloud, manual
+ * apt plan) and four tools that are not installed.
+ */
 const FIXTURE: Record<string, FixtureTool> = {
   claude: { latest: "2.1.296", binaries: [{ path: `${HOME}/.local/bin/claude`, target: `${HOME}/.local/share/claude/versions/2.1.296`, version: "2.1.296" }] },
   codex: { latest: "0.162.1", binaries: [{ path: "/usr/local/bin/codex", target: "/usr/local/lib/node_modules/@openai/codex/bin/codex.js", version: "0.161.0" }] },
+  copilot: { latest: "1.0.95", binaries: [] },
+  cursor: {
+    latest: null,
+    binaries: [{ path: `${HOME}/.local/bin/agent`, target: `${HOME}/.local/share/cursor-agent/versions/2026.10.01-e373342/cursor-agent`, version: "2026.10.01-e373342" }],
+  },
+  opencode: { latest: "1.18.35", binaries: [] },
   gemini: { latest: "0.63.0", binaries: [{ path: "/usr/local/bin/gemini", target: "/usr/local/lib/node_modules/@google/gemini-cli/dist/index.js", version: "0.62.1" }] },
+  antigravity: { latest: "1.3.3", binaries: [{ path: `${HOME}/.local/bin/agy`, version: "1.3.1" }] },
+  qwen: { latest: "0.25.0", binaries: [] },
   kimi: {
     latest: "2.1.1",
     binaries: [
@@ -56,9 +69,10 @@ const UPDATE_OUTPUT: Record<string, string[]> = {
   codex: ["resolving @openai/codex@0.162.1", "downloading codex-linux-x64 (31.4 MB)", "changed 2 packages in 2s"],
   gemini: ["resolving @google/gemini-cli@0.63.0", "changed 138 packages in 3s"],
   kimi: ["Checking for updates... 2.0.4 -> 2.1.1", "Downloading Kimi Code 2.1.1 (linux-x64)... done", "Installed Kimi Code 2.1.1"],
+  antigravity: ["Checking for updates... 1.3.1 -> 1.3.3", "Downloading agy 1.3.3 (linux_amd64)... done", "agy is now 1.3.3"],
+  cursor: ["Checking for updates...", "Cursor Agent is up to date (2026.10.01-e373342)"],
   claude: ["Checking for updates...", "Claude Code is up to date"],
 };
-
 function demoHost(): Host {
   const files = new Set<string>(["/usr/local/bin/node"]);
   const links = new Map<string, string>();

@@ -81,6 +81,9 @@ describe("--demo", () => {
     const byId = Object.fromEntries(results.map((r) => [r.id, r]));
     expect(byId.claude?.state).toBe("up-to-date");
     expect(byId.firebase?.state).toBe("not-installed");
+    expect(byId.copilot?.state).toBe("not-installed");
+    expect(byId.gemini).toMatchObject({ state: "retired", updateAvailable: true, deprecation: { successorId: "antigravity" } });
+    expect(byId.cursor).toMatchObject({ state: "self-updating", installedVersion: "2026.10.01-e373342", latestVersion: null });
     expect(byId.codex).toMatchObject({ state: "outdated", plan: { kind: "auto" } });
     expect(byId.kimi?.shadowed).toHaveLength(1);
     expect(byId.gcloud).toMatchObject({ installMethod: "apt", plan: { kind: "manual" } });

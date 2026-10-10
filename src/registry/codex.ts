@@ -4,6 +4,7 @@ import { brewPlan } from "./shared";
 export const codex = createNpmPackageTool({
   id: "codex",
   name: "Codex CLI",
+  shortName: "Codex",
   binNames: ["codex"],
   pkg: "@openai/codex",
   otherPlan: (instance) => {

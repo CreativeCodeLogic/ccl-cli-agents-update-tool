@@ -10,6 +10,7 @@ function standaloneCommand(): string {
 export const firebase = createNpmPackageTool({
   id: "firebase",
   name: "Firebase CLI",
+  shortName: "Firebase",
   binNames: ["firebase"],
   pkg: "firebase-tools",
   // Anything not under npm is almost certainly the standalone binary.

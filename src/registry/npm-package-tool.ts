@@ -8,6 +8,8 @@ export interface NpmPackageToolConfig {
   binNames: string[];
   /** npm package that ships the CLI; also the source of "latest". */
   pkg: string;
+  shortName?: string;
+  deprecation?: ToolDescriptor["deprecation"];
   refineInstallMethod?: ToolDescriptor["refineInstallMethod"];
   /** Plans for installs npm doesn't manage (self-updaters, brew, ...); null = generic manual plan. */
   otherPlan?: (instance: BinaryInstance) => UpdatePlan | null;
@@ -29,6 +31,8 @@ export function createNpmPackageTool(config: NpmPackageToolConfig): ToolDescript
     name: config.name,
     binNames: config.binNames,
     npmPackage: pkg,
+    ...(config.shortName && { shortName: config.shortName }),
+    ...(config.deprecation && { deprecation: config.deprecation }),
     ...(config.refineInstallMethod && { refineInstallMethod: config.refineInstallMethod }),
 
     // package.json is fast and exact; fall back to running the binary.

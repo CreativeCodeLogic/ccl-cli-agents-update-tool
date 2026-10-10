@@ -6,6 +6,7 @@ import { brewPlan } from "./shared";
 export const claude = createNpmPackageTool({
   id: "claude",
   name: "Claude Code",
+  shortName: "Claude",
   binNames: ["claude"],
   pkg: "@anthropic-ai/claude-code",
   otherPlan: (instance) => {

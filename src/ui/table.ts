@@ -53,7 +53,8 @@ export function printNotes(results: readonly ToolScan[], showAll = false): void 
   if (hidden) log.message(pc.dim(hidden));
 
   for (const r of results) {
-    if (r.installed && r.deprecation) log.warn(`${pc.bold(r.id)}: ${r.deprecation.message}`);
+    // One sentence per line keeps notes within ~100 columns.
+    if (r.installed && r.deprecation) log.warn(`${pc.bold(r.id)}: ${r.deprecation.message.replace(". ", ".\n")}`);
   }
   // e.g. "kimi: native 2.0.4 runs; npm 2.1.1 is installed but shadowed on PATH"
   for (const r of results) {

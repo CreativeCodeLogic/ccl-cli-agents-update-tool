@@ -77,6 +77,7 @@ function legacyPlan(instance: BinaryInstance, host: Host): UpdatePlan {
 export const kimi: ToolDescriptor = {
   id: "kimi",
   name: "Kimi Code",
+  shortName: "Kimi",
   binNames: ["kimi"],
   npmPackage: NPM_PKG,
 

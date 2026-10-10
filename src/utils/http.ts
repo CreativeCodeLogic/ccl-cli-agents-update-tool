@@ -8,7 +8,7 @@ const cache = new Map<string, Promise<unknown>>();
 
 async function fetchOnce(url: string): Promise<unknown> {
   const res = await fetch(url, {
-    headers: { accept: "application/json" },
+    headers: { accept: "application/json", "user-agent": "ccl-caut (+https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool)" },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -53,6 +53,7 @@ function nativePlan(instance: BinaryInstance, host: Host): UpdatePlan {
 export const gcloud: ToolDescriptor = {
   id: "gcloud",
   name: "Google Cloud CLI",
+  shortName: "gcloud",
   binNames: ["gcloud"],
   // Anything that isn't a package-manager install is the official installer/archive.
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),

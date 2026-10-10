@@ -15,6 +15,14 @@ async function safe<T>(fn: () => T | Promise<T>, fallback: T): Promise<T> {
   }
 }
 
+function safeSync<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch {
+    return fallback;
+  }
+}
+
 export interface DetectedInstance extends BinaryInstance {
   version: string | null;
 }
@@ -39,27 +47,32 @@ export class LatestResolver {
     private readonly refresh = false,
   ) {}
 
-  static key(tool: ToolDescriptor, method?: InstallMethod): string {
-    return `${tool.id}:${tool.latestChannel?.(method) ?? "default"}`;
+  static key(tool: ToolDescriptor, method?: InstallMethod, installedVersion?: string | null): string {
+    return `${tool.id}:${tool.latestChannel?.(method, installedVersion) ?? "default"}`;
   }
 
-  get(tool: ToolDescriptor, method?: InstallMethod): Promise<string | null> {
-    const key = LatestResolver.key(tool, method);
+  get(tool: ToolDescriptor, method?: InstallMethod, installedVersion?: string | null): Promise<string | null> {
+    const key = LatestResolver.key(tool, method, installedVersion);
     let pending = this.pending.get(key);
     if (!pending) {
-      pending = this.lookup(tool, method, key);
+      pending = this.lookup(tool, method, installedVersion, key);
       this.pending.set(key, pending);
     }
     return pending;
   }
 
-  private async lookup(tool: ToolDescriptor, method: InstallMethod | undefined, key: string): Promise<string | null> {
+  private async lookup(
+    tool: ToolDescriptor,
+    method: InstallMethod | undefined,
+    installedVersion: string | null | undefined,
+    key: string,
+  ): Promise<string | null> {
     const hit = this.refresh ? null : this.cache?.get(key);
     if (hit) {
       this.oldestCachedAt = Math.min(this.oldestCachedAt ?? hit.fetchedAt, hit.fetchedAt);
       return hit.version;
     }
-    const live = await safe(() => tool.getLatestVersion(method), null);
+    const live = await safe(() => tool.getLatestVersion(method, installedVersion), null);
     if (live) this.cache?.set(key, live);
     return live;
   }
@@ -90,7 +103,11 @@ export function detectAll(tools: readonly ToolDescriptor[], host: Host = getHost
   return Promise.all(
     tools.map(async (tool) => ({
       tool,
-      instances: await Promise.all(findAllExecutables(tool.binNames, host).map((p) => detectInstance(tool, p, host))),
+      instances: await Promise.all(
+        findAllExecutables(tool.binNames, host)
+          .filter((p) => !tool.identify || safeSync(() => tool.identify!({ path: p, realPath: host.fs.realpath(p) }), false))
+          .map((p) => detectInstance(tool, p, host)),
+      ),
     })),
   );
 }
@@ -123,7 +140,7 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
         const delegated = active && tool.runsThrough ? await safe(() => tool.runsThrough!(active, other), false) : false;
         if (!delegated) rest.push(other);
       }
-      const latestVersion = await latest.get(tool, active?.installMethod);
+      const latestVersion = await latest.get(tool, active?.installMethod, active?.version);
       const plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
       const { state, updateAvailable } = deriveState(tool, active?.version, latestVersion, Boolean(active));
       return {
