@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 First public release of CCL CAUT, the CLI Agents Update Tool.
 
+### Since 1.0.0-rc.1 (first real-use feedback)
+
+- One color system everywhere (table, checklist, progress, summary): green done/up-to-date, amber needs action or selected, cyan updates itself, red retired/failed, dim not selected or secondary. Checklist: amber filled box when selected, dim empty box when not, bold focused row.
+- Every prompt accepts `q` to quit ("Nothing was changed.", exit 0) and shows a key footer (`↑/↓ move · space select · a all · enter confirm · q quit`); `a` toggles all. Esc and Ctrl+C still cancel (exit 130).
+- Pre-flight "Ready to update?" check: shows which selected CLIs are running (matched by install path, never killed) and which updates need admin rights; Update now / Re-check / Back to selection / Quit. The Claude Code session guard is part of it. `--yes` skips running tools and reports them in the summary.
+- Live progress per update: spinner, elapsed time, latest output line and an npm "fetched N files" counter; success collapses to one line, failures print the last 20 lines with a hint.
+- "needs admin" tag (table, checklist, `--json` `needsAdmin`), based on write access to where each update goes; no warning and more automatic updates when already elevated. ccl-caut never elevates itself.
+- "What next?" menu after updates: Rescan (fresh versions for what was updated) or Quit.
+- Manual commands are printed on a clean line of their own (no gutter, no trailing spaces) so selecting and copying gives exactly the command.
+- Spacing: a blank line between the remembered-selection hint and the first option.
+
 ### Added
 
 - Twelve supported tools: Claude Code, Codex CLI, GitHub Copilot CLI, Cursor CLI, OpenCode, Gemini CLI, Antigravity CLI, Qwen Code, Kimi Code, Firebase CLI, Google Cloud CLI and npm.

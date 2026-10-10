@@ -49,14 +49,18 @@ Requires Node.js 20 or newer.
   ⊘  Gemini CLI        0.62.1      0.63.0   retired           npm
   ↑  Antigravity CLI   1.3.1       1.3.3    update available  native
   ↑  Kimi Code         2.0.4       2.1.1    update available  native +1 hidden
-  ↑  Google Cloud CLI  587.0.0     588.0.0  update available  apt
+  ↑  Google Cloud CLI  587.0.0     588.0.0  update available  apt needs admin
   ✔  npm               12.2.0      12.2.0   up-to-date        node
 ▲  gemini: retired for consumer accounts since Jun 2026 -> use Antigravity CLI (agy).
    Still works with enterprise licenses / paid API keys.
 ▲  kimi: native 2.0.4 runs; npm 2.1.1 is installed but shadowed on PATH
+
+   needs admin = the command needs sudo
 ```
 
-Then pick what to update (space toggles, enter confirms). Updates CCL CAUT can run safely run with live output; everything else is shown as a ready-to-copy command with the reason.
+Then pick what to update: `↑/↓` move, `space` selects, `a` toggles all, `enter` confirms and `q` quits from any prompt without changing anything. Colors mean the same thing everywhere: green is done or up-to-date, amber needs action (selected, update available, needs admin), cyan updates itself, red is retired or failed, dim is not selected or secondary.
+
+Before anything runs, a short **pre-flight** check shows which selected CLIs are running right now (close agent sessions and the IDEs or terminals that use them first) and which updates need administrator rights. Choose *Update now*, *Re-check*, *Back to selection* or *Quit*. Each update shows a spinner, the elapsed time and the latest output line, then collapses to `Codex CLI 0.161.0 → 0.162.1`; the full log is printed only when something fails (or with `CCL_CAUT_DEBUG=1`). Commands CCL CAUT can't run safely are printed on a line of their own, ready to select and copy. Afterwards, *Rescan* runs the whole check again with fresh versions, or *Quit*.
 
 ## Supported tools
 
@@ -87,8 +91,10 @@ Google retired Gemini CLI for consumer accounts (Google AI Pro and Ultra, and fr
 - **Shadowed installs are called out.** CCL CAUT finds every copy of a tool on your `PATH`, updates the one that actually runs, and warns about copies that are installed but never run.
 - **No false positives.** A generic binary name like Cursor's `agent` is only claimed inside Cursor's own install layout, and editor launcher shims (such as VS Code's Copilot Chat launcher) are ignored.
 - **Every update is verified.** After an update, CCL CAUT asks the running binary for its version again. If it didn't change, you get a warning instead of a false success. Kimi Code's staged rollouts are reported as "held".
-- **Friendly failure hints.** Locked files ("Claude Code appears to be running…") and permission problems ("run from an elevated terminal") are explained, not just dumped.
-- **Careful inside agents.** Updating Claude Code from inside a Claude Code session asks for confirmation first. Under `--yes`, Claude Code is skipped: it is never updated without an explicit yes.
+- **Checks before it touches anything.** The pre-flight check lists selected CLIs that are running (matched by their exact install path, never by a bare program name) and never kills anything. Under `--yes`, running tools are skipped with a clear line each and counted in the summary.
+- **Admin rights up front.** CCL CAUT tests whether it can write where each update goes (the npm global folder, the Google Cloud SDK, a tool's own install folder) and tags updates that need more as **needs admin**: on Windows, run ccl-caut from a terminal opened with *Run as administrator*; on macOS and Linux, the command needs `sudo`. When ccl-caut already runs elevated there is no warning, and updates that were only blocked by permissions run automatically. It never elevates itself.
+- **Friendly failure hints.** Locked files ("Claude Code appears to be running…") and permission problems are explained, with the last lines of output, not just dumped.
+- **Careful inside agents.** Inside a Claude Code session, the pre-flight check offers to update everything except Claude Code (the default) or to include it. Under `--yes`, Claude Code is skipped: it is never updated without an explicit yes.
 
 Platform support: developed and used daily on Windows. Detection rules for macOS and Linux (Homebrew, apt, snap, `~/.local/bin`, uv, pipx, nvm, fnm, Volta) are covered by fixture-based unit tests, every push runs the test suite plus a real scan on Ubuntu, macOS and Windows runners, and a weekly canary installs the npm-distributed CLIs for real to catch upstream changes.
 
@@ -105,12 +111,16 @@ ccl-caut [options]
                  (ccl-caut never installs tools.)
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
+                 Tools that are running right now are skipped and listed in the summary.
   --reset-selection
                  Forget the selection remembered from previous runs, then run normally.
   --no-clear     Don't clear the screen when starting the interactive checklist.
   --no-color     Disable colors.
   -v, --version  Print the version.
   -h, --help     Show this help.
+
+Keys (interactive):
+  ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
 ```
 
 The interactive checklist starts on a clean screen: earlier output is pushed up into your scrollback, never erased. Use `--no-clear` to keep it in view; `--check`, `--json`, `--yes` and CI runs never clear.
@@ -144,10 +154,10 @@ Nothing about you or your machine is sent: no identifiers, no list of installed 
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Success, or everything is up-to-date |
+| 0 | Success, everything is up-to-date, or you quit with `q` |
 | 1 | Updates available (`--check`), or an update failed or did not apply |
 | 2 | Invalid arguments |
-| 130 | Cancelled (Ctrl+C) |
+| 130 | Cancelled (Ctrl+C or Esc) |
 
 `--check` is made for CI and scripts: `ccl-caut --check || echo "updates available"`.
 
@@ -177,6 +187,7 @@ ccl-caut --json
       "latestVersion": "0.63.0",
       "state": "retired",
       "updateAvailable": false,
+      "needsAdmin": false,
       "plan": { "kind": "auto", "command": ["npm", "install", "-g", "@google/gemini-cli@latest"] },
       "shadowed": [],
       "deprecation": {
@@ -190,7 +201,7 @@ ccl-caut --json
 }
 ```
 
-`state` is one of `up-to-date`, `outdated`, `not-installed`, `unknown` (a version could not be determined; never reported as outdated), `retired` or `self-updating`. `updateAvailable` tells you whether a newer version exists, even for retired tools. `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`).
+`state` is one of `up-to-date`, `outdated`, `not-installed`, `unknown` (a version could not be determined; never reported as outdated), `retired` or `self-updating`. `updateAvailable` tells you whether a newer version exists, even for retired tools. `needsAdmin` is `true` when the update needs administrator rights (or `sudo`) that this run doesn't have. `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`).
 
 ## Adding a new tool
 

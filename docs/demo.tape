@@ -4,8 +4,8 @@
 # Render: npm run build && vhs docs/demo.tape
 # (or the "Demo GIF" workflow, which uploads docs/demo.gif as an artifact)
 #
-# Layout: the checklist needs 43 rows and the finished run 53 (banner = top 10), so ~43 rows keep
-# the banner fully visible at the checklist and fully scrolled off at the end.
+# Layout (100 cols): the checklist needs 47 rows (banner = top 10) and the pre-flight 55,
+# so ~49 rows keep the banner visible at the checklist and scroll it off afterwards.
 
 Output docs/demo.gif
 
@@ -14,7 +14,7 @@ Require node
 Set Shell "bash"
 Set FontSize 18
 Set Width 1200
-Set Height 1100
+Set Height 1180
 Set Padding 24
 Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful
@@ -32,7 +32,7 @@ Type "ccl-caut --demo"
 Sleep 600ms
 Enter
 
-# Banner, scan, table, notes and the remembered checklist.
+# Banner, scan, table, notes and the remembered checklist (amber = selected, dim = not).
 Sleep 4.5s
 
 # Untick Antigravity CLI (4th item), then confirm.
@@ -42,6 +42,16 @@ Space
 Sleep 1.2s
 Enter
 
-# Simulated updates, re-checks and the summary (the loop point).
-Sleep 4s
+# Pre-flight: Codex CLI is running, so "Re-check" is preselected. Go up to "Update now".
+Sleep 3s
+Up
+Sleep 900ms
+Enter
+
+# Live progress (spinner, elapsed time, latest output line), results, the gcloud
+# command on its own line, the summary and the "What next?" menu.
+Sleep 7s
+
+# q quits from any prompt.
+Type "q"
 Sleep 3s
