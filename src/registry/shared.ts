@@ -1,46 +1,38 @@
-import type { InstallMethod } from "../types";
+import type { BinaryInstance, UpdatePlan } from "../types";
 import { exec } from "../utils/exec";
-import { classifyInstallPath } from "../utils/install-method";
+import { isInCurrentNpmGlobal } from "../utils/npm";
 import { extractVersion } from "../utils/version";
-import { findExecutable } from "../utils/which";
-
-/** Memoized PATH lookup + install-method classification for one tool. */
-export interface Locator {
-  binaryPath(): Promise<string | null>;
-  installMethod(): Promise<InstallMethod | null>;
-}
-
-export function createLocator(
-  binNames: string[],
-  refine?: (method: InstallMethod, binPath: string) => InstallMethod,
-): Locator {
-  let path: Promise<string | null> | undefined;
-  let method: Promise<InstallMethod | null> | undefined;
-
-  const binaryPath = () => (path ??= Promise.resolve().then(() => findExecutable(binNames)));
-  const installMethod = () =>
-    (method ??= binaryPath().then(async (bin) => {
-      if (!bin) return null;
-      const detected = await classifyInstallPath(bin);
-      return refine ? refine(detected, bin) : detected;
-    }));
-
-  return { binaryPath, installMethod };
-}
 
 /** Run `<bin> <args>` and extract a version from its output; null on any failure. */
 export async function versionFromCommand(
-  bin: string | null,
+  bin: string,
   args: string[] = ["--version"],
   timeoutMs?: number,
 ): Promise<string | null> {
-  if (!bin) return null;
   const res = await exec(bin, args, timeoutMs);
   if (!res.ok) return null;
   return extractVersion(res.stdout) ?? extractVersion(res.stderr);
 }
 
-/** Paths used by vendor "native" installers (Claude Code, Kimi Code, ...). */
-export function looksLikeUserLocalBin(binPath: string): boolean {
-  return /[\\/]\.local[\\/]bin[\\/]/i.test(binPath);
+/**
+ * Plan for an npm-installed copy: auto only when `npm install -g` (with the
+ * npm on PATH) replaces this exact copy. Returns null for non-npm installs.
+ */
+export async function npmGlobalPlan(instance: BinaryInstance, pkg: string): Promise<UpdatePlan | null> {
+  if (instance.installMethod !== "npm") return null;
+  const command = `npm install -g ${pkg}@latest`;
+  if (await isInCurrentNpmGlobal(instance.path, instance.realPath)) {
+    return { kind: "auto", command: command.split(" ") };
+  }
+  return {
+    kind: "manual",
+    command,
+    reason: "Installed under a different Node.js/npm prefix (version manager?); run this with that Node version active.",
+  };
 }
+
+export const brewPlan = (token: string, cask = false): UpdatePlan => ({
+  kind: "manual",
+  command: `brew upgrade ${cask ? "--cask " : ""}${token}`,
+  reason: "Installed with Homebrew; let brew manage the upgrade.",
+});

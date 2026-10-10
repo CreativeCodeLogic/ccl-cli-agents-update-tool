@@ -2,16 +2,22 @@ import { cancel, intro, isCancel, multiselect, outro } from "@clack/prompts";
 import pc from "picocolors";
 import pkg from "../package.json" with { type: "json" };
 import { registry } from "./registry";
-import { detectAll, prefetchLatest, resolveLatest, summarize, type ScanSummary } from "./scan";
+import { detectAll, prefetchLatest, resolveLatest, summarize, type Detection, type ScanSummary } from "./scan";
 import type { ToolScan } from "./types";
 import { printBanner } from "./ui/banner";
 import { CANCEL_EXIT_CODE, CANCEL_MESSAGE, createProgress } from "./ui/progress";
+import { printShadowedWarnings } from "./ui/shadowed";
 import { icons } from "./ui/symbols";
 import { renderTable } from "./ui/table";
-import { applyUpdates } from "./ui/update";
+import { applyUpdates, type UpdateTarget } from "./ui/update";
 import { helpText, parseArgs } from "./utils/args";
 
 const VERSION = pkg.version;
+
+interface ScanResult {
+  results: ToolScan[];
+  detections: Detection[];
+}
 
 function exitCancelled(): never {
   cancel(CANCEL_MESSAGE);
@@ -19,6 +25,9 @@ function exitCancelled(): never {
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** CI semantics for --check: 0 = all current, 1 = updates exist. */
+const checkExitCode = (summary: ScanSummary) => (summary.outdated > 0 ? 1 : 0);
 
 function scanVerdict({ outdated, upToDate, unknown }: ScanSummary): string {
   const unchecked = unknown > 0 ? pc.gray(`, ${unknown} could not be checked`) : "";
@@ -29,28 +38,30 @@ function scanVerdict({ outdated, upToDate, unknown }: ScanSummary): string {
   return pc.green(`Everything is up-to-date (${upToDate})`);
 }
 
-async function scan(): Promise<ToolScan[]> {
+async function scan(): Promise<ScanResult> {
   prefetchLatest(registry);
-  return resolveLatest(await detectAll(registry));
+  const detections = await detectAll(registry);
+  return { results: await resolveLatest(detections), detections };
 }
 
 async function runJson(): Promise<number> {
-  const results = await scan();
+  const { results } = await scan();
+  const summary = summarize(results);
   const report = {
     tool: "ccl-aut",
     version: VERSION,
     generatedAt: new Date().toISOString(),
     platform: process.platform,
     node: process.version,
-    summary: summarize(results),
+    summary,
     tools: results,
   };
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   return 0;
 }
 
-/** Banner + two progress phases + table. Shared by --check and the interactive flow. */
-async function scanWithProgress(): Promise<ToolScan[]> {
+/** Banner + two progress phases + table + warnings. Shared by --check and the interactive flow. */
+async function scanWithProgress(): Promise<ScanResult> {
   printBanner(VERSION);
   intro(pc.inverse(" Scan "));
   prefetchLatest(registry);
@@ -58,7 +69,7 @@ async function scanWithProgress(): Promise<ToolScan[]> {
   const progress = createProgress();
   progress.start("Scanning for installed CLIs...");
   const detections = await detectAll(registry);
-  const found = detections.filter((d) => d.installMethod).length;
+  const found = detections.filter((d) => d.instances.length > 0).length;
   progress.stop(`Found ${found} of ${detections.length} supported CLIs`);
 
   progress.start("Checking latest versions...");
@@ -66,19 +77,19 @@ async function scanWithProgress(): Promise<ToolScan[]> {
   progress.stop("Latest versions checked");
 
   console.log(`${pc.gray("│")}\n${renderTable(results)}`);
-  return results;
+  printShadowedWarnings(results, new Map(registry.map((t) => [t.id, t.npmPackage])));
+  return { results, detections };
 }
 
 async function runCheck(): Promise<number> {
-  const results = await scanWithProgress();
+  const { results } = await scanWithProgress();
   const summary = summarize(results);
   outro(scanVerdict(summary));
-  // CI semantics: 0 = all current, 1 = updates exist.
-  return summary.outdated > 0 ? 1 : 0;
+  return checkExitCode(summary);
 }
 
 async function runInteractive(): Promise<number> {
-  const results = await scanWithProgress();
+  const { results, detections } = await scanWithProgress();
   const summary = summarize(results);
   const outdated = results.filter((r) => r.state === "outdated" && r.plan);
 
@@ -103,15 +114,19 @@ async function runInteractive(): Promise<number> {
   });
   if (isCancel(picked)) exitCancelled();
 
-  const selected = outdated.filter((r) => picked.includes(r.id));
-  if (selected.length === 0) {
+  const targets: UpdateTarget[] = [];
+  for (const scan of outdated) {
+    const detection = detections.find((d) => d.tool.id === scan.id);
+    const instance = detection?.instances[0];
+    if (picked.includes(scan.id) && detection && instance) targets.push({ scan, tool: detection.tool, instance });
+  }
+  if (targets.length === 0) {
     outro(pc.dim("Nothing selected — no changes made."));
     return 0;
   }
 
-  const descriptors = new Map(registry.map((t) => [t.id, t]));
   process.off("SIGINT", exitCancelled); // applyUpdates handles Ctrl+C from here on
-  const outcome = await applyUpdates(selected, descriptors);
+  const outcome = await applyUpdates(targets);
 
   const parts = [
     pc.green(`${outcome.updated} updated`),

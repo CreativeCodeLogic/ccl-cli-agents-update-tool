@@ -11,12 +11,13 @@ export const firebase = createNpmPackageTool({
   binNames: ["firebase"],
   pkg: "firebase-tools",
   // Anything not under npm is almost certainly the standalone binary.
-  refineMethod: (method) => (method === "unknown" ? "native" : method),
-  manualPlans: {
-    native: {
-      kind: "manual",
-      command: standaloneCommand,
-      reason: "Standalone Firebase binary; it is replaced by re-running the installer.",
-    },
-  },
+  refineInstallMethod: (method) => (method === "unknown" ? "native" : method),
+  otherPlan: (instance) =>
+    instance.installMethod === "native"
+      ? {
+          kind: "manual",
+          command: standaloneCommand,
+          reason: "Standalone Firebase binary; it is replaced by re-running the installer.",
+        }
+      : null,
 });

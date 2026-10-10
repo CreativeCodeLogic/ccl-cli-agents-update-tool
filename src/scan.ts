@@ -1,8 +1,10 @@
-import type { InstallMethod, ToolDescriptor, ToolScan } from "./types";
+import type { BinaryInstance, ToolDescriptor, ToolScan, UpdatePlan } from "./types";
+import { classifyInstall } from "./utils/installMethod";
 import { compareVersions } from "./utils/version";
+import { findAllExecutables, safeRealpath } from "./utils/which";
 
 /** Descriptors promise never to reject; this enforces it anyway. */
-async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+async function safe<T>(fn: () => T | Promise<T>, fallback: T): Promise<T> {
   try {
     return await fn();
   } catch {
@@ -10,62 +12,70 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   }
 }
 
+export interface DetectedInstance extends BinaryInstance {
+  version: string | null;
+}
+
 export interface Detection {
   tool: ToolDescriptor;
-  binaryPath: string | null;
-  installMethod: InstallMethod | null;
-  installedVersion: string | null;
+  /** Every copy on PATH, in PATH order: [0] runs, the rest are shadowed. */
+  instances: DetectedInstance[];
+}
+
+async function detectInstance(tool: ToolDescriptor, binPath: string): Promise<DetectedInstance> {
+  const realPath = safeRealpath(binPath);
+  const generic = await safe(() => classifyInstall(binPath, realPath), "unknown" as const);
+  const installMethod = tool.refineInstallMethod
+    ? await safe(() => tool.refineInstallMethod!(generic, { path: binPath, realPath }), generic)
+    : generic;
+  const instance: BinaryInstance = { path: binPath, realPath, installMethod };
+  const version = await safe(() => tool.getInstalledVersion(instance), null);
+  return { ...instance, version };
 }
 
 /**
  * Kick off latest-version lookups early so network latency overlaps with
- * local detection. Descriptors cache their lookups, so resolveLatest()
- * picks up these same in-flight requests.
+ * local detection. Lookups are cached, so resolveLatest() picks up these
+ * same in-flight requests.
  */
 export function prefetchLatest(tools: readonly ToolDescriptor[]): void {
   for (const tool of tools) void safe(() => tool.getLatestVersion(), null);
 }
 
-/** Phase 1: locate every tool and read its installed version, in parallel. */
+/** Phase 1: find every copy of every tool and read its version, in parallel. */
 export function detectAll(tools: readonly ToolDescriptor[]): Promise<Detection[]> {
   return Promise.all(
-    tools.map(async (tool) => {
-      const installMethod = await safe(() => tool.detectInstallMethod(), null);
-      if (!installMethod) return { tool, binaryPath: null, installMethod: null, installedVersion: null };
-      const [binaryPath, installedVersion] = await Promise.all([
-        safe(() => tool.getBinaryPath(), null),
-        safe(() => tool.getInstalledVersion(), null),
-      ]);
-      return { tool, binaryPath, installMethod, installedVersion };
-    }),
+    tools.map(async (tool) => ({
+      tool,
+      instances: await Promise.all(findAllExecutables(tool.binNames).map((p) => detectInstance(tool, p))),
+    })),
   );
 }
 
-/** Phase 2: fetch latest versions in parallel and derive state + update plan. */
+/** Phase 2: latest versions + state + update plan for the copy that runs. */
 export function resolveLatest(detections: readonly Detection[]): Promise<ToolScan[]> {
   return Promise.all(
-    detections.map(async ({ tool, binaryPath, installMethod, installedVersion }) => {
-      const latestVersion = await safe(() => tool.getLatestVersion(), null);
-      const installed = installMethod !== null;
-      let plan = null;
-      if (installed) {
-        try {
-          plan = tool.getUpdatePlan(installMethod);
-        } catch {
-          plan = null;
-        }
+    detections.map(async ({ tool, instances }): Promise<ToolScan> => {
+      const [active, ...others] = instances;
+      const rest: DetectedInstance[] = [];
+      for (const other of others) {
+        const delegated = active && tool.runsThrough ? await safe(() => tool.runsThrough!(active, other), false) : false;
+        if (!delegated) rest.push(other);
       }
+      const latestVersion = await safe(() => tool.getLatestVersion(active?.installMethod), null);
+      const plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
       return {
         id: tool.id,
         name: tool.name,
-        installed,
-        installMethod,
-        binaryPath,
-        installedVersion,
+        installed: Boolean(active),
+        installMethod: active?.installMethod ?? null,
+        binaryPath: active?.path ?? null,
+        installedVersion: active?.version ?? null,
         latestVersion,
-        state: installed ? compareVersions(installedVersion, latestVersion) : "not-installed",
+        state: active ? compareVersions(active.version, latestVersion) : "not-installed",
         plan,
-      } satisfies ToolScan;
+        shadowed: rest.map((i) => ({ path: i.path, installMethod: i.installMethod, version: i.version })),
+      };
     }),
   );
 }
@@ -76,6 +86,7 @@ export interface ScanSummary {
   outdated: number;
   notInstalled: number;
   unknown: number;
+  shadowed: number;
 }
 
 export function summarize(results: readonly ToolScan[]): ScanSummary {
@@ -86,5 +97,6 @@ export function summarize(results: readonly ToolScan[]): ScanSummary {
     outdated: count("outdated"),
     notInstalled: count("not-installed"),
     unknown: count("unknown"),
+    shadowed: results.filter((r) => r.shadowed.length > 0).length,
   };
 }

@@ -1,6 +1,6 @@
-import type { InstallMethod, ToolDescriptor, UpdatePlan } from "../types";
-import { fetchLatestNpmVersion, readGlobalPackageVersion } from "../utils/npm";
-import { createLocator, versionFromCommand } from "./shared";
+import type { BinaryInstance, InstallMethod, ToolDescriptor, UpdatePlan } from "../types";
+import { fetchLatestNpmVersion, readPackageVersionNear } from "../utils/npm";
+import { npmGlobalPlan, versionFromCommand } from "./shared";
 
 export interface NpmPackageToolConfig {
   id: string;
@@ -8,46 +8,44 @@ export interface NpmPackageToolConfig {
   binNames: string[];
   /** npm package that ships the CLI; also the source of "latest". */
   pkg: string;
-  /** Refine the generic path-based method (e.g. map "unknown" to "native"). */
-  refineMethod?: (method: InstallMethod, binPath: string) => InstallMethod;
-  /** Plans for non-npm installs; falls back to a generic manual plan. */
-  manualPlans?: Partial<Record<InstallMethod, UpdatePlan>>;
+  refineInstallMethod?: ToolDescriptor["refineInstallMethod"];
+  /** Plans for installs npm doesn't manage (self-updaters, brew, ...); null = generic manual plan. */
+  otherPlan?: (instance: BinaryInstance) => UpdatePlan | null;
 }
 
-/** Descriptor for a CLI distributed as an npm package. Only npm installs get an "auto" plan. */
-export function createNpmPackageTool(config: NpmPackageToolConfig): ToolDescriptor {
-  const locator = createLocator(config.binNames, config.refineMethod);
+function genericPlan(pkg: string, method: InstallMethod): UpdatePlan {
+  return {
+    kind: "manual",
+    command: `npm install -g ${pkg}@latest`,
+    reason: `Not a global npm install (${method}); update it with the tool you installed it with, or use this to switch to npm.`,
+  };
+}
 
+/** Descriptor for a CLI distributed as an npm package. */
+export function createNpmPackageTool(config: NpmPackageToolConfig): ToolDescriptor {
+  const { pkg } = config;
   return {
     id: config.id,
     name: config.name,
     binNames: config.binNames,
-    getBinaryPath: () => locator.binaryPath(),
-    detectInstallMethod: () => locator.installMethod(),
+    npmPackage: pkg,
+    ...(config.refineInstallMethod && { refineInstallMethod: config.refineInstallMethod }),
 
-    async getInstalledVersion() {
-      const method = await locator.installMethod();
-      if (!method) return null;
-      // Reading package.json is fast and exact; fall back to running the binary.
-      if (method === "npm") {
-        const fromPkg = await readGlobalPackageVersion(config.pkg);
-        if (fromPkg) return fromPkg;
-      }
-      return versionFromCommand(await locator.binaryPath());
+    // package.json is fast and exact; fall back to running the binary.
+    async getInstalledVersion(instance) {
+      return (
+        (await readPackageVersionNear(instance.path, instance.realPath, pkg)) ??
+        versionFromCommand(instance.path)
+      );
     },
 
-    getLatestVersion: () => fetchLatestNpmVersion(config.pkg),
+    getLatestVersion: () => fetchLatestNpmVersion(pkg),
 
-    getUpdatePlan(method) {
-      if (method === "npm") {
-        return { kind: "auto", command: ["npm", "install", "-g", `${config.pkg}@latest`] };
-      }
+    async getUpdatePlan(instance) {
       return (
-        config.manualPlans?.[method] ?? {
-          kind: "manual",
-          command: `npm install -g ${config.pkg}@latest`,
-          reason: `Not a global npm install (${method}); update it with the tool you installed it with, or use this to switch to npm.`,
-        }
+        (await npmGlobalPlan(instance, pkg)) ??
+        config.otherPlan?.(instance) ??
+        genericPlan(pkg, instance.installMethod)
       );
     },
   };

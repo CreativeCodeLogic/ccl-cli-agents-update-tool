@@ -17,7 +17,7 @@ export function renderTable(results: readonly ToolScan[]): string {
       r.installedVersion ?? pc.dim(r.installed ? "?" : "—"),
       r.latestVersion ?? pc.dim("—"),
       style.label,
-      pc.dim(r.installMethod ?? ""),
+      pc.dim(`${r.installMethod ?? ""}${r.shadowed.length > 0 ? ` +${r.shadowed.length} hidden` : ""}`),
     ];
   });
 

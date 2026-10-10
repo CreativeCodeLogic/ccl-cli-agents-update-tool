@@ -24,3 +24,11 @@ export function compareVersions(installed: string | null, latest: string | null)
   if (!a || !b) return "unknown";
   return semver.lt(a, b) ? "outdated" : "up-to-date";
 }
+
+/** True when two version strings denote the same release. */
+export function sameVersion(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  const x = normalize(a);
+  const y = normalize(b);
+  return x && y ? semver.eq(x, y) : a === b;
+}

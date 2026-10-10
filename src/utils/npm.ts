@@ -1,11 +1,9 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { debug } from "./debug";
 import { exec } from "./exec";
-
-const REGISTRY = "https://registry.npmjs.org";
-const FETCH_TIMEOUT_MS = 5_000;
-const FETCH_ATTEMPTS = 2;
+import { fetchJson, stringField } from "./http";
+import { isInside, samePath } from "./paths";
 
 export interface NpmGlobalPaths {
   /** Global prefix: bins live here on Windows, in <prefix>/bin elsewhere. */
@@ -16,7 +14,7 @@ export interface NpmGlobalPaths {
 
 let globalPaths: Promise<NpmGlobalPaths | null> | undefined;
 
-/** `npm prefix -g` + `npm root -g`, resolved once per run. */
+/** `npm prefix -g` + `npm root -g` of the npm on PATH, resolved once per run. */
 export function getNpmGlobalPaths(): Promise<NpmGlobalPaths | null> {
   globalPaths ??= (async () => {
     const [prefix, root] = await Promise.all([
@@ -31,50 +29,51 @@ export function getNpmGlobalPaths(): Promise<NpmGlobalPaths | null> {
   return globalPaths;
 }
 
-/** Version from <npm root -g>/<pkg>/package.json, or null. */
-export async function readGlobalPackageVersion(pkg: string): Promise<string | null> {
-  const paths = await getNpmGlobalPaths();
-  if (!paths) return null;
+/**
+ * True if this executable belongs to the global prefix of the npm on PATH,
+ * i.e. `npm install -g` would actually replace it.
+ */
+export async function isInCurrentNpmGlobal(binPath: string, realPath: string): Promise<boolean> {
+  const npm = await getNpmGlobalPaths();
+  if (!npm) return false;
+  if (isInside(realPath, npm.root)) return true;
+  // Windows shims are plain files in the prefix, not symlinks.
+  return process.platform === "win32" && samePath(path.dirname(binPath), npm.prefix);
+}
+
+async function readVersionIfNamed(pkgJson: string, pkg: string): Promise<string | null> {
   try {
-    const raw = await readFile(path.join(paths.root, ...pkg.split("/"), "package.json"), "utf8");
-    const version: unknown = (JSON.parse(raw) as { version?: unknown }).version;
-    return typeof version === "string" ? version : null;
+    const json: unknown = JSON.parse(await readFile(pkgJson, "utf8"));
+    return stringField(json, "name") === pkg ? stringField(json, "version") : null;
   } catch {
     return null;
   }
 }
 
-async function fetchLatestOnce(pkg: string): Promise<string | null> {
-  const res = await fetch(`${REGISTRY}/${pkg}/latest`, {
-    headers: { accept: "application/json" },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const body = (await res.json()) as { version?: unknown };
-  return typeof body.version === "string" ? body.version : null;
+/**
+ * Version of `pkg` that backs this executable, read from package.json:
+ * - next to a Windows shim: <dir>/node_modules/<pkg>/package.json
+ * - above a POSIX symlink target: walk up from the real path.
+ * Works for any prefix (nvm, volta, ...), not just the current global one.
+ */
+export async function readPackageVersionNear(binPath: string, realPath: string, pkg: string): Promise<string | null> {
+  const candidates = [path.join(path.dirname(binPath), "node_modules", ...pkg.split("/"), "package.json")];
+  let dir = path.dirname(realPath);
+  for (let i = 0; i < 5; i++) {
+    candidates.push(path.join(dir, "package.json"));
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  for (const file of candidates) {
+    if (!existsSync(file)) continue;
+    const version = await readVersionIfNamed(file, pkg);
+    if (version) return version;
+  }
+  return null;
 }
 
-const latestCache = new Map<string, Promise<string | null>>();
-
-/**
- * Latest published version from the npm registry: 5s timeout per attempt,
- * one retry (cold DNS/TLS to the registry can approach the timeout).
- * Cached per run; null on failure.
- */
-export function fetchLatestNpmVersion(pkg: string): Promise<string | null> {
-  let pending = latestCache.get(pkg);
-  if (!pending) {
-    pending = (async () => {
-      for (let attempt = 1; attempt <= FETCH_ATTEMPTS; attempt++) {
-        try {
-          return await fetchLatestOnce(pkg);
-        } catch (error) {
-          debug(`registry lookup for ${pkg} failed (attempt ${attempt}): ${String(error)}`);
-        }
-      }
-      return null;
-    })();
-    latestCache.set(pkg, pending);
-  }
-  return pending;
+/** Latest version published to the npm registry, or null. */
+export async function fetchLatestNpmVersion(pkg: string): Promise<string | null> {
+  return stringField(await fetchJson(`https://registry.npmjs.org/${pkg}/latest`), "version");
 }
