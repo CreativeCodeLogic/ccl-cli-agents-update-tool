@@ -1,4 +1,4 @@
-import type { BinaryInstance, InstallMethod, ToolDescriptor, ToolScan, UpdatePlan } from "./types";
+import type { BinaryInstance, InstallMethod, ToolDescriptor, ToolScan, ToolState, UpdatePlan } from "./types";
 import type { VersionCache } from "./utils/cache";
 import { getHost, type Host } from "./utils/host";
 import { classifyInstall } from "./utils/installMethod";
@@ -95,6 +95,24 @@ export function detectAll(tools: readonly ToolDescriptor[], host: Host = getHost
   );
 }
 
+/**
+ * State shown for a tool. Deprecated tools are "retired" whatever their version;
+ * self-updating tools without a public latest version are "self-updating", not "unknown".
+ */
+export function deriveState(
+  tool: Pick<ToolDescriptor, "deprecation" | "selfUpdating">,
+  installedVersion: string | null | undefined,
+  latestVersion: string | null,
+  installed: boolean,
+): { state: ToolState; updateAvailable: boolean } {
+  if (!installed) return { state: "not-installed", updateAvailable: false };
+  const compared = compareVersions(installedVersion ?? null, latestVersion);
+  const updateAvailable = compared === "outdated";
+  if (tool.deprecation) return { state: "retired", updateAvailable };
+  if (compared === "unknown" && latestVersion === null && tool.selfUpdating) return { state: "self-updating", updateAvailable };
+  return { state: compared, updateAvailable };
+}
+
 /** Phase 2: latest versions + state + update plan for the copy that runs. */
 export function resolveLatest(detections: readonly Detection[], latest: LatestResolver): Promise<ToolScan[]> {
   return Promise.all(
@@ -107,17 +125,21 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
       }
       const latestVersion = await latest.get(tool, active?.installMethod);
       const plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
+      const { state, updateAvailable } = deriveState(tool, active?.version, latestVersion, Boolean(active));
       return {
         id: tool.id,
         name: tool.name,
+        shortName: tool.shortName ?? tool.name,
         installed: Boolean(active),
         installMethod: active?.installMethod ?? null,
         binaryPath: active?.path ?? null,
         installedVersion: active?.version ?? null,
         latestVersion,
-        state: active ? compareVersions(active.version, latestVersion) : "not-installed",
+        state,
+        updateAvailable,
         plan,
         shadowed: rest.map((i) => ({ path: i.path, installMethod: i.installMethod, version: i.version })),
+        deprecation: tool.deprecation ?? null,
       };
     }),
   );
@@ -129,6 +151,8 @@ export interface ScanSummary {
   outdated: number;
   notInstalled: number;
   unknown: number;
+  retired: number;
+  selfUpdating: number;
   shadowed: number;
 }
 
@@ -140,6 +164,8 @@ export function summarize(results: readonly ToolScan[]): ScanSummary {
     outdated: count("outdated"),
     notInstalled: count("not-installed"),
     unknown: count("unknown"),
+    retired: count("retired"),
+    selfUpdating: count("self-updating"),
     shadowed: results.filter((r) => r.shadowed.length > 0).length,
   };
 }

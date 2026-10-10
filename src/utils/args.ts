@@ -2,6 +2,10 @@ export interface CliOptions {
   check: boolean;
   json: boolean;
   refresh: boolean;
+  showAll: boolean;
+  resetSelection: boolean;
+  /** Non-interactive: update what would be preselected, no prompts. */
+  yes: boolean;
   /** Hidden: fixture data, no real detection/network/processes (README GIF, docs). */
   demo: boolean;
   help: boolean;
@@ -12,7 +16,17 @@ export type ParseResult = { ok: true; options: CliOptions } | { ok: false; error
 
 /** Minimal flag parser: the CLI only has boolean switches. */
 export function parseArgs(argv: readonly string[]): ParseResult {
-  const options: CliOptions = { check: false, json: false, refresh: false, demo: false, help: false, version: false };
+  const options: CliOptions = {
+    check: false,
+    json: false,
+    refresh: false,
+    showAll: false,
+    resetSelection: false,
+    yes: false,
+    demo: false,
+    help: false,
+    version: false,
+  };
   for (const arg of argv) {
     switch (arg) {
       case "--check":
@@ -23,6 +37,16 @@ export function parseArgs(argv: readonly string[]): ParseResult {
         break;
       case "--refresh":
         options.refresh = true;
+        break;
+      case "--show-all":
+        options.showAll = true;
+        break;
+      case "--reset-selection":
+        options.resetSelection = true;
+        break;
+      case "-y":
+      case "--yes":
+        options.yes = true;
         break;
       case "--demo": // intentionally not listed in --help
         options.demo = true;
@@ -58,6 +82,11 @@ Options:
   --json         Print the scan result as JSON (no banner, no colors).
                  Combined with --check, the exit code follows --check.
   --refresh      Ignore cached latest versions (cached for 1 hour) and look them up again.
+  --show-all     Also list tools that are not installed.
+  -y, --yes      Don't ask: update the tools that would be preselected (your remembered
+                 choices, else every outdated tool that isn't retired or self-updating).
+  --reset-selection
+                 Forget the selection remembered from previous runs, then run normally.
   --no-color     Disable colors.
   -v, --version  Print the version.
   -h, --help     Show this help.

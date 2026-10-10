@@ -14,6 +14,8 @@ const NODE_BUNDLED = new Set(["npm", "npx", "corepack"]);
 /** Homebrew-managed packages live in Cellar (formulae) or Caskroom (casks); a bare Homebrew prefix is not enough. */
 const BREW_SEGMENTS = new Set(["cellar", "caskroom"]);
 const PIP_SEGMENTS = ["/site-packages/", "/pipx/", "/uv/tools/"];
+/** bin directories that only Homebrew populates (Intel /usr/local/bin is shared, so it needs the Cellar check). */
+const HOMEBREW_BIN_DIRS = new Set(["/opt/homebrew/bin", "/home/linuxbrew/.linuxbrew/bin"]);
 
 function segments(p: string): string[] {
   return p.toLowerCase().split("/");
@@ -68,7 +70,13 @@ export function classifyInstall(binPath: string, realPath: string, ctx: Classify
 
   const binDir = path.dirname(binPath);
   const name = path.parse(binPath).name.toLowerCase();
-  if (NODE_BUNDLED.has(name) && host.fs.exists(path.join(binDir, isWindows ? "node.exe" : "node"))) return "node";
+  const siblingNode = path.join(binDir, isWindows ? "node.exe" : "node");
+  if (NODE_BUNDLED.has(name) && host.fs.exists(siblingNode)) {
+    // npm that ships with Homebrew's Node is upgraded with `brew upgrade node`.
+    const nodeReal = normalizePath(host.fs.realpath(siblingNode), platform);
+    const brewNode = segments(nodeReal).some((s) => BREW_SEGMENTS.has(s)) || HOMEBREW_BIN_DIRS.has(normalizePath(binDir, platform));
+    return brewNode ? "brew" : "node";
+  }
 
   // POSIX global bins are symlinks into the root; Windows uses shims in the prefix.
   // (Matching /usr/bin by directory alone would mislabel apt packages.)

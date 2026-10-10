@@ -28,6 +28,8 @@ export interface UpdateOutcome {
   unchanged: number;
   /** Command succeeded, version unchanged for an expected reason (staged rollout). */
   held: number;
+  /** A self-updating tool's own updater ran and it was already current. */
+  current: number;
   failed: number;
   manual: number;
   /** Ctrl+C was pressed during an update; remaining tools were skipped. */
@@ -67,7 +69,7 @@ export async function applyUpdates(
   cache: VersionCache | null = null,
   executor: UpdateExecutor = runForReal,
 ): Promise<UpdateOutcome> {
-  const outcome: UpdateOutcome = { updated: 0, unchanged: 0, held: 0, failed: 0, manual: 0, interrupted: false };
+  const outcome: UpdateOutcome = { updated: 0, unchanged: 0, held: 0, current: 0, failed: 0, manual: 0, interrupted: false };
 
   // The running child gets Ctrl+C too and cleans up after itself; we just
   // stop before the next tool instead of exiting mid-install.
@@ -110,6 +112,11 @@ export async function applyUpdates(
       if (after && !sameVersion(before, after)) {
         outcome.updated++;
         log.success(`${scan.name} ${pc.dim(before ?? "?")} ${icons.arrow} ${pc.green(after)}`);
+        continue;
+      }
+      if (scan.state === "self-updating" && after) {
+        outcome.current++;
+        log.success(`${scan.name} is current (${after})`);
         continue;
       }
       const explained = tool.explainUnchanged?.(instance) ?? null;

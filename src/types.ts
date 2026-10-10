@@ -1,5 +1,28 @@
 /** How a CLI was installed. "node" = npm bundled with a Node.js install. */
-export type InstallMethod = "npm" | "native" | "node" | "brew" | "pip" | "apt" | "snap" | "unknown";
+export type InstallMethod =
+  | "npm"
+  | "native"
+  | "node"
+  | "brew"
+  | "pip"
+  | "apt"
+  | "snap"
+  | "winget"
+  | "choco"
+  | "scoop"
+  | "unknown";
+
+/** A tool that still works for some users but has been retired or replaced. */
+export interface Deprecation {
+  /** One line, shown after the table, e.g. "retired for consumer accounts since Jun 2026 -> use ...". */
+  message: string;
+  /** Registry id of the replacement, if any. */
+  successorId?: string;
+  /** ISO date the deprecation took effect. */
+  since?: string;
+  /** Official announcement. */
+  url?: string;
+}
 
 /**
  * What to do to update a tool.
@@ -25,8 +48,18 @@ export interface ToolDescriptor {
   name: string;
   /** Executable names to look for on PATH (extensions are resolved per platform). */
   binNames: string[];
+  /** Short name for compact lists (defaults to `name`). */
+  shortName?: string;
   /** npm package that ships this CLI, if any (used in messages). */
   npmPackage?: string;
+  /** Retired/replaced: shown as "retired" and never preselected for updates. */
+  deprecation?: Deprecation;
+  /**
+   * The tool updates itself and has no public latest-version source: an unknown
+   * latest version is shown as "updates itself" (not "unknown"), and its own
+   * update command is offered unticked.
+   */
+  selfUpdating?: boolean;
   /** Adjust the generic, path-based install method for this tool. */
   refineInstallMethod?(
     generic: InstallMethod,
@@ -50,7 +83,15 @@ export interface ToolDescriptor {
   explainUnchanged?(instance: BinaryInstance): { status: "held"; message: string } | null;
 }
 
-export type ToolState = "up-to-date" | "outdated" | "not-installed" | "unknown";
+export type ToolState =
+  | "up-to-date"
+  | "outdated"
+  | "not-installed"
+  | "unknown"
+  /** Deprecated tool (see ToolScan.deprecation); `updateAvailable` still says if a newer build exists. */
+  | "retired"
+  /** No public latest version; the tool keeps itself current. */
+  | "self-updating";
 
 /** A copy of the tool that is installed but never runs because an earlier PATH entry wins. */
 export interface ShadowedInstall {
@@ -63,12 +104,16 @@ export interface ShadowedInstall {
 export interface ToolScan {
   id: string;
   name: string;
+  shortName: string;
   installed: boolean;
   installMethod: InstallMethod | null;
   binaryPath: string | null;
   installedVersion: string | null;
   latestVersion: string | null;
   state: ToolState;
+  /** A newer version is known (true for "outdated", and for "retired" tools that are behind). */
+  updateAvailable: boolean;
   plan: UpdatePlan | null;
   shadowed: ShadowedInstall[];
+  deprecation: Deprecation | null;
 }

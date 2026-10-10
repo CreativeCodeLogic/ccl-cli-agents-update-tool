@@ -1,6 +1,7 @@
 import { cancel, confirm, intro, isCancel, log, multiselect, outro } from "@clack/prompts";
 import pc from "picocolors";
 import pkg from "../package.json" with { type: "json" };
+import { createDemoRuntime } from "./demo/runtime";
 import { registry } from "./registry";
 import {
   detectAll,
@@ -11,16 +12,16 @@ import {
   type Detection,
   type ScanSummary,
 } from "./scan";
-import { createDemoRuntime } from "./demo/runtime";
+import { initialSelection, isOffered, recordSelection, type SelectionStore } from "./selection";
 import type { ToolDescriptor, ToolScan } from "./types";
 import { printBanner } from "./ui/banner";
 import { CANCEL_EXIT_CODE, CANCEL_MESSAGE, createProgress } from "./ui/progress";
-import { printShadowedWarnings } from "./ui/shadowed";
 import { icons } from "./ui/symbols";
-import { renderTable } from "./ui/table";
+import { printNotes, renderTable } from "./ui/table";
 import { applyUpdates, type UpdateExecutor, type UpdateTarget } from "./ui/update";
 import { helpText, parseArgs, type CliOptions } from "./utils/args";
 import { VersionCache } from "./utils/cache";
+import { UserConfig } from "./utils/config";
 import { getHost, type Host } from "./utils/host";
 
 const VERSION = pkg.version;
@@ -35,13 +36,20 @@ interface Runtime {
   tools: readonly ToolDescriptor[];
   host: Host;
   latest: LatestResolver;
+  /** Remembered selections (the demo keeps them in memory). */
+  selections: SelectionStore;
   /** Undefined = run update commands for real. */
   executor?: UpdateExecutor;
 }
 
 function createRuntime(options: CliOptions): Runtime {
   if (options.demo) return createDemoRuntime();
-  return { tools: registry, host: getHost(), latest: new LatestResolver(VersionCache.load(), options.refresh) };
+  return {
+    tools: registry,
+    host: getHost(),
+    latest: new LatestResolver(VersionCache.load(), options.refresh),
+    selections: UserConfig.load(),
+  };
 }
 
 function exitCancelled(): never {
@@ -54,12 +62,19 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 /** CI semantics for --check: 0 = all current, 1 = updates exist. */
 const checkExitCode = (summary: ScanSummary) => (summary.outdated > 0 ? 1 : 0);
 
-function scanVerdict({ outdated, upToDate, unknown }: ScanSummary): string {
-  const unchecked = unknown > 0 ? pc.gray(`, ${unknown} could not be checked`) : "";
+function scanVerdict({ outdated, upToDate, unknown, retired, selfUpdating }: ScanSummary): string {
+  const extras = [
+    retired > 0 ? `${retired} retired` : "",
+    selfUpdating > 0 ? `${selfUpdating} updating itself` : "",
+    unknown > 0 ? `${unknown} could not be checked` : "",
+  ]
+    .filter(Boolean)
+    .map((part) => pc.gray(`, ${part}`))
+    .join("");
   if (outdated > 0) {
-    return pc.yellow(`${plural(outdated, "update")} available`) + pc.dim(`, ${upToDate} up-to-date`) + unchecked;
+    return pc.yellow(`${plural(outdated, "update")} available`) + pc.dim(`, ${upToDate} up-to-date`) + extras;
   }
-  if (unknown > 0) return pc.green(`No updates found`) + pc.dim(` (${upToDate} up-to-date`) + unchecked + pc.dim(")");
+  if (extras) return pc.green(`No updates found`) + pc.dim(` (${upToDate} up-to-date`) + extras + pc.dim(")");
   return pc.green(`Everything is up-to-date (${upToDate})`);
 }
 
@@ -79,8 +94,8 @@ async function scan(runtime: Runtime): Promise<ScanResult> {
 
 async function runJson(runtime: Runtime, check: boolean): Promise<number> {
   const { results } = await scan(runtime);
-  const { latest } = runtime;
   const summary = summarize(results);
+  const { latest } = runtime;
   const report = {
     tool: "ccl-caut",
     version: VERSION,
@@ -96,8 +111,8 @@ async function runJson(runtime: Runtime, check: boolean): Promise<number> {
   return check ? checkExitCode(summary) : 0;
 }
 
-/** Banner + two progress phases + table + warnings. Shared by --check and the interactive flow. */
-async function scanWithProgress(runtime: Runtime): Promise<ScanResult> {
+/** Banner + two progress phases + table + notes. Shared by --check and the interactive flow. */
+async function scanWithProgress(runtime: Runtime, showAll: boolean): Promise<ScanResult> {
   const { tools, host, latest } = runtime;
   printBanner(VERSION);
   intro(pc.inverse(" Scan "));
@@ -114,8 +129,8 @@ async function scanWithProgress(runtime: Runtime): Promise<ScanResult> {
   latest.cache?.save();
   progress.stop("Latest versions checked");
 
-  console.log(`${pc.gray("│")}\n${renderTable(results)}`);
-  printShadowedWarnings(results, new Map(tools.map((t) => [t.id, t.npmPackage])));
+  console.log(`${pc.gray("│")}\n${renderTable(results, showAll)}`);
+  printNotes(results, showAll);
   if (latest.oldestCachedAt !== null) {
     const age = formatAge(Date.now() - latest.oldestCachedAt);
     log.message(pc.dim(`Latest versions cached ${age} ago · --refresh to recheck`));
@@ -123,62 +138,83 @@ async function scanWithProgress(runtime: Runtime): Promise<ScanResult> {
   return { results, detections };
 }
 
-async function runCheck(runtime: Runtime): Promise<number> {
-  const { results } = await scanWithProgress(runtime);
+async function runCheck(runtime: Runtime, showAll: boolean): Promise<number> {
+  const { results } = await scanWithProgress(runtime, showAll);
   const summary = summarize(results);
   outro(scanVerdict(summary));
   return checkExitCode(summary);
 }
 
+function optionHint(r: ToolScan): string {
+  if (r.state === "self-updating") return "updates itself: runs its own updater";
+  const kind = r.plan?.kind === "auto" ? "runs automatically" : "manual: command will be shown";
+  return r.state === "retired" ? `retired, opt-in · ${kind}` : kind;
+}
+
+function optionLabel(r: ToolScan): string {
+  const latest = r.state === "self-updating" ? pc.dim("latest") : pc.green(r.latestVersion ?? "?");
+  return `${r.name}  ${pc.dim(r.installedVersion ?? "?")} ${icons.arrow} ${latest}`;
+}
+
 /**
  * Updating Claude Code from inside a Claude Code session: the running session
- * may lock its files (Windows) or keep running the old version. Ask first.
+ * may lock its files (Windows) or keep running the old version. Ask first;
+ * with --yes there is nobody to ask, so it is skipped.
  */
-async function confirmClaudeSelfUpdate(targets: UpdateTarget[]): Promise<UpdateTarget[]> {
+async function guardClaudeSelfUpdate(targets: UpdateTarget[], nonInteractive: boolean): Promise<UpdateTarget[]> {
   const claude = targets.find((t) => t.scan.id === "claude" && t.scan.plan?.kind === "auto");
   if (!claude || !process.env.CLAUDECODE) return targets;
-  log.warn(
-    "ccl-caut is running inside a Claude Code session. Updating Claude Code now may fail " +
-      "because the running session locks its files, or the session may keep using the old version.",
-  );
+  const risk = "the running session locks its files, or the session may keep using the old version";
+  if (nonInteractive) {
+    log.warn(`Skipping Claude Code: ccl-caut is running inside a Claude Code session (${risk}). Run it from another terminal.`);
+    return targets.filter((t) => t !== claude);
+  }
+  log.warn(`ccl-caut is running inside a Claude Code session. Updating Claude Code now may fail because ${risk}.`);
   const ok = await confirm({ message: "Update Claude Code anyway?", initialValue: false });
   if (isCancel(ok)) exitCancelled();
   return ok ? targets : targets.filter((t) => t !== claude);
 }
 
-async function runInteractive(runtime: Runtime): Promise<number> {
-  const { results, detections } = await scanWithProgress(runtime);
+async function runInteractive(runtime: Runtime, options: CliOptions): Promise<number> {
+  const { results, detections } = await scanWithProgress(runtime, options.showAll);
   const summary = summarize(results);
-  const outdated = results.filter((r) => r.state === "outdated" && r.plan);
+  const offered = results.filter(isOffered);
 
-  if (outdated.length === 0) {
+  if (offered.length === 0) {
     outro(scanVerdict(summary));
     return 0;
   }
-  if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    outro(`${scanVerdict(summary)}${pc.dim(". Run in an interactive terminal to apply updates.")}`);
-    return 0;
+
+  const initial = initialSelection(offered, runtime.selections.toolChoices);
+  let picked: string[];
+  if (options.yes) {
+    picked = initial.ids;
+    const names = offered.filter((r) => picked.includes(r.id)).map((r) => r.shortName);
+    log.info(names.length > 0 ? `--yes: updating ${names.join(", ")}` : "--yes: nothing is selected by default");
+  } else {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      outro(`${scanVerdict(summary)}${pc.dim(". Run in an interactive terminal (or with --yes) to apply updates.")}`);
+      return 0;
+    }
+    const hint = initial.remembered ? `\n${pc.dim("Selection remembered from your last run · --reset-selection to clear")}` : "";
+    const answer = await multiselect({
+      message: `Select the CLIs to update${hint}`,
+      options: offered.map((r) => ({ value: r.id, label: optionLabel(r), hint: optionHint(r) })),
+      initialValues: initial.ids,
+      required: false,
+    });
+    if (isCancel(answer)) exitCancelled();
+    picked = answer;
+    runtime.selections.saveChoices(recordSelection(runtime.selections.toolChoices, offered, picked));
   }
 
-  const picked = await multiselect({
-    message: "Select the CLIs to update",
-    options: outdated.map((r) => ({
-      value: r.id,
-      label: `${r.name}  ${pc.dim(r.installedVersion ?? "?")} ${icons.arrow} ${pc.green(r.latestVersion ?? "?")}`,
-      hint: r.plan?.kind === "auto" ? "runs automatically" : "manual: command will be shown",
-    })),
-    initialValues: outdated.map((r) => r.id),
-    required: false,
-  });
-  if (isCancel(picked)) exitCancelled();
-
   let targets: UpdateTarget[] = [];
-  for (const scan of outdated) {
+  for (const scan of offered) {
     const detection = detections.find((d) => d.tool.id === scan.id);
     const instance = detection?.instances[0];
     if (picked.includes(scan.id) && detection && instance) targets.push({ scan, tool: detection.tool, instance });
   }
-  targets = await confirmClaudeSelfUpdate(targets);
+  targets = await guardClaudeSelfUpdate(targets, options.yes);
   if (targets.length === 0) {
     outro(pc.dim("Nothing selected — no changes made."));
     return 0;
@@ -192,6 +228,7 @@ async function runInteractive(runtime: Runtime): Promise<number> {
     pc.cyan(`${outcome.manual} manual`),
     pc.dim(`${summary.upToDate} up-to-date`),
   ];
+  if (outcome.current > 0) parts.push(pc.dim(`${outcome.current} already current`));
   if (outcome.held > 0) parts.push(pc.yellow(`${outcome.held} held`));
   if (outcome.unchanged > 0) parts.push(pc.yellow(`${outcome.unchanged} unchanged`));
   if (outcome.failed > 0) parts.push(pc.red(`${outcome.failed} failed`));
@@ -216,13 +253,15 @@ async function main(): Promise<number> {
     process.stdout.write(`${VERSION}\n`);
     return 0;
   }
+
   const runtime = createRuntime(options);
+  if (options.resetSelection) runtime.selections.reset();
   if (options.json) return runJson(runtime, options.check);
-  if (options.check) return runCheck(runtime);
+  if (options.check) return runCheck(runtime, options.showAll);
 
   // Ctrl+C outside a prompt (e.g. during a scan) exits cleanly too.
   process.once("SIGINT", exitCancelled);
-  return runInteractive(runtime);
+  return runInteractive(runtime, options);
 }
 
 main().then(

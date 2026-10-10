@@ -11,6 +11,8 @@ export const icons = {
   arrow: unicodeOr("→", "->"),
   fail: unicodeOr("✖", "x"),
   rule: unicodeOr("─", "-"),
+  retired: unicodeOr("⊘", "x"),
+  selfUpdating: unicodeOr("↻", "~"),
 };
 
 export const stateStyle: Record<ToolState, { icon: string; label: string }> = {
@@ -18,4 +20,6 @@ export const stateStyle: Record<ToolState, { icon: string; label: string }> = {
   outdated: { icon: pc.yellow(icons.update), label: pc.yellow("update available") },
   "not-installed": { icon: pc.dim(icons.missing), label: pc.dim("not installed") },
   unknown: { icon: pc.gray(icons.unknown), label: pc.gray("unknown") },
+  retired: { icon: pc.red(icons.retired), label: pc.red("retired") },
+  "self-updating": { icon: pc.cyan(icons.selfUpdating), label: pc.dim(pc.cyan("updates itself")) },
 };

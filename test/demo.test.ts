@@ -11,7 +11,12 @@ vi.mock("@clack/prompts", async (importOriginal) => ({
   log: { step: vi.fn(), success: vi.fn(), warn: vi.fn(), error: vi.fn(), info: vi.fn(), message: vi.fn() },
 }));
 
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createDemoRuntime, type DemoRuntime } from "../src/demo/runtime";
+import { configDir, UserConfig } from "../src/utils/config";
+import { nodeFs, type Host } from "../src/utils/host";
 import { detectAll, resolveLatest } from "../src/scan";
 import { applyUpdates, type UpdateTarget } from "../src/ui/update";
 import { exec, execTee } from "../src/utils/exec";
@@ -48,6 +53,27 @@ describe("--demo", () => {
     expect(await fetchJson("https://registry.npmjs.org/npm/latest")).toBeNull();
     expect(spawnSpy).not.toHaveBeenCalled();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("never reads or writes the user's config file", () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "ccl-caut-demo-config-"));
+    try {
+      const host: Host = { platform: process.platform, homedir: dir, env: { APPDATA: dir, XDG_CONFIG_HOME: dir }, fs: nodeFs };
+      const file = path.join(configDir(host)!, "config.json");
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, JSON.stringify({ schema: 1, tools: { codex: "skip" } }));
+      const config = UserConfig.load(host);
+      expect(config.toolChoices).toEqual({}); // not read
+      rmSync(file);
+      config.saveChoices({ codex: "update" }, host);
+      expect(existsSync(file)).toBe(false); // not written
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps demo selections in memory, starting with a remembered gcloud skip", () => {
+    expect(runtime.selections.toolChoices).toEqual({ gcloud: "skip" });
   });
 
   it("shows a fixture with every state: updates, up-to-date, not installed, hidden copy, manual plan", async () => {

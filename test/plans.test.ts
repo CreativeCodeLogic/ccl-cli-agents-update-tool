@@ -182,6 +182,14 @@ describe("npm itself", () => {
     expect(global.kind === "manual" && global.reason).toContain("Version managers");
   });
 
+  it("sends Homebrew's npm to `brew upgrade node`", async () => {
+    expect(await npm.getUpdatePlan(instance("/opt/homebrew/bin/npm", "brew"))).toEqual({
+      kind: "manual",
+      command: "brew upgrade node",
+      reason: "npm is bundled with Homebrew's Node.",
+    });
+  });
+
   it("follows Node's Windows npm.cmd delegation to the prefix npm", async () => {
     const home = win("C:/Users/Jane");
     const prefix = win(`${home}/AppData/Roaming/npm`);

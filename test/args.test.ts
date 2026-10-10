@@ -5,15 +5,15 @@ describe("parseArgs", () => {
   it("defaults to the interactive flow", () => {
     expect(parseArgs([])).toEqual({
       ok: true,
-      options: { check: false, json: false, refresh: false, demo: false, help: false, version: false },
+      options: { check: false, json: false, refresh: false, showAll: false, resetSelection: false, yes: false, demo: false, help: false, version: false },
     });
   });
 
   it("parses every flag", () => {
-    const parsed = parseArgs(["--check", "--json", "--refresh", "--demo", "--no-color", "-h", "-v"]);
+    const parsed = parseArgs(["--check", "--json", "--refresh", "--show-all", "--reset-selection", "-y", "--demo", "--no-color", "-h", "-v"]);
     expect(parsed).toEqual({
       ok: true,
-      options: { check: true, json: true, refresh: true, demo: true, help: true, version: true },
+      options: { check: true, json: true, refresh: true, showAll: true, resetSelection: true, yes: true, demo: true, help: true, version: true },
     });
   });
 
@@ -24,7 +24,7 @@ describe("parseArgs", () => {
   it("documents flags and exit codes in --help", () => {
     const text = helpText("1.2.3");
     expect(text).toContain("ccl-caut v1.2.3");
-    for (const flag of ["--check", "--json", "--refresh", "--no-color"]) expect(text).toContain(flag);
+    for (const flag of ["--check", "--json", "--refresh", "--show-all", "--yes", "--reset-selection", "--no-color"]) expect(text).toContain(flag);
     expect(text).toContain("130");
     expect(text).not.toContain("--demo");
   });

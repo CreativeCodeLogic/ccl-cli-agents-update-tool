@@ -62,9 +62,24 @@ describe("classifyInstall (darwin)", () => {
     { name: "Claude native symlink in ~/.local/bin", bin: `${home}/.local/bin/claude`, real: `${home}/.local/share/claude/versions/2.1.296`, expected: "native" },
     { name: "nvm global", bin: `${home}/.nvm/versions/node/v22.11.0/bin/codex`, real: `${home}/.nvm/versions/node/v22.11.0/lib/node_modules/@openai/codex/bin/codex.js`, expected: "npm" },
     { name: "nvm npm next to node", bin: `${home}/.nvm/versions/node/v22.11.0/bin/npm`, files: [`${home}/.nvm/versions/node/v22.11.0/bin/node`], expected: "node" },
+    { name: "npm of Homebrew's Node (Apple silicon prefix)", bin: "/opt/homebrew/bin/npm", real: "/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js", files: ["/opt/homebrew/bin/node"], expected: "brew" },
+    { name: "official Node pkg installer in /usr/local (not Homebrew)", bin: "/usr/local/bin/npm", real: "/usr/local/lib/node_modules/npm/bin/npm-cli.js", files: ["/usr/local/bin/node"], expected: "node" },
     { name: "volta shim", bin: `${home}/.volta/bin/claude`, real: `${home}/.volta/bin/volta-shim`, expected: "npm" },
     { name: "fnm global", bin: `${home}/.local/state/fnm_multishells/123_456/bin/gemini`, real: `${home}/.local/share/fnm/node-versions/v22.11.0/installation/lib/node_modules/@google/gemini-cli/dist/index.js`, expected: "npm" },
   ]);
+});
+
+describe("classifyInstall (darwin, Intel Homebrew npm)", () => {
+  it("detects Homebrew's Node from the sibling node symlink into the Cellar", () => {
+    const host = fakeHost({
+      platform: "darwin",
+      homedir: "/Users/jane",
+      files: ["/usr/local/bin/npm", "/usr/local/bin/node"],
+      links: { "/usr/local/bin/node": "/usr/local/Cellar/node/24.1.0/bin/node" },
+    });
+    const ctx: ClassifyContext = { host, npmGlobal: { prefix: "/usr/local", root: "/usr/local/lib/node_modules" } };
+    expect(classifyInstall("/usr/local/bin/npm", "/usr/local/lib/node_modules/npm/bin/npm-cli.js", ctx)).toBe("brew");
+  });
 });
 
 describe("classifyInstall (linux)", () => {

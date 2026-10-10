@@ -1,5 +1,6 @@
 import { registry } from "../registry";
 import { LatestResolver } from "../scan";
+import type { SelectionStore, ToolChoice } from "../selection";
 import type { BinaryInstance, ToolDescriptor } from "../types";
 import type { UpdateExecutor } from "../ui/update";
 import type { FsProbe, Host } from "../utils/host";
@@ -17,6 +18,8 @@ import { blockSideEffects } from "../utils/sandbox";
  */
 
 const HOME = "/home/dev";
+/** As if the user unticked gcloud last time: shows the "Selection remembered" hint. */
+const DEMO_CHOICES: Record<string, ToolChoice> = { gcloud: "skip" };
 const NPM_GLOBAL = { prefix: "/usr/local", root: "/usr/local/lib/node_modules" };
 
 interface FixtureBinary {
@@ -93,7 +96,24 @@ export interface DemoRuntime {
   tools: ToolDescriptor[];
   host: Host;
   latest: LatestResolver;
+  selections: SelectionStore;
   executor: UpdateExecutor;
+}
+
+/** Remembered selections for the demo: in memory only, never the user's config file. */
+function memorySelections(initial: Record<string, ToolChoice>): SelectionStore {
+  let choices = { ...initial };
+  return {
+    get toolChoices() {
+      return choices;
+    },
+    saveChoices: (next) => {
+      choices = { ...next };
+    },
+    reset: () => {
+      choices = {};
+    },
+  };
 }
 
 const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -131,5 +151,5 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
     return { code: 0, output: lines.join("\n") };
   };
 
-  return { tools, host, latest: new LatestResolver(null), executor };
+  return { tools, host, latest: new LatestResolver(null), selections: memorySelections(DEMO_CHOICES), executor };
 }

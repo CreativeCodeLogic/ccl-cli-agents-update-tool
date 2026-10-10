@@ -47,6 +47,9 @@ export const npm: ToolDescriptor = {
 
   // Never automatic; the reason depends on where this npm came from.
   async getUpdatePlan(instance) {
+    if (instance.installMethod === "brew") {
+      return { kind: "manual", command: "brew upgrade node", reason: "npm is bundled with Homebrew's Node." };
+    }
     return {
       kind: "manual",
       command: "npm install -g npm@latest",
