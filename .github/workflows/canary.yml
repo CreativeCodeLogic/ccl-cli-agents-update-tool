@@ -1,0 +1,45 @@
+name: Canary
+
+# Catches upstream changes (package renames, new bin names, moved installs) by
+# installing the npm-distributed CLIs for real and checking that ccl-caut still
+# detects each one via npm with a parsed version and a resolved latest version.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Copilot and Qwen Code need Node 22+.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Install the npm-distributed CLIs
+        run: |
+          failed=()
+          for pkg in @anthropic-ai/claude-code @openai/codex @github/copilot opencode-ai @google/gemini-cli @qwen-code/qwen-code firebase-tools; do
+            echo "::group::npm install -g $pkg"
+            npm install -g "$pkg" || failed+=("$pkg")
+            echo "::endgroup::"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::npm install failed for: ${failed[*]}"
+            exit 1
+          fi
+
+      - name: Check detection
+        run: |
+          node dist/index.js --json --refresh > scan.json || true
+          node scripts/canary-check.mjs scan.json claude codex copilot opencode gemini qwen firebase
