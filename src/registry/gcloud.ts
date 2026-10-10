@@ -1,33 +1,62 @@
-import type { InstallMethod, ToolDescriptor, UpdatePlan } from "../types";
+import { accessSync, constants, existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import type { BinaryInstance, ToolDescriptor, UpdatePlan } from "../types";
 import { exec } from "../utils/exec";
-import { stringField } from "../utils/http";
+import { fetchJson, stringField } from "../utils/http";
+import { isUnderProgramFiles, normalizePath } from "../utils/paths";
 import { brewPlan } from "./shared";
 
-// STUB: presence + installed version only. Latest-version lookup comes next.
-
-// gcloud boots a Python runtime; give it more time than other CLIs.
+// Release feed of the official SDK; its top-level "version" is the current release.
+const COMPONENTS_URL = "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json";
+// The JSON version command boots Python; only used when the VERSION file is missing.
 const VERSION_TIMEOUT_MS = 20_000;
 
-const NATIVE_PLAN: UpdatePlan = {
-  kind: "manual",
-  command: "gcloud components update",
-  reason: "Google Cloud SDK is managed by its own component manager.",
-};
+/** SDK root (holds VERSION, bin/, lib/) for one gcloud executable. */
+function sdkRoot(instance: BinaryInstance): string | null {
+  const candidates =
+    instance.installMethod === "snap"
+      ? ["/snap/google-cloud-cli/current", "/snap/google-cloud-sdk/current"]
+      : [path.dirname(path.dirname(instance.realPath))]; // <root>/bin/gcloud
+  return candidates.find((root) => existsSync(path.join(root, "VERSION"))) ?? null;
+}
 
-const plans: Partial<Record<InstallMethod, UpdatePlan>> = {
-  native: NATIVE_PLAN,
-  apt: {
-    kind: "manual",
-    command: "sudo apt-get update && sudo apt-get install --only-upgrade google-cloud-cli",
-    reason: "Installed from apt; the component manager is disabled for package-managed installs.",
-  },
-  snap: {
-    kind: "manual",
-    command: "sudo snap refresh google-cloud-cli",
-    reason: "Installed from snap; the component manager is disabled for package-managed installs.",
-  },
-  brew: brewPlan("gcloud-cli", true),
-};
+/** Homebrew cask token from the Caskroom path (the cask was renamed google-cloud-sdk -> gcloud-cli). */
+function caskToken(instance: BinaryInstance): string {
+  const segments = normalizePath(instance.realPath).split("/");
+  const i = segments.indexOf("caskroom");
+  return (i >= 0 && segments[i + 1]) || "gcloud-cli";
+}
+
+function isWritable(dir: string): boolean {
+  try {
+    accessSync(dir, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const PACKAGE_MANAGED = "the component manager is disabled for package-managed installs.";
+
+function nativePlan(instance: BinaryInstance): UpdatePlan {
+  const root = sdkRoot(instance) ?? path.dirname(path.dirname(instance.realPath));
+  if (isUnderProgramFiles(root)) {
+    return {
+      kind: "manual",
+      command: "gcloud components update",
+      reason: "The SDK is under Program Files; run this from an elevated (Administrator) terminal.",
+    };
+  }
+  if (!isWritable(root)) {
+    return {
+      kind: "manual",
+      command: "sudo gcloud components update",
+      reason: `The SDK directory (${root}) is not writable by your user.`,
+    };
+  }
+  return { kind: "auto", command: [instance.path, "components", "update", "--quiet"] };
+}
 
 export const gcloud: ToolDescriptor = {
   id: "gcloud",
@@ -36,8 +65,17 @@ export const gcloud: ToolDescriptor = {
   // Anything that isn't a package-manager install is the official installer/archive.
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),
 
-  // `gcloud --version` is slow; the JSON form is faster and parseable.
+  // Reading <root>/VERSION avoids spawning gcloud (which boots Python, ~5s on Windows).
   async getInstalledVersion(instance) {
+    const root = sdkRoot(instance);
+    if (root) {
+      try {
+        const version = (await readFile(path.join(root, "VERSION"), "utf8")).trim();
+        if (/^\d+\.\d+/.test(version)) return version;
+      } catch {
+        // fall through to the slow path
+      }
+    }
     const res = await exec(instance.path, ["version", "--format=json"], VERSION_TIMEOUT_MS);
     if (!res.ok) return null;
     try {
@@ -47,6 +85,27 @@ export const gcloud: ToolDescriptor = {
     }
   },
 
-  getLatestVersion: async () => null,
-  getUpdatePlan: async (instance) => plans[instance.installMethod] ?? NATIVE_PLAN,
+  getLatestVersion: async () => stringField(await fetchJson(COMPONENTS_URL), "version"),
+
+  // `gcloud components update` must never run on apt/snap/brew installs.
+  async getUpdatePlan(instance) {
+    switch (instance.installMethod) {
+      case "apt":
+        return {
+          kind: "manual",
+          command: "sudo apt-get update && sudo apt-get install --only-upgrade google-cloud-cli",
+          reason: `Installed from apt; ${PACKAGE_MANAGED}`,
+        };
+      case "snap":
+        return {
+          kind: "manual",
+          command: "sudo snap refresh google-cloud-cli",
+          reason: `Installed from snap; ${PACKAGE_MANAGED}`,
+        };
+      case "brew":
+        return brewPlan(caskToken(instance), true);
+      default:
+        return nativePlan(instance);
+    }
+  },
 };
