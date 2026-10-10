@@ -1,8 +1,11 @@
 # Demo GIF for the README, recorded against fixture data (`--demo`):
-# no real detection, network or update commands run.
+# no real detection, network, config or update commands run.
 #
 # Render: npm run build && vhs docs/demo.tape
 # (or the "Demo GIF" workflow, which uploads docs/demo.gif as an artifact)
+#
+# Layout: the checklist needs 44 rows and the finished run 54, so 45 rows keep
+# the banner fully visible at the checklist and fully scrolled off at the end.
 
 Output docs/demo.gif
 
@@ -11,7 +14,7 @@ Require node
 Set Shell "bash"
 Set FontSize 18
 Set Width 1200
-Set Height 1000
+Set Height 1150
 Set Padding 24
 Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful
@@ -29,16 +32,16 @@ Type "ccl-caut --demo"
 Sleep 600ms
 Enter
 
-# Banner, scan, table and the hidden-install warning.
-Sleep 4s
+# Banner, scan, table, notes and the remembered checklist.
+Sleep 4.5s
 
-# Untick Gemini CLI (second item), then confirm.
-Down
-Sleep 700ms
+# Untick Antigravity CLI (4th item), then confirm.
+Down@450ms 3
+Sleep 500ms
 Space
 Sleep 1.2s
 Enter
 
-# Simulated updates, re-checks and the summary.
-Sleep 6.5s
-Sleep 2.5s
+# Simulated updates, re-checks and the summary (the loop point).
+Sleep 4s
+Sleep 3s
