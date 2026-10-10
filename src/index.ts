@@ -1,4 +1,4 @@
-import { cancel, intro, isCancel, multiselect, outro } from "@clack/prompts";
+import { cancel, confirm, intro, isCancel, log, multiselect, outro } from "@clack/prompts";
 import pc from "picocolors";
 import pkg from "../package.json" with { type: "json" };
 import { registry } from "./registry";
@@ -88,6 +88,22 @@ async function runCheck(): Promise<number> {
   return checkExitCode(summary);
 }
 
+/**
+ * Updating Claude Code from inside a Claude Code session: the running session
+ * may lock its files (Windows) or keep running the old version. Ask first.
+ */
+async function confirmClaudeSelfUpdate(targets: UpdateTarget[]): Promise<UpdateTarget[]> {
+  const claude = targets.find((t) => t.scan.id === "claude" && t.scan.plan?.kind === "auto");
+  if (!claude || !process.env.CLAUDECODE) return targets;
+  log.warn(
+    "ccl-aut is running inside a Claude Code session. Updating Claude Code now may fail " +
+      "because the running session locks its files, or the session may keep using the old version.",
+  );
+  const ok = await confirm({ message: "Update Claude Code anyway?", initialValue: false });
+  if (isCancel(ok)) exitCancelled();
+  return ok ? targets : targets.filter((t) => t !== claude);
+}
+
 async function runInteractive(): Promise<number> {
   const { results, detections } = await scanWithProgress();
   const summary = summarize(results);
@@ -114,12 +130,13 @@ async function runInteractive(): Promise<number> {
   });
   if (isCancel(picked)) exitCancelled();
 
-  const targets: UpdateTarget[] = [];
+  let targets: UpdateTarget[] = [];
   for (const scan of outdated) {
     const detection = detections.find((d) => d.tool.id === scan.id);
     const instance = detection?.instances[0];
     if (picked.includes(scan.id) && detection && instance) targets.push({ scan, tool: detection.tool, instance });
   }
+  targets = await confirmClaudeSelfUpdate(targets);
   if (targets.length === 0) {
     outro(pc.dim("Nothing selected — no changes made."));
     return 0;
@@ -133,10 +150,11 @@ async function runInteractive(): Promise<number> {
     pc.cyan(`${outcome.manual} manual`),
     pc.dim(`${summary.upToDate} up-to-date`),
   ];
+  if (outcome.unchanged > 0) parts.push(pc.yellow(`${outcome.unchanged} unchanged`));
   if (outcome.failed > 0) parts.push(pc.red(`${outcome.failed} failed`));
   outro(parts.join(pc.dim(", ")));
   if (outcome.interrupted) return CANCEL_EXIT_CODE;
-  return outcome.failed > 0 ? 1 : 0;
+  return outcome.failed > 0 || outcome.unchanged > 0 ? 1 : 0;
 }
 
 async function main(): Promise<number> {
