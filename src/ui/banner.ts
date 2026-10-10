@@ -1,8 +1,18 @@
 import figlet from "figlet";
-import gradient from "gradient-string";
 import pc from "picocolors";
 
-const BRAND = gradient(["#00c6ff", "#7b5cff", "#ff4fd8"]);
+/**
+ * Brand color #53d2ff: 24-bit where supported, else the closest 256-color shade
+ * (81 = #5fd7ff), else bright cyan. No color at all when picocolors says so
+ * (NO_COLOR, --no-color, not a TTY).
+ */
+export function brandColor(depth: number, enabled: boolean = pc.isColorSupported): (text: string) => string {
+  if (!enabled) return (text) => text;
+  const open = depth >= 24 ? "\x1b[38;2;83;210;255m" : depth >= 8 ? "\x1b[38;5;81m" : "\x1b[96m";
+  return (text) => text.split("\n").map((line) => `${open}${line}\x1b[39m`).join("\n");
+}
+
+const BRAND = brandColor(process.stdout.getColorDepth?.() ?? 8);
 const TITLE = "CCL CAUT";
 const TAGLINE = "CLI Agents Update Tool — by Creative Code Logic";
 
@@ -15,7 +25,7 @@ function figletArt(): string | null {
 }
 
 /**
- * Figlet banner with a gradient when it fits; otherwise a compact one-line
+ * Figlet banner in the brand color when it fits; otherwise a compact one-line
  * banner trimmed to the terminal width, so narrow terminals never wrap.
  */
 export function printBanner(version: string, notice: string | null = null): void {
@@ -25,7 +35,7 @@ export function printBanner(version: string, notice: string | null = null): void
 
   console.log();
   if (art && artWidth <= columns) {
-    console.log(BRAND.multiline(art));
+    console.log(BRAND(art));
     console.log(pc.dim(`${TAGLINE}  v${version}`));
   } else {
     // Longest variant that fits: title + tagline + version, then title + version.
