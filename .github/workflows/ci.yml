@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Per event, so a manual full-matrix run never cancels a push/PR run.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

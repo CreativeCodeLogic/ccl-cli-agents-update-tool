@@ -11,7 +11,7 @@ Require node
 Set Shell "bash"
 Set FontSize 18
 Set Width 1200
-Set Height 860
+Set Height 1000
 Set Padding 24
 Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful
