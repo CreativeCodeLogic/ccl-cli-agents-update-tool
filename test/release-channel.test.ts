@@ -27,4 +27,27 @@ describe("release tag channels", () => {
   it("never publishes release candidates", () => {
     for (const n of [1, 2, 9, 10]) expect(classifyTag(`v1.0.0-rc.${n}`)?.publishToNpm).toBe(false);
   });
+
+  describe("while the repository is private", () => {
+    it.each([
+      ["v1.0.0", "stable"],
+      ["v1.2.10", "stable"],
+      ["v1.1.0-beta.1", "beta"],
+    ] as const)("%s keeps its %s GitHub Release but never publishes to npm", (tag, channel) => {
+      expect(classifyTag(tag, { isPrivate: true })).toEqual({ channel, version: tag.slice(1), publishToNpm: false, npmSkipped: "private" });
+    });
+
+    it("leaves release candidates unchanged", () => {
+      expect(classifyTag("v1.0.0-rc.3", { isPrivate: true })).toEqual(classifyTag("v1.0.0-rc.3"));
+    });
+
+    it("still rejects malformed tags", () => {
+      expect(classifyTag("v1.0.0-rc1", { isPrivate: true })).toBeNull();
+      expect(classifyTag("1.0.0", { isPrivate: true })).toBeNull();
+    });
+
+    it("publishes again once public", () => {
+      expect(classifyTag("v1.0.0", { isPrivate: false })?.publishToNpm).toBe(true);
+    });
+  });
 });

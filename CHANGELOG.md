@@ -9,18 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.0.0] - 2026-10-10
 
-First public release of CCL CAUT, the CLI Agents Update Tool.
-
-### Since 1.0.0-rc.1 (first real-use feedback)
-
-- One color system everywhere (table, checklist, progress, summary): green done/up-to-date, amber needs action or selected, cyan updates itself, red retired/failed, dim not selected or secondary. Checklist: amber filled box when selected, dim empty box when not, bold focused row.
-- Every prompt accepts `q` to quit ("Nothing was changed.", exit 0) and shows a key footer (`↑/↓ move · space select · a all · enter confirm · q quit`); `a` toggles all. Esc and Ctrl+C still cancel (exit 130).
-- Pre-flight "Ready to update?" check: shows which selected CLIs are running (matched by install path, never killed) and which updates need admin rights; Update now / Re-check / Back to selection / Quit. The Claude Code session guard is part of it. `--yes` skips running tools and reports them in the summary.
-- Live progress per update: spinner, elapsed time, latest output line and an npm "fetched N files" counter; success collapses to one line, failures print the last 20 lines with a hint.
-- "needs admin" tag (table, checklist, `--json` `needsAdmin`), based on write access to where each update goes; no warning and more automatic updates when already elevated. ccl-caut never elevates itself.
-- "What next?" menu after updates: Rescan (fresh versions for what was updated) or Quit.
-- Manual commands are printed on a clean line of their own (no gutter, no trailing spaces) so selecting and copying gives exactly the command.
-- Spacing: a blank line between the remembered-selection hint and the first option.
+First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. Release candidates 1.0.0-rc.1 and rc.2 were tested internally; their changes are folded in below.
 
 ### Added
 
@@ -38,6 +27,14 @@ First public release of CCL CAUT, the CLI Agents Update Tool.
 - Interactive runs start on a clean screen without losing scrollback (`--no-clear` to opt out); long build versions (Cursor's date-hash) are shortened in the table.
 - A one-line notice when a newer ccl-caut is available, with the right upgrade command for npx or global installs; background-only, silent offline, off in CI or with `CCL_CAUT_NO_UPDATE_CHECK=1`.
 - Flags: `--check` (exit 1 when updates are available), `--json`, `--yes`, `--discover`, `--refresh`, `--reset-selection`, `--no-clear`, `--no-color`, `--version`, `--help`.
+- One color system everywhere (table, checklist, progress, summary): green done/up-to-date, amber needs action or selected, cyan updates itself, red retired/failed, dim not selected or secondary. Checklist: amber filled box when selected, dim empty box when not, bold focused row.
+- Every prompt accepts `q` to quit ("Nothing was changed.", exit 0) and shows a key footer (`↑/↓ move · space select · a all · enter confirm · q quit`); `a` toggles all. Esc and Ctrl+C still cancel (exit 130).
+- Pre-flight "Ready to update?" check: shows which selected CLIs are running (matched by install path, never killed) and which updates need admin rights; Update now / Re-check / Back to selection / Quit. The Claude Code session guard is part of it. `--yes` skips running tools and reports them in the summary.
+- Live progress per update: spinner, elapsed time, latest output line and an npm "fetched N files" counter; success collapses to one line, failures print the last 20 lines with a hint.
+- "needs admin" tag (table, checklist, `--json` `needsAdmin`), based on write access to where each update goes; no warning and more automatic updates when already elevated. ccl-caut never elevates itself.
+- "What next?" menu after updates: Rescan (fresh versions for what was updated) or Quit.
+- Manual commands are printed on a clean line of their own (no gutter, no trailing spaces) so selecting and copying gives exactly the command.
+- Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
 [Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.0...HEAD

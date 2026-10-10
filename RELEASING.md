@@ -14,16 +14,61 @@ git push origin v1.0.0-rc.N
 
 **Actions → Release** classifies the tag (`scripts/release-channel.mjs`: `vX.Y.Z-rc.N` → rc), runs typecheck, tests and build, packs `ccl-caut-X.Y.Z-rc.N.tgz` and creates a GitHub **pre-release** with it attached. Notes come from the `## [X.Y.Z]` section of `CHANGELOG.md` (or `## [Unreleased]`). Stable tags (`vX.Y.Z`) fail before publishing while the repository is private.
 
-The final launch sets the version to the stable number (`npm version 1.0.0 --no-git-tag-version`, commit) before the steps below.
+The stable launch sets the version to the stable number (`npm version 1.0.0 --no-git-tag-version`, commit); 1.0.0 is published by hand while the repo is private (next section).
+
+## npm while the repository is private (now)
+
+ccl-caut is published to npm **before** the repository goes public. While it is private:
+
+- **Publishes are manual.** The release workflow never publishes to npm from a private repository: a stable or beta tag still creates the GitHub Release (notes from `CHANGELOG.md`) and ends green with the notice "npm publish skipped: repo is private; publish manually". Release candidates are unchanged.
+- **The npm README has no repo links.** `README.npm.md` is generated from `README.md` by `scripts/npm-readme.mjs` (a unit test keeps it in sync; `npm run readme:npm` rewrites it). `prepack` swaps it in as `README.md` for the tarball and `postpack` restores the repo README; if a pack fails, the next `npm pack` or `npm test` restores it (`node scripts/pack-readme.mjs restore` does it by hand). The demo GIF ships in the package and is shown from jsDelivr, pinned to the version.
+- **package.json** has no `repository` or `bugs` (they would 404); `homepage` is https://creativecodelogic.com. Bugs and feedback go to admin@creativecodelogic.com.
+- **No provenance.** npm provenance needs a public repository and the workflow, so manual publishes have none.
+
+### Publishing a version by hand
+
+1. Bump, update `CHANGELOG.md`, commit and push (`npm version x.y.z --no-git-tag-version`). For 1.0.0 this is done.
+2. From a clean checkout of `main` at that commit:
+
+   ```bash
+   git clone git@github.com:CreativeCodeLogic/ccl-cli-agents-update-tool.git ccl-caut-release
+   cd ccl-caut-release
+   git log -1 --oneline                 # confirm it is the release commit
+   npm ci
+   npm pack --dry-run                   # check the file list: dist/, docs/demo.gif, README.md, LICENSE, package.json
+   npm login                            # the npm account that is a member of the creativecodelogic org (2FA)
+   npm publish --access public          # prepublishOnly: typecheck + tests + build; prepack swaps the npm README in
+   npm view ccl-caut version            # -> x.y.z
+   git status --short                   # empty: README.md was restored
+   ```
+
+3. Check https://www.npmjs.com/package/ccl-caut: README renders, the demo GIF loads (jsDelivr may take a few minutes after the first publish), no links into GitHub.
+4. **First publish only: give the org access to the package.** `ccl-caut` is unscoped, so it belongs to the account that published it; grant the org's team access and add co-maintainers:
+
+   ```bash
+   npm team ls creativecodelogic                                   # e.g. creativecodelogic:developers
+   npm access grant read-write creativecodelogic:developers ccl-caut
+   npm owner ls ccl-caut
+   ```
+
+   Then on npmjs.com → **ccl-caut → Settings → Publishing access**, choose **Require two-factor authentication and disallow tokens**.
+5. **Tag it** so the workflow creates the GitHub Release (it skips npm while private):
+
+   ```bash
+   git tag -a vx.y.z -m "Release vx.y.z"
+   git push origin vx.y.z
+   ```
+
+6. **Smoke test** from a fresh shell outside the repo: `npx ccl-caut@latest --version`, `--check` (exit 0 or 1 is fine), `--discover`. Users of a release candidate see "ccl-caut x.y.z is available · npm i -g ccl-caut" under the banner.
 
 ## Going public (one time)
 
 Do these in order. Claude never changes repository visibility or publishes to npm; these are manual steps.
 
-1. **Social preview.** Review `docs/social-preview-a.png` (terminal style) and `docs/social-preview-b.png` (gradient), pick one, and upload it: GitHub → repository **Settings → General → Social preview → Edit → Upload an image**. There is no API for this.
+1. **Social preview.** Upload `docs/social-preview-b.png`: GitHub → repository **Settings → General → Social preview → Edit → Upload an image**. There is no API for this.
 
 2. **Make the repository public.** GitHub → **Settings → General → Danger Zone → Change repository visibility → Make public**. Then:
-   - enable the full CI matrix on push/PR: in `.github/workflows/ci.yml`, replace the `node:` expression with `[20, 22, 24]` and drop the "while the repo is private" comment (public repos get free hosted-runner minutes);
+   - enable the full CI matrix on push/PR: in `.github/workflows/ci.yml`, replace the `node:` expression with `[20, 22, 24]` and drop the "while the repo is private" comment;
    - enable private vulnerability reporting (used by `SECURITY.md`; GitHub only allows it on public repositories):
 
    ```bash
@@ -32,32 +77,13 @@ Do these in order. Claude never changes repository visibility or publishes to np
 
    (or **Settings → Code security → Private vulnerability reporting → Enable**).
 
-3. **Publish 1.0.0 to npm by hand**, from a clean checkout of `main` at the release commit:
+3. **Undo the private-npm setup** in one commit:
+   - `package.json`: restore `"repository": { "type": "git", "url": "git+https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool.git" }` and `"bugs": { "url": "https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/issues" }`; set `homepage` to `https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool#readme`.
+   - Drop `README.npm.md`, `scripts/npm-readme.mjs`, `scripts/pack-readme.mjs` (and their `.d.mts`), the `prepack`/`postpack`/`pretest`/`readme:npm` scripts, `test/npm-readme.test.ts`, `.README.repo.md` in `.gitignore`, and `docs/demo.gif` from `files` (the repo README's GIF works on npmjs.com once the repo is public). Remove the "npm while the repository is private" section above.
+   - Re-enable provenance: with the repo public, `scripts/release-channel.mjs` lets stable/beta tags publish again, and the workflow publishes with `--provenance` through trusted publishing (next step).
+   - Release it as the next patch version (README and metadata changes only).
 
-   ```bash
-   git clone https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool.git ccl-caut-release
-   cd ccl-caut-release
-   git log -1 --oneline                 # confirm it is the release commit
-   npm ci
-   npm run build
-   npm login                            # the npm account that is a member of the creativecodelogic org (2FA)
-   npm publish --access public          # prepublishOnly runs typecheck + tests + build again
-   npm view ccl-caut version            # -> 1.0.0
-   ```
-
-   A manual publish has no provenance; every later release from the workflow does.
-
-4. **Give the org access to the package.** `ccl-caut` is unscoped, so it belongs to the account that published it; grant the org's team access and add co-maintainers:
-
-   ```bash
-   npm team ls creativecodelogic                                   # e.g. creativecodelogic:developers
-   npm access grant read-write creativecodelogic:developers ccl-caut
-   npm owner ls ccl-caut
-   ```
-
-   Then on npmjs.com → **ccl-caut → Settings → Publishing access**, choose **Require two-factor authentication and disallow tokens** (trusted publishing keeps working).
-
-5. **Configure npm trusted publishing** on npmjs.com → **ccl-caut → Settings → Trusted Publisher → GitHub Actions**:
+4. **Configure npm trusted publishing** on npmjs.com → **ccl-caut → Settings → Trusted Publisher → GitHub Actions**:
 
    | Field | Value |
    | --- | --- |
@@ -66,26 +92,9 @@ Do these in order. Claude never changes repository visibility or publishes to np
    | Workflow filename | `release.yml` |
    | Environment name | *(leave empty)* |
 
-   npm doesn't validate this on save, and a configuration that isn't used for a publish within 2 days expires; set it up right before the next release if needed. No `NPM_TOKEN` secret is required.
+   npm doesn't validate this on save, and a configuration that isn't used for a publish within 2 days expires; set it up right before the next release if needed. No `NPM_TOKEN` secret is needed.
 
-6. **Tag v1.0.0** so the release workflow creates the GitHub Release:
-
-   ```bash
-   git tag -a v1.0.0 -m "Release v1.0.0"
-   git push origin v1.0.0
-   ```
-
-   The workflow verifies the tag matches `package.json`, sees that `ccl-caut@1.0.0` is already on npm (`npm view ccl-caut@1.0.0 version` succeeds) and **skips the publish step**, then creates the GitHub Release with the notes from the `## [1.0.0]` section of `CHANGELOG.md`. Watch it under **Actions → Release**.
-
-7. **Smoke test** from a clean terminal on another machine (or a fresh shell outside the repo):
-
-   ```bash
-   npx ccl-caut@latest --version     # 1.0.0
-   npx ccl-caut@latest --check       # exit 0 or 1 (updates available) is fine
-   npx ccl-caut@latest --discover
-   ```
-
-## Cutting a release (after 1.0.0)
+## Cutting a release (after going public)
 
 1. Move the entries under `## [Unreleased]` in `CHANGELOG.md` to a new `## [x.y.z] - YYYY-MM-DD` section and update the compare links at the bottom.
 2. Update `ROADMAP.md` (move shipped items to "Now", adjust "Next") and close the matching GitHub milestone. If tools or install methods changed, update the counts in the README why line ("Twelve CLIs. Ten ways to install them.").
@@ -96,7 +105,7 @@ Do these in order. Claude never changes repository visibility or publishes to np
    git push --follow-tags
    ```
 
-4. **Actions → Release** runs typecheck, tests and build, publishes to npm through trusted publishing (OIDC, with provenance) and creates the GitHub Release. Pre-release versions (`x.y.z-beta.1`) go to the `next` dist-tag and are marked as pre-releases.
+4. **Actions → Release** runs typecheck, tests and build, publishes to npm (only once the repo is public; until then it skips npm and you publish by hand, see above) through trusted publishing (OIDC, with provenance) and creates the GitHub Release. Pre-release versions (`x.y.z-beta.1`) go to the `next` dist-tag and are marked as pre-releases.
 
 Published npm versions are immutable: if something is wrong, fix it and release a new patch version.
 

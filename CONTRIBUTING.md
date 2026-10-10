@@ -2,7 +2,7 @@
 
 Thanks for helping! Bug reports, new tools and detection fixes for your platform are all welcome.
 
-Testing a release candidate? See [docs/TESTING.md](docs/TESTING.md).
+Testing CCL CAUT? See [docs/TESTING.md](docs/TESTING.md).
 
 ## Setup
 

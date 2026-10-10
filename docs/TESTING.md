@@ -1,18 +1,24 @@
-# Testing release candidates
+# Testing CCL CAUT
 
-Thanks for helping test CCL CAUT before its public release. Release candidates are published as GitHub **pre-releases** with an npm tarball attached; they are not on npm.
+Thanks for helping test CCL CAUT. It is on npm now (the GitHub repository is still private), so testers install it like any user.
 
-## Install a release candidate
+## Install
 
-Requires Node.js 20+ and the [GitHub CLI](https://cli.github.com/) signed in with access to the repository.
+Requires Node.js 20 or newer.
 
 ```bash
-gh release download v1.0.0-rc.2 -R CreativeCodeLogic/ccl-cli-agents-update-tool -p "*.tgz"
-npm install -g ./ccl-caut-1.0.0-rc.2.tgz
-ccl-caut --version        # 1.0.0-rc.2
+npm install -g ccl-caut
+ccl-caut --version        # 1.0.0 or newer
 ```
 
-Use the newest pre-release from the [releases page](https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/releases) and adjust the version in the commands.
+Or run it once without installing: `npx ccl-caut`. If you installed a release candidate from a `.tgz`, `npm install -g ccl-caut` replaces it (an rc also tells you under its banner that a newer version is available).
+
+Release candidates of future versions, if any, are GitHub **pre-releases** with an npm tarball attached and are not on npm; install one with the [GitHub CLI](https://cli.github.com/):
+
+```bash
+gh release download vX.Y.Z-rc.N -R CreativeCodeLogic/ccl-cli-agents-update-tool -p "*.tgz"
+npm install -g ./ccl-caut-X.Y.Z-rc.N.tgz
+```
 
 To uninstall:
 
@@ -45,5 +51,5 @@ Open a [bug report](https://github.com/CreativeCodeLogic/ccl-cli-agents-update-t
 
 - `ccl-caut --json` output (**redact your username** in binary paths, e.g. `C:\Users\you\...` or `/home/you/...`)
 - OS and version, terminal (Windows Terminal, VS Code, iTerm2, ...), `node --version`
-- the release candidate version (`ccl-caut --version`)
+- the version (`ccl-caut --version`)
 - for update problems: the full terminal output of that run

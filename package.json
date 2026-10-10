@@ -1,6 +1,6 @@
 {
   "name": "ccl-caut",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0",
   "description": "CLI Agents Update Tool — check and update AI/dev CLIs from one terminal UI",
   "keywords": [
     "cli",
@@ -14,22 +14,16 @@
     "gcloud",
     "firebase"
   ],
-  "homepage": "https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool#readme",
-  "bugs": {
-    "url": "https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool.git"
-  },
+  "homepage": "https://creativecodelogic.com",
   "license": "MIT",
-  "author": "Creative Code Logic",
+  "author": "Creative Code Logic <admin@creativecodelogic.com> (https://creativecodelogic.com)",
   "type": "module",
   "bin": {
     "ccl-caut": "dist/index.js"
   },
   "files": [
     "dist",
+    "docs/demo.gif",
     "README.md",
     "LICENSE"
   ],
@@ -40,10 +34,14 @@
     "dev": "tsx src/index.ts",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
+    "pretest": "node scripts/pack-readme.mjs restore",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "prepack": "node scripts/pack-readme.mjs swap",
+    "postpack": "node scripts/pack-readme.mjs restore",
+    "readme:npm": "node scripts/npm-readme.mjs"
   },
   "dependencies": {
     "@clack/core": "^1.5.1",

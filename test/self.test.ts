@@ -54,6 +54,8 @@ describe("selfUpdateNotice", () => {
   it("handles release candidates sanely", () => {
     // The final release is newer than its candidates.
     expect(selfUpdateNotice("1.0.0-rc.1", "1.0.0", "global")).toBe("ccl-caut 1.0.0 is available · npm i -g ccl-caut");
+    expect(selfUpdateNotice("1.0.0-rc.2", "1.0.0", "global")).toBe("ccl-caut 1.0.0 is available · npm i -g ccl-caut");
+    expect(selfUpdateNotice("1.0.0-rc.2", "1.0.0", "npx")).toBe("ccl-caut 1.0.0 is available · npx ccl-caut@latest");
     // Never "update" an rc user to an older stable or an earlier candidate.
     expect(selfUpdateNotice("1.0.0-rc.2", "0.9.0", "global")).toBeNull();
     expect(selfUpdateNotice("1.0.0-rc.2", "1.0.0-rc.1", "global")).toBeNull();
