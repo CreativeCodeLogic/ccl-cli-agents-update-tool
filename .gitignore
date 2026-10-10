@@ -1,0 +1,27 @@
+# Dependencies & build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Logs & OS cruft
+npm-debug.log*
+*.log
+.DS_Store
+Thumbs.db
+
+# Local env
+.env
+.env.*
+
+# Editor
+.vscode/
+.idea/
+
+# Agent-harness scaffolding (internal workflow tooling, never shipped)
+.wolf/
+.claude/
+.codex/
+.cursor/
+CLAUDE.md
+AGENTS.md
+GEMINI.md

@@ -1,0 +1,49 @@
+{
+  "name": "ccl-aut",
+  "version": "0.1.0",
+  "description": "Agents Update Tool — check and update AI/dev CLIs from one terminal UI",
+  "keywords": [
+    "cli",
+    "updater",
+    "ai",
+    "agents",
+    "claude-code",
+    "codex",
+    "gemini-cli",
+    "npm"
+  ],
+  "license": "MIT",
+  "author": "Creative Code Logic",
+  "type": "module",
+  "bin": {
+    "ccl-aut": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1",
+    "cross-spawn": "^7.0.6",
+    "figlet": "^1.12.0",
+    "gradient-string": "^3.0.0",
+    "picocolors": "^1.1.1",
+    "semver": "^7.8.5"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/figlet": "^1.7.0",
+    "@types/node": "^26.6.5",
+    "@types/semver": "^7.8.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
