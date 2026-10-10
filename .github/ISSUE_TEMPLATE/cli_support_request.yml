@@ -1,6 +1,6 @@
 name: Request support for a CLI
 description: Ask for an AI or developer CLI to be detected and updated.
-labels: [new tool]
+labels: [new-cli]
 body:
   - type: input
     id: tool
