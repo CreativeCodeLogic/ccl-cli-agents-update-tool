@@ -2,6 +2,8 @@ export interface CliOptions {
   check: boolean;
   json: boolean;
   refresh: boolean;
+  /** Hidden: fixture data, no real detection/network/processes (README GIF, docs). */
+  demo: boolean;
   help: boolean;
   version: boolean;
 }
@@ -10,7 +12,7 @@ export type ParseResult = { ok: true; options: CliOptions } | { ok: false; error
 
 /** Minimal flag parser: the CLI only has boolean switches. */
 export function parseArgs(argv: readonly string[]): ParseResult {
-  const options: CliOptions = { check: false, json: false, refresh: false, help: false, version: false };
+  const options: CliOptions = { check: false, json: false, refresh: false, demo: false, help: false, version: false };
   for (const arg of argv) {
     switch (arg) {
       case "--check":
@@ -21,6 +23,9 @@ export function parseArgs(argv: readonly string[]): ParseResult {
         break;
       case "--refresh":
         options.refresh = true;
+        break;
+      case "--demo": // intentionally not listed in --help
+        options.demo = true;
         break;
       case "-h":
       case "--help":

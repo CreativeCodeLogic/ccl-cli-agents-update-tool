@@ -3,7 +3,7 @@ import { box, log } from "@clack/prompts";
 import pc from "picocolors";
 import type { BinaryInstance, ToolDescriptor, ToolScan } from "../types";
 import type { VersionCache } from "../utils/cache";
-import { execTee } from "../utils/exec";
+import { execTee, type TeeResult } from "../utils/exec";
 import { getHost } from "../utils/host";
 import { getNpmGlobalPaths } from "../utils/npm";
 import { isUnderProgramFiles } from "../utils/paths";
@@ -16,6 +16,11 @@ export interface UpdateTarget {
   tool: ToolDescriptor;
   instance: BinaryInstance;
 }
+
+/** Runs one auto-update command; the real one streams a child process (demo mode fakes it). */
+export type UpdateExecutor = (command: string, args: string[], target: UpdateTarget) => Promise<TeeResult>;
+
+const runForReal: UpdateExecutor = (command, args) => execTee(command, args);
 
 export interface UpdateOutcome {
   updated: number;
@@ -57,7 +62,11 @@ export async function diagnose(output: string, toolName: string, command: readon
 }
 
 /** Run (auto) or print (manual) the plan for each selected tool, sequentially. */
-export async function applyUpdates(targets: readonly UpdateTarget[], cache: VersionCache | null = null): Promise<UpdateOutcome> {
+export async function applyUpdates(
+  targets: readonly UpdateTarget[],
+  cache: VersionCache | null = null,
+  executor: UpdateExecutor = runForReal,
+): Promise<UpdateOutcome> {
   const outcome: UpdateOutcome = { updated: 0, unchanged: 0, held: 0, failed: 0, manual: 0, interrupted: false };
 
   // The running child gets Ctrl+C too and cleans up after itself; we just
@@ -68,7 +77,8 @@ export async function applyUpdates(targets: readonly UpdateTarget[], cache: Vers
   process.on("SIGINT", onInterrupt);
 
   try {
-    for (const { scan, tool, instance } of targets) {
+    for (const target of targets) {
+      const { scan, tool, instance } = target;
       if (outcome.interrupted) break;
       const plan = scan.plan;
       if (!plan) continue;
@@ -82,7 +92,7 @@ export async function applyUpdates(targets: readonly UpdateTarget[], cache: Vers
       const [command, ...args] = plan.command;
       if (!command) continue;
       log.step(`Updating ${pc.bold(scan.name)}  ${pc.dim(`$ ${displayCommand(plan.command)}`)}`);
-      const result = await execTee(command, args);
+      const result = await executor(command, args, target);
 
       if (result.code !== 0) {
         outcome.failed++;

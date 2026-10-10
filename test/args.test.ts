@@ -5,15 +5,15 @@ describe("parseArgs", () => {
   it("defaults to the interactive flow", () => {
     expect(parseArgs([])).toEqual({
       ok: true,
-      options: { check: false, json: false, refresh: false, help: false, version: false },
+      options: { check: false, json: false, refresh: false, demo: false, help: false, version: false },
     });
   });
 
   it("parses every flag", () => {
-    const parsed = parseArgs(["--check", "--json", "--refresh", "--no-color", "-h", "-v"]);
+    const parsed = parseArgs(["--check", "--json", "--refresh", "--demo", "--no-color", "-h", "-v"]);
     expect(parsed).toEqual({
       ok: true,
-      options: { check: true, json: true, refresh: true, help: true, version: true },
+      options: { check: true, json: true, refresh: true, demo: true, help: true, version: true },
     });
   });
 
@@ -26,5 +26,6 @@ describe("parseArgs", () => {
     expect(text).toContain("ccl-caut v1.2.3");
     for (const flag of ["--check", "--json", "--refresh", "--no-color"]) expect(text).toContain(flag);
     expect(text).toContain("130");
+    expect(text).not.toContain("--demo");
   });
 });

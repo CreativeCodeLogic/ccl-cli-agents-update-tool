@@ -11,22 +11,37 @@ import {
   type Detection,
   type ScanSummary,
 } from "./scan";
-import type { ToolScan } from "./types";
+import { createDemoRuntime } from "./demo/runtime";
+import type { ToolDescriptor, ToolScan } from "./types";
 import { printBanner } from "./ui/banner";
 import { CANCEL_EXIT_CODE, CANCEL_MESSAGE, createProgress } from "./ui/progress";
 import { printShadowedWarnings } from "./ui/shadowed";
 import { icons } from "./ui/symbols";
 import { renderTable } from "./ui/table";
-import { applyUpdates, type UpdateTarget } from "./ui/update";
-import { helpText, parseArgs } from "./utils/args";
+import { applyUpdates, type UpdateExecutor, type UpdateTarget } from "./ui/update";
+import { helpText, parseArgs, type CliOptions } from "./utils/args";
 import { VersionCache } from "./utils/cache";
+import { getHost, type Host } from "./utils/host";
 
 const VERSION = pkg.version;
 
 interface ScanResult {
   results: ToolScan[];
   detections: Detection[];
+}
+
+/** What a run works against: the real machine, or the --demo fixture. */
+interface Runtime {
+  tools: readonly ToolDescriptor[];
+  host: Host;
   latest: LatestResolver;
+  /** Undefined = run update commands for real. */
+  executor?: UpdateExecutor;
+}
+
+function createRuntime(options: CliOptions): Runtime {
+  if (options.demo) return createDemoRuntime();
+  return { tools: registry, host: getHost(), latest: new LatestResolver(VersionCache.load(), options.refresh) };
 }
 
 function exitCancelled(): never {
@@ -53,21 +68,18 @@ function formatAge(ms: number): string {
   return minutes < 1 ? "less than a minute" : `${minutes}m`;
 }
 
-function createResolver(refresh: boolean): LatestResolver {
-  return new LatestResolver(VersionCache.load(), refresh);
-}
-
-async function scan(refresh: boolean): Promise<ScanResult> {
-  const latest = createResolver(refresh);
-  prefetchLatest(registry, latest);
-  const detections = await detectAll(registry);
+async function scan(runtime: Runtime): Promise<ScanResult> {
+  const { tools, host, latest } = runtime;
+  prefetchLatest(tools, latest);
+  const detections = await detectAll(tools, host);
   const results = await resolveLatest(detections, latest);
   latest.cache?.save();
-  return { results, detections, latest };
+  return { results, detections };
 }
 
-async function runJson(check: boolean, refresh: boolean): Promise<number> {
-  const { results, latest } = await scan(refresh);
+async function runJson(runtime: Runtime, check: boolean): Promise<number> {
+  const { results } = await scan(runtime);
+  const { latest } = runtime;
   const summary = summarize(results);
   const report = {
     tool: "ccl-caut",
@@ -85,15 +97,15 @@ async function runJson(check: boolean, refresh: boolean): Promise<number> {
 }
 
 /** Banner + two progress phases + table + warnings. Shared by --check and the interactive flow. */
-async function scanWithProgress(refresh: boolean): Promise<ScanResult> {
+async function scanWithProgress(runtime: Runtime): Promise<ScanResult> {
+  const { tools, host, latest } = runtime;
   printBanner(VERSION);
   intro(pc.inverse(" Scan "));
-  const latest = createResolver(refresh);
-  prefetchLatest(registry, latest);
+  prefetchLatest(tools, latest);
 
   const progress = createProgress();
   progress.start("Scanning for installed CLIs...");
-  const detections = await detectAll(registry);
+  const detections = await detectAll(tools, host);
   const found = detections.filter((d) => d.instances.length > 0).length;
   progress.stop(`Found ${found} of ${detections.length} supported CLIs`);
 
@@ -103,16 +115,16 @@ async function scanWithProgress(refresh: boolean): Promise<ScanResult> {
   progress.stop("Latest versions checked");
 
   console.log(`${pc.gray("│")}\n${renderTable(results)}`);
-  printShadowedWarnings(results, new Map(registry.map((t) => [t.id, t.npmPackage])));
+  printShadowedWarnings(results, new Map(tools.map((t) => [t.id, t.npmPackage])));
   if (latest.oldestCachedAt !== null) {
     const age = formatAge(Date.now() - latest.oldestCachedAt);
     log.message(pc.dim(`Latest versions cached ${age} ago · --refresh to recheck`));
   }
-  return { results, detections, latest };
+  return { results, detections };
 }
 
-async function runCheck(refresh: boolean): Promise<number> {
-  const { results } = await scanWithProgress(refresh);
+async function runCheck(runtime: Runtime): Promise<number> {
+  const { results } = await scanWithProgress(runtime);
   const summary = summarize(results);
   outro(scanVerdict(summary));
   return checkExitCode(summary);
@@ -134,8 +146,8 @@ async function confirmClaudeSelfUpdate(targets: UpdateTarget[]): Promise<UpdateT
   return ok ? targets : targets.filter((t) => t !== claude);
 }
 
-async function runInteractive(refresh: boolean): Promise<number> {
-  const { results, detections, latest } = await scanWithProgress(refresh);
+async function runInteractive(runtime: Runtime): Promise<number> {
+  const { results, detections } = await scanWithProgress(runtime);
   const summary = summarize(results);
   const outdated = results.filter((r) => r.state === "outdated" && r.plan);
 
@@ -173,7 +185,7 @@ async function runInteractive(refresh: boolean): Promise<number> {
   }
 
   process.off("SIGINT", exitCancelled); // applyUpdates handles Ctrl+C from here on
-  const outcome = await applyUpdates(targets, latest.cache);
+  const outcome = await applyUpdates(targets, runtime.latest.cache, runtime.executor);
 
   const parts = [
     pc.green(`${outcome.updated} updated`),
@@ -204,12 +216,13 @@ async function main(): Promise<number> {
     process.stdout.write(`${VERSION}\n`);
     return 0;
   }
-  if (options.json) return runJson(options.check, options.refresh);
-  if (options.check) return runCheck(options.refresh);
+  const runtime = createRuntime(options);
+  if (options.json) return runJson(runtime, options.check);
+  if (options.check) return runCheck(runtime);
 
   // Ctrl+C outside a prompt (e.g. during a scan) exits cleanly too.
   process.once("SIGINT", exitCancelled);
-  return runInteractive(options.refresh);
+  return runInteractive(runtime);
 }
 
 main().then(

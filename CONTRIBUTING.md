@@ -25,6 +25,13 @@ npm ci
 
 Set `CCL_CAUT_DEBUG=1` to see failed lookups and cache problems on stderr.
 
+## Demo mode
+
+`node dist/index.js --demo` (or `npm run dev -- --demo`) runs the full interactive UI against fixture data: an in-memory Linux machine with a mix of up-to-date tools, updates, a missing tool, a hidden install and a manual-only plan. It's used to record the README GIF (`docs/demo.tape`) and is handy for UI work.
+
+Demo mode is safe by construction: it blocks process spawning, network access and cache writes process-wide (`src/utils/sandbox.ts`), detects against a fake host, and runs "updates" through a fake executor that only prints. `test/demo.test.ts` asserts that nothing real can run, even through the real executor. The flag is intentionally not listed in `--help`.
+
+To re-render the GIF, run the **Demo GIF** workflow (Actions → Demo GIF → Run workflow) and download the `demo-gif` artifact, or locally with [VHS](https://github.com/charmbracelet/vhs): `npm run build && vhs docs/demo.tape`.
 ## Project layout
 
 ```text
@@ -34,6 +41,7 @@ src/
   types.ts            ToolDescriptor, UpdatePlan, ToolScan
   registry/           one descriptor per CLI
   ui/                 banner, table, progress, update runner
+  demo/               --demo fixture runtime (no real side effects)
   utils/              PATH discovery, install-method rules, npm, http, cache, host
 test/                 vitest suites (no network or real installs needed)
 ```

@@ -1,4 +1,6 @@
 import spawn from "cross-spawn";
+import { debug } from "./debug";
+import { sideEffectsBlocked } from "./sandbox";
 
 export interface ExecResult {
   ok: boolean;
@@ -15,6 +17,11 @@ const FAILED: ExecResult = { ok: false, code: null, stdout: "", stderr: "" };
  * cross-spawn handles Windows .cmd/.bat shims without shell:true.
  */
 export function exec(command: string, args: string[], timeoutMs = 10_000): Promise<ExecResult> {
+  const blocked = sideEffectsBlocked();
+  if (blocked) {
+    debug(`not running ${command}: ${blocked}`);
+    return Promise.resolve(FAILED);
+  }
   return new Promise((resolve) => {
     let settled = false;
     const finish = (result: ExecResult) => {
@@ -65,6 +72,8 @@ const TEE_LIMIT = 64 * 1024;
  * the child can still prompt. Never throws.
  */
 export function execTee(command: string, args: string[]): Promise<TeeResult> {
+  const blocked = sideEffectsBlocked();
+  if (blocked) return Promise.resolve({ code: null, output: `not running ${command}: ${blocked}` });
   return new Promise((resolve) => {
     let output = "";
     const keep = (chunk: Buffer) => {

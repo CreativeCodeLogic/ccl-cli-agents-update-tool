@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { debug } from "./debug";
 import { envVar, getHost, pathFor, type Host } from "./host";
+import { sideEffectsBlocked } from "./sandbox";
 
 const APP_DIR = "ccl-caut";
 const FILE_NAME = "latest-versions.json";
@@ -91,7 +92,7 @@ export class VersionCache {
 
   /** Persist if anything changed. Never throws. */
   save(host: Host = getHost()): void {
-    if (!this.dirty || !this.file) return;
+    if (!this.dirty || !this.file || sideEffectsBlocked()) return;
     try {
       const path = pathFor(host.platform);
       mkdirSync(path.dirname(this.file), { recursive: true });

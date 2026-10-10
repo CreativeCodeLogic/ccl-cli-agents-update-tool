@@ -1,4 +1,5 @@
 import { debug } from "./debug";
+import { sideEffectsBlocked } from "./sandbox";
 
 const TIMEOUT_MS = 5_000;
 const ATTEMPTS = 2;
@@ -19,6 +20,11 @@ async function fetchOnce(url: string): Promise<unknown> {
  * approach the timeout), cached per run. Resolves null on failure.
  */
 export function fetchJson(url: string): Promise<unknown> {
+  const blocked = sideEffectsBlocked();
+  if (blocked) {
+    debug(`not fetching ${url}: ${blocked}`);
+    return Promise.resolve(null);
+  }
   let pending = cache.get(url);
   if (!pending) {
     pending = (async () => {
