@@ -1,0 +1,72 @@
+name: Release
+
+# Publishes to npm and creates a GitHub Release when a version tag is pushed:
+#   npm version 0.2.0 && git push --follow-tags
+# One-time setup (npm trusted publisher, first publish): see RELEASING.md.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write # create the GitHub Release
+  id-token: write # npm trusted publishing (OIDC) and provenance
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Trusted publishing needs Node >= 22.14 and npm >= 11.5.1.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm install -g npm@latest && npm --version
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Verify the tag matches package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $pkg"
+            exit 1
+          fi
+
+      - name: Extract release notes from CHANGELOG.md
+        run: node scripts/changelog-section.mjs "${GITHUB_REF_NAME#v}" > release-notes.md
+
+      # Trusted publishing (OIDC) is used when configured on npmjs.com; NPM_TOKEN is
+      # only a fallback for the bootstrap publish (see RELEASING.md). Provenance
+      # requires a public repository.
+      # Skipped when the version is already on npm (manual bootstrap publish, re-runs).
+      - name: Publish to npm
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          name="$(node -p "require('./package.json').name")"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already on npm; skipping publish"
+            exit 0
+          fi
+          if [[ "$version" == *-* ]]; then dist_tag=next; else dist_tag=latest; fi
+          npm publish --access public --provenance --tag "$dist_tag"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create the GitHub Release
+        run: |
+          prerelease=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file release-notes.md $prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
