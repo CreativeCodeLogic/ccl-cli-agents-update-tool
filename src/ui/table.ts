@@ -10,10 +10,10 @@ const pad = (s: string, width: number) => s + " ".repeat(Math.max(0, width - vis
 
 /**
  * Render scan results as aligned columns: icon | tool | installed | latest | state | via.
- * Not-installed tools are left out unless `showAll` (see notInstalledLine()).
+ * Installed tools only; `--discover` lists the rest.
  */
-export function renderTable(results: readonly ToolScan[], showAll = false): string {
-  const visible = showAll ? results : results.filter((r) => r.installed);
+export function renderTable(results: readonly ToolScan[]): string {
+  const visible = results.filter((r) => r.installed);
   const header = ["", "Tool", "Installed", "Latest", "State", "Via"].map((h) => pc.bold(h));
   const rows = visible.map((r) => {
     const style = stateStyle[r.state];
@@ -37,22 +37,12 @@ export function renderTable(results: readonly ToolScan[], showAll = false): stri
   return [line(header), rule, ...rows.map(line)].join("\n");
 }
 
-/** "5 not installed: Copilot, OpenCode, ... · --show-all to list", or null when nothing is hidden. */
-export function notInstalledLine(results: readonly ToolScan[], showAll = false): string | null {
-  const missing = results.filter((r) => !r.installed);
-  if (showAll || missing.length === 0) return null;
-  return `${missing.length} not installed: ${missing.map((r) => r.shortName).join(", ")} · --show-all to list`;
-}
-
 function describe(method: InstallMethod | null, version: string | null): string {
   return `${method ?? "unknown"} ${version ?? "?"}`;
 }
 
-/** Notes printed after the table: hidden rows, deprecations, then copies shadowed on PATH. */
-export function printNotes(results: readonly ToolScan[], showAll = false): void {
-  const hidden = notInstalledLine(results, showAll);
-  if (hidden) log.message(pc.dim(hidden));
-
+/** Notes printed after the table: deprecations, then copies shadowed on PATH. */
+export function printNotes(results: readonly ToolScan[]): void {
   for (const r of results) {
     // One sentence per line keeps notes within ~100 columns.
     if (r.installed && r.deprecation) log.warn(`${pc.bold(r.id)}: ${r.deprecation.message.replace(". ", ".\n")}`);

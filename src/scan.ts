@@ -151,6 +151,7 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
         id: tool.id,
         name: tool.name,
         shortName: tool.shortName ?? tool.name,
+        docsUrl: tool.docsUrl,
         installed: Boolean(active),
         installMethod: active?.installMethod ?? null,
         binaryPath: active?.path ?? null,

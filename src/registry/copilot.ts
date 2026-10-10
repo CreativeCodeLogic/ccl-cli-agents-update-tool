@@ -21,6 +21,8 @@ const tool = createNpmPackageTool({
   id: "copilot",
   name: "GitHub Copilot CLI",
   shortName: "Copilot",
+  description: "GitHub Copilot's coding agent for the terminal",
+  docsUrl: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli",
   binNames: ["copilot"],
   pkg: "@github/copilot",
   // The install script uses ~/.local/bin, or /usr/local/bin when run as root.

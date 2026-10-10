@@ -79,6 +79,8 @@ export const kimi: ToolDescriptor = {
   id: "kimi",
   name: "Kimi Code",
   shortName: "Kimi",
+  description: "Moonshot AI's Kimi Code agent for the terminal",
+  docsUrl: "https://moonshotai.github.io/kimi-code/",
   binNames: ["kimi"],
   npmPackage: NPM_PKG,
 

@@ -2,7 +2,8 @@ export interface CliOptions {
   check: boolean;
   json: boolean;
   refresh: boolean;
-  showAll: boolean;
+  /** List every supported tool with its official install docs (never installs). */
+  discover: boolean;
   noClear: boolean;
   resetSelection: boolean;
   /** Non-interactive: update what would be preselected, no prompts. */
@@ -21,7 +22,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     check: false,
     json: false,
     refresh: false,
-    showAll: false,
+    discover: false,
     noClear: false,
     resetSelection: false,
     yes: false,
@@ -40,8 +41,8 @@ export function parseArgs(argv: readonly string[]): ParseResult {
       case "--refresh":
         options.refresh = true;
         break;
-      case "--show-all":
-        options.showAll = true;
+      case "--discover":
+        options.discover = true;
         break;
       case "--no-clear":
         options.noClear = true;
@@ -87,7 +88,8 @@ Options:
   --json         Print the scan result as JSON (no banner, no colors).
                  Combined with --check, the exit code follows --check.
   --refresh      Ignore cached latest versions (cached for 1 hour) and look them up again.
-  --show-all     Also list tools that are not installed.
+  --discover     List every supported CLI with its official install docs.
+                 (ccl-caut never installs tools.)
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
   --reset-selection

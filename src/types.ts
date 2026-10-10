@@ -50,6 +50,10 @@ export interface ToolDescriptor {
   binNames: string[];
   /** Short name for compact lists (defaults to `name`). */
   shortName?: string;
+  /** One line for --discover. */
+  description: string;
+  /** The tool's OFFICIAL install docs (ccl-caut never installs tools). */
+  docsUrl: string;
   /** npm package that ships this CLI, if any (used in messages). */
   npmPackage?: string;
   /** Retired/replaced: shown as "retired" and never preselected for updates. */
@@ -114,6 +118,7 @@ export interface ToolScan {
   id: string;
   name: string;
   shortName: string;
+  docsUrl: string;
   installed: boolean;
   installMethod: InstallMethod | null;
   binaryPath: string | null;

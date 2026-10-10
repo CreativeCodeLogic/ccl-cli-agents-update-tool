@@ -20,6 +20,8 @@ function npmPackageOf(instance: BinaryInstance): string {
 export const opencode: ToolDescriptor = {
   id: "opencode",
   name: "OpenCode",
+  description: "Open-source AI coding agent for the terminal",
+  docsUrl: "https://opencode.ai/docs",
   binNames: ["opencode"],
   npmPackage: V1_PKG,
 

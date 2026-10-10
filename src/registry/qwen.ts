@@ -9,6 +9,8 @@ export const qwen = createNpmPackageTool({
   id: "qwen",
   name: "Qwen Code",
   shortName: "Qwen",
+  description: "Alibaba's Qwen Code agent for the terminal",
+  docsUrl: "https://github.com/QwenLM/qwen-code",
   binNames: ["qwen"],
   pkg: "@qwen-code/qwen-code",
   // Standalone installer: ~/.local/bin/qwen -> ~/.local/lib/qwen-code, or %LOCALAPPDATA%/qwen-code/bin.

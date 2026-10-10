@@ -12,6 +12,8 @@ export const antigravity: ToolDescriptor = {
   id: "antigravity",
   name: "Antigravity CLI",
   shortName: "Antigravity",
+  description: "Google's Antigravity CLI (agy), Gemini CLI's successor",
+  docsUrl: "https://antigravity.google/docs/cli/install",
   binNames: ["agy"],
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),
   getInstalledVersion: (instance) => versionFromCommand(instance.path),

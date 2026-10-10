@@ -7,6 +7,8 @@ export const claude = createNpmPackageTool({
   id: "claude",
   name: "Claude Code",
   shortName: "Claude",
+  description: "Anthropic's agentic coding assistant in your terminal",
+  docsUrl: "https://code.claude.com/docs/en/setup",
   binNames: ["claude"],
   pkg: "@anthropic-ai/claude-code",
   otherPlan: (instance) => {

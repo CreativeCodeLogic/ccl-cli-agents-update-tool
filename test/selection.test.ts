@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { deriveState } from "../src/scan";
 import { initialSelection, isOffered, recordSelection, selectedByDefault } from "../src/selection";
 import type { ToolScan } from "../src/types";
-import { notInstalledLine } from "../src/ui/table";
 
 const deprecation = { message: "retired", successorId: "agy" };
 
@@ -11,6 +10,7 @@ function scan(id: string, overrides: Partial<ToolScan> = {}): ToolScan {
     id,
     name: id,
     shortName: id,
+    docsUrl: "https://example.test/${id}",
     installed: true,
     installMethod: "npm",
     binaryPath: `/usr/local/bin/${id}`,
@@ -89,18 +89,5 @@ describe("recordSelection", () => {
       gcloud: "skip",
       kimi: "update",
     });
-  });
-});
-
-describe("notInstalledLine", () => {
-  const results = [scan("claude"), scan("copilot", { installed: false, shortName: "Copilot" }), scan("qwen", { installed: false, shortName: "Qwen" })];
-
-  it("summarizes hidden rows with short names", () => {
-    expect(notInstalledLine(results)).toBe("2 not installed: Copilot, Qwen · --show-all to list");
-  });
-
-  it("is omitted with --show-all or when everything is installed", () => {
-    expect(notInstalledLine(results, true)).toBeNull();
-    expect(notInstalledLine([scan("claude")])).toBeNull();
   });
 });

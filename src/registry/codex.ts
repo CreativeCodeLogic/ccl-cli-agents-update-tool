@@ -5,6 +5,8 @@ export const codex = createNpmPackageTool({
   id: "codex",
   name: "Codex CLI",
   shortName: "Codex",
+  description: "OpenAI's coding agent for the terminal",
+  docsUrl: "https://developers.openai.com/codex/cli",
   binNames: ["codex"],
   pkg: "@openai/codex",
   otherPlan: (instance) => {

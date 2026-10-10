@@ -5,6 +5,8 @@ export const gemini = createNpmPackageTool({
   id: "gemini",
   name: "Gemini CLI",
   shortName: "Gemini",
+  description: "Google's Gemini CLI (retired for consumer accounts)",
+  docsUrl: "https://github.com/google-gemini/gemini-cli",
   binNames: ["gemini"],
   pkg: "@google/gemini-cli",
   // https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/

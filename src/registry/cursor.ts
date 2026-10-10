@@ -33,6 +33,8 @@ export const cursor: ToolDescriptor = {
   id: "cursor",
   name: "Cursor CLI",
   shortName: "Cursor",
+  description: "Cursor's coding agent for the terminal (agent)",
+  docsUrl: "https://cursor.com/docs/cli/installation",
   binNames: ["agent", "cursor-agent"],
   selfUpdating: true,
   identify: isCursorAgent,

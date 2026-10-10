@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectInstallContext, nodeModulesParent, selfCheckEnabled, selfUpdateNotice } from "../src/self";
+import { createNoticeSlot, detectInstallContext, nodeModulesParent, selfCheckEnabled, selfUpdateNotice } from "../src/self";
 import { displayVersion } from "../src/ui/format";
 import { clearScreenKeepScrollback, shouldClearScreen } from "../src/ui/screen";
 import { win } from "./helpers";
@@ -55,6 +55,22 @@ describe("selfUpdateNotice", () => {
     expect(selfCheckEnabled({})).toBe(true);
     expect(selfCheckEnabled({ CI: "true" })).toBe(false);
     expect(selfCheckEnabled({ CCL_CAUT_NO_UPDATE_CHECK: "1" })).toBe(false);
+  });
+});
+
+describe("createNoticeSlot", () => {
+  it("shows the notice once, at the first slot where the latest version is known", () => {
+    let latest: string | null = null;
+    const slot = createNoticeSlot("1.0.0", "global", () => latest);
+    expect(slot.take()).toBeNull(); // banner: lookup still running
+    expect(slot.take()).toBeNull(); // after the notes: still running
+    latest = "1.0.1"; // lands during the update phase
+    expect(slot.take()).toBe("ccl-caut 1.0.1 is available · npm i -g ccl-caut"); // after the summary
+    expect(slot.take()).toBeNull(); // never twice
+  });
+
+  it("never shows anything for a source checkout", () => {
+    expect(createNoticeSlot("1.0.0", "source", () => "9.9.9").take()).toBeNull();
   });
 });
 

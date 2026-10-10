@@ -12,7 +12,7 @@ import {
   type Detection,
   type ScanSummary,
 } from "./scan";
-import { detectInstallContext, nodeModulesParent, selfCheckEnabled, selfUpdateNotice, type InstallContext } from "./self";
+import { createNoticeSlot, detectInstallContext, nodeModulesParent, selfCheckEnabled, type InstallContext } from "./self";
 import { initialSelection, isOffered, recordSelection, type SelectionStore } from "./selection";
 import type { ToolDescriptor, ToolScan } from "./types";
 import { printBanner } from "./ui/banner";
@@ -20,6 +20,7 @@ import { CANCEL_EXIT_CODE, CANCEL_MESSAGE, createProgress } from "./ui/progress"
 import { displayVersion } from "./ui/format";
 import { icons } from "./ui/symbols";
 import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
+import { renderDiscovery } from "./ui/discover";
 import { printNotes, renderTable } from "./ui/table";
 import { applyUpdates, type UpdateExecutor, type UpdateTarget } from "./ui/update";
 import { helpText, parseArgs, type CliOptions } from "./utils/args";
@@ -157,10 +158,25 @@ async function runJson(runtime: Runtime, check: boolean): Promise<number> {
 }
 
 /** Banner + two progress phases + table + notes. Shared by --check and the interactive flow. */
-async function scanWithProgress(runtime: Runtime, showAll: boolean): Promise<ScanResult> {
+/** Shows the newer-ccl-caut notice once per run (see createNoticeSlot); null until a scan starts. */
+let selfNotice: { take(): string | null } | null = null;
+
+function takeSelfNotice(): string | null {
+  return selfNotice?.take() ?? null;
+}
+
+/** After the final summary: the notice, if the lookup only finished during the run. */
+function printLateSelfNotice(): void {
+  const notice = takeSelfNotice();
+  if (notice) console.log(pc.dim(notice));
+}
+
+async function scanWithProgress(runtime: Runtime): Promise<ScanResult> {
   const { tools, host, latest } = runtime;
   const self = startSelfCheck(runtime);
-  const bannerNotice = selfUpdateNotice(VERSION, self.immediate, self.context);
+  // Under the banner only what is known right now (cache or demo fixture).
+  selfNotice = createNoticeSlot(VERSION, self.context, () => self.settled() ?? self.immediate);
+  const bannerNotice = self.immediate ? selfNotice.take() : null;
   printBanner(VERSION, bannerNotice);
   intro(pc.inverse(" Scan "));
   prefetchLatest(tools, latest);
@@ -169,16 +185,17 @@ async function scanWithProgress(runtime: Runtime, showAll: boolean): Promise<Sca
   progress.start("Scanning for installed CLIs...");
   const detections = await detectAll(tools, host);
   const found = detections.filter((d) => d.instances.length > 0).length;
-  progress.stop(`Found ${found} of ${detections.length} supported CLIs`);
+  const discoverHint = found < detections.length ? " · ccl-caut --discover to see all" : "";
+  progress.stop(`Found ${found} of ${detections.length} supported CLIs${discoverHint}`);
 
   progress.start("Checking latest versions...");
   const results = await resolveLatest(detections, latest);
   latest.cache?.save();
   progress.stop("Latest versions checked");
 
-  console.log(`${pc.gray("│")}\n${renderTable(results, showAll)}`);
-  printNotes(results, showAll);
-  const lateNotice = bannerNotice ? null : selfUpdateNotice(VERSION, self.settled(), self.context);
+  console.log(`${pc.gray("│")}\n${renderTable(results)}`);
+  printNotes(results);
+  const lateNotice = takeSelfNotice();
   if (lateNotice) log.message(pc.dim(lateNotice));
   if (latest.oldestCachedAt !== null) {
     const age = formatAge(Date.now() - latest.oldestCachedAt);
@@ -187,8 +204,22 @@ async function scanWithProgress(runtime: Runtime, showAll: boolean): Promise<Sca
   return { results, detections };
 }
 
-async function runCheck(runtime: Runtime, showAll: boolean): Promise<number> {
-  const { results } = await scanWithProgress(runtime, showAll);
+/** --discover: every supported tool, installed or not, with its official install docs. */
+async function runDiscover(runtime: Runtime): Promise<number> {
+  printBanner(VERSION);
+  intro(pc.inverse(" Discover "));
+  const progress = createProgress();
+  progress.start("Scanning for installed CLIs...");
+  const detections = await detectAll(runtime.tools, runtime.host);
+  const found = detections.filter((d) => d.instances.length > 0).length;
+  progress.stop(`${found} of ${detections.length} supported CLIs installed`);
+  console.log(`${pc.gray("│")}\n${renderDiscovery(detections)}`);
+  outro(pc.dim("ccl-caut never installs tools. To add one, follow its official install docs above."));
+  return 0;
+}
+
+async function runCheck(runtime: Runtime): Promise<number> {
+  const { results } = await scanWithProgress(runtime);
   const summary = summarize(results);
   outro(scanVerdict(summary));
   return checkExitCode(summary);
@@ -225,7 +256,7 @@ async function guardClaudeSelfUpdate(targets: UpdateTarget[], nonInteractive: bo
 }
 
 async function runInteractive(runtime: Runtime, options: CliOptions): Promise<number> {
-  const { results, detections } = await scanWithProgress(runtime, options.showAll);
+  const { results, detections } = await scanWithProgress(runtime);
   const summary = summarize(results);
   const offered = results.filter(isOffered);
 
@@ -286,6 +317,12 @@ async function runInteractive(runtime: Runtime, options: CliOptions): Promise<nu
   return outcome.failed > 0 || outcome.unchanged > 0 ? 1 : 0;
 }
 
+/** End of a scan run: the late update notice (if any), then the exit code. */
+function finish(code: number): number {
+  printLateSelfNotice();
+  return code;
+}
+
 async function main(): Promise<number> {
   const parsed = parseArgs(process.argv.slice(2));
   if (!parsed.ok) {
@@ -306,7 +343,8 @@ async function main(): Promise<number> {
   const runtime = createRuntime(options);
   if (options.resetSelection) runtime.selections.reset();
   if (options.json) return runJson(runtime, options.check);
-  if (options.check) return runCheck(runtime, options.showAll);
+  if (options.discover) return runDiscover(runtime);
+  if (options.check) return finish(await runCheck(runtime));
 
   const interactive = !options.yes;
   const clear = { interactive, isTTY: Boolean(process.stdout.isTTY), env: process.env, noClear: options.noClear, demo: options.demo };
@@ -314,7 +352,7 @@ async function main(): Promise<number> {
 
   // Ctrl+C outside a prompt (e.g. during a scan) exits cleanly too.
   process.once("SIGINT", exitCancelled);
-  return runInteractive(runtime, options);
+  return finish(await runInteractive(runtime, options));
 }
 
 main().then(

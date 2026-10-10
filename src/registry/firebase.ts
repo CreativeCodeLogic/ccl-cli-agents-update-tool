@@ -11,6 +11,8 @@ export const firebase = createNpmPackageTool({
   id: "firebase",
   name: "Firebase CLI",
   shortName: "Firebase",
+  description: "Deploy and manage Firebase projects",
+  docsUrl: "https://firebase.google.com/docs/cli",
   binNames: ["firebase"],
   pkg: "firebase-tools",
   // Anything not under npm is almost certainly the standalone binary.

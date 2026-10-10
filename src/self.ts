@@ -53,3 +53,24 @@ export function selfUpdateNotice(current: string, latest: string | null, context
 export function selfCheckEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
   return !env.CI && env.CCL_CAUT_NO_UPDATE_CHECK !== "1";
 }
+
+/**
+ * The newer-ccl-caut notice is shown at most once per run, at the first slot
+ * where the latest version is known: under the banner, after the notes, or
+ * after the final summary. `latest` is read at each slot and never awaited.
+ */
+export function createNoticeSlot(
+  current: string,
+  context: InstallContext | null,
+  latest: () => string | null,
+): { take(): string | null } {
+  let shown = false;
+  return {
+    take() {
+      if (shown) return null;
+      const notice = selfUpdateNotice(current, latest(), context);
+      if (notice) shown = true;
+      return notice;
+    },
+  };
+}

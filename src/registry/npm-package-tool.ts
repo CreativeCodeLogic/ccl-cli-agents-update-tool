@@ -9,6 +9,8 @@ export interface NpmPackageToolConfig {
   /** npm package that ships the CLI; also the source of "latest". */
   pkg: string;
   shortName?: string;
+  description: string;
+  docsUrl: string;
   deprecation?: ToolDescriptor["deprecation"];
   refineInstallMethod?: ToolDescriptor["refineInstallMethod"];
   /** Plans for installs npm doesn't manage (self-updaters, brew, ...); null = generic manual plan. */
@@ -31,6 +33,8 @@ export function createNpmPackageTool(config: NpmPackageToolConfig): ToolDescript
     name: config.name,
     binNames: config.binNames,
     npmPackage: pkg,
+    description: config.description,
+    docsUrl: config.docsUrl,
     ...(config.shortName && { shortName: config.shortName }),
     ...(config.deprecation && { deprecation: config.deprecation }),
     ...(config.refineInstallMethod && { refineInstallMethod: config.refineInstallMethod }),

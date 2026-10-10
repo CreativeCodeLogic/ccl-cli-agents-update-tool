@@ -9,6 +9,8 @@ function fakeTool(overrides: Partial<ToolDescriptor> = {}): ToolDescriptor {
   return {
     id: "tool",
     name: "Tool",
+    description: "A test tool",
+    docsUrl: "https://example.test/install",
     binNames: ["tool"],
     getInstalledVersion: async (i: BinaryInstance) => (i.path.includes("local") ? "1.0.0" : "2.0.0"),
     getLatestVersion: vi.fn(async () => "2.0.0"),

@@ -54,6 +54,8 @@ export const gcloud: ToolDescriptor = {
   id: "gcloud",
   name: "Google Cloud CLI",
   shortName: "gcloud",
+  description: "Manage Google Cloud resources (gcloud, bq, gsutil)",
+  docsUrl: "https://cloud.google.com/sdk/docs/install",
   binNames: ["gcloud"],
   // Anything that isn't a package-manager install is the official installer/archive.
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),
