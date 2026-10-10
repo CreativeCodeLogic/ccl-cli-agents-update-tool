@@ -12,17 +12,21 @@ import {
   type Detection,
   type ScanSummary,
 } from "./scan";
+import { detectInstallContext, nodeModulesParent, selfCheckEnabled, selfUpdateNotice, type InstallContext } from "./self";
 import { initialSelection, isOffered, recordSelection, type SelectionStore } from "./selection";
 import type { ToolDescriptor, ToolScan } from "./types";
 import { printBanner } from "./ui/banner";
 import { CANCEL_EXIT_CODE, CANCEL_MESSAGE, createProgress } from "./ui/progress";
+import { displayVersion } from "./ui/format";
 import { icons } from "./ui/symbols";
+import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
 import { printNotes, renderTable } from "./ui/table";
 import { applyUpdates, type UpdateExecutor, type UpdateTarget } from "./ui/update";
 import { helpText, parseArgs, type CliOptions } from "./utils/args";
 import { VersionCache } from "./utils/cache";
 import { UserConfig } from "./utils/config";
-import { getHost, type Host } from "./utils/host";
+import { getHost, pathFor, type Host } from "./utils/host";
+import { fetchLatestNpmVersion } from "./utils/npm";
 
 const VERSION = pkg.version;
 
@@ -40,6 +44,45 @@ interface Runtime {
   selections: SelectionStore;
   /** Undefined = run update commands for real. */
   executor?: UpdateExecutor;
+  /** Demo only: a canned "newer ccl-caut" result, no network. */
+  selfFixture?: { latest: string; context: InstallContext };
+}
+
+/** Cache key of ccl-caut's own latest version (shares the 1h latest-version cache). */
+const SELF_KEY = "ccl-caut:self";
+
+interface SelfCheck {
+  /** Latest version known without waiting (cache or demo fixture). */
+  immediate: string | null;
+  /** Latest version if the background lookup has finished by now; never awaited. */
+  settled(): string | null;
+  context: InstallContext | null;
+}
+
+/**
+ * Look up ccl-caut's own latest version in the background. It is never awaited,
+ * so it adds no time to a run: a cached value shows up under the banner, a fresh
+ * one after the table if it arrived by then, otherwise next run (it is cached).
+ */
+function startSelfCheck(runtime: Runtime): SelfCheck {
+  if (runtime.selfFixture) {
+    const { latest, context } = runtime.selfFixture;
+    return { immediate: latest, settled: () => latest, context };
+  }
+  if (!selfCheckEnabled(process.env)) return { immediate: null, settled: () => null, context: null };
+
+  const { host } = runtime;
+  const entryPath = host.fs.realpath(process.argv[1] ?? "");
+  const parent = nodeModulesParent(entryPath, host.platform);
+  const insideProject = parent !== null && host.fs.exists(pathFor(host.platform).join(parent, "package.json"));
+  const context = detectInstallContext({ entryPath, env: process.env, insideProject, platform: host.platform });
+  if (context === "source") return { immediate: null, settled: () => null, context };
+
+  let latest: string | null = null;
+  void runtime.latest.getByKey(SELF_KEY, () => fetchLatestNpmVersion("ccl-caut"), false).then((v) => {
+    latest = v;
+  });
+  return { immediate: runtime.latest.peek(SELF_KEY), settled: () => latest, context };
 }
 
 function createRuntime(options: CliOptions): Runtime {
@@ -93,12 +136,14 @@ async function scan(runtime: Runtime): Promise<ScanResult> {
 }
 
 async function runJson(runtime: Runtime, check: boolean): Promise<number> {
+  const self = startSelfCheck(runtime);
   const { results } = await scan(runtime);
   const summary = summarize(results);
   const { latest } = runtime;
   const report = {
     tool: "ccl-caut",
     version: VERSION,
+    self: { version: VERSION, latest: self.settled() ?? self.immediate },
     generatedAt: new Date().toISOString(),
     platform: process.platform,
     node: process.version,
@@ -114,7 +159,9 @@ async function runJson(runtime: Runtime, check: boolean): Promise<number> {
 /** Banner + two progress phases + table + notes. Shared by --check and the interactive flow. */
 async function scanWithProgress(runtime: Runtime, showAll: boolean): Promise<ScanResult> {
   const { tools, host, latest } = runtime;
-  printBanner(VERSION);
+  const self = startSelfCheck(runtime);
+  const bannerNotice = selfUpdateNotice(VERSION, self.immediate, self.context);
+  printBanner(VERSION, bannerNotice);
   intro(pc.inverse(" Scan "));
   prefetchLatest(tools, latest);
 
@@ -131,6 +178,8 @@ async function scanWithProgress(runtime: Runtime, showAll: boolean): Promise<Sca
 
   console.log(`${pc.gray("│")}\n${renderTable(results, showAll)}`);
   printNotes(results, showAll);
+  const lateNotice = bannerNotice ? null : selfUpdateNotice(VERSION, self.settled(), self.context);
+  if (lateNotice) log.message(pc.dim(lateNotice));
   if (latest.oldestCachedAt !== null) {
     const age = formatAge(Date.now() - latest.oldestCachedAt);
     log.message(pc.dim(`Latest versions cached ${age} ago · --refresh to recheck`));
@@ -152,8 +201,8 @@ function optionHint(r: ToolScan): string {
 }
 
 function optionLabel(r: ToolScan): string {
-  const latest = r.state === "self-updating" ? pc.dim("latest") : pc.green(r.latestVersion ?? "?");
-  return `${r.name}  ${pc.dim(r.installedVersion ?? "?")} ${icons.arrow} ${latest}`;
+  const latest = r.state === "self-updating" ? pc.dim("latest") : pc.green(r.latestVersion ? displayVersion(r.latestVersion) : "?");
+  return `${r.name}  ${pc.dim(r.installedVersion ? displayVersion(r.installedVersion) : "?")} ${icons.arrow} ${latest}`;
 }
 
 /**
@@ -258,6 +307,10 @@ async function main(): Promise<number> {
   if (options.resetSelection) runtime.selections.reset();
   if (options.json) return runJson(runtime, options.check);
   if (options.check) return runCheck(runtime, options.showAll);
+
+  const interactive = !options.yes;
+  const clear = { interactive, isTTY: Boolean(process.stdout.isTTY), env: process.env, noClear: options.noClear, demo: options.demo };
+  if (shouldClearScreen(clear)) clearScreenKeepScrollback();
 
   // Ctrl+C outside a prompt (e.g. during a scan) exits cleanly too.
   process.once("SIGINT", exitCancelled);

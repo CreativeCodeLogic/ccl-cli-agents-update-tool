@@ -18,7 +18,7 @@ function figletArt(): string | null {
  * Figlet banner with a gradient when it fits; otherwise a compact one-line
  * banner trimmed to the terminal width, so narrow terminals never wrap.
  */
-export function printBanner(version: string): void {
+export function printBanner(version: string, notice: string | null = null): void {
   const columns = process.stdout.columns ?? 80;
   const art = figletArt();
   const artWidth = art ? Math.max(...art.split("\n").map((line) => line.length)) : Infinity;
@@ -33,5 +33,6 @@ export function printBanner(version: string): void {
     const suffix = TITLE.length + full.length <= columns ? full : ` v${version}`;
     console.log(BRAND(TITLE) + pc.dim(suffix));
   }
+  if (notice) console.log(pc.dim(notice));
   console.log();
 }

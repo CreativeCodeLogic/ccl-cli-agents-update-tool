@@ -1,5 +1,6 @@
 import { registry } from "../registry";
 import { LatestResolver } from "../scan";
+import type { InstallContext } from "../self";
 import type { SelectionStore, ToolChoice } from "../selection";
 import type { BinaryInstance, ToolDescriptor } from "../types";
 import type { UpdateExecutor } from "../ui/update";
@@ -112,6 +113,8 @@ export interface DemoRuntime {
   latest: LatestResolver;
   selections: SelectionStore;
   executor: UpdateExecutor;
+  /** Shows the "newer ccl-caut" notice under the banner without any network. */
+  selfFixture: { latest: string; context: InstallContext };
 }
 
 /** Remembered selections for the demo: in memory only, never the user's config file. */
@@ -165,5 +168,12 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
     return { code: 0, output: lines.join("\n") };
   };
 
-  return { tools, host, latest: new LatestResolver(null), selections: memorySelections(DEMO_CHOICES), executor };
+  return {
+    tools,
+    host,
+    latest: new LatestResolver(null),
+    selections: memorySelections(DEMO_CHOICES),
+    executor,
+    selfFixture: { latest: "1.0.1", context: "global" },
+  };
 }

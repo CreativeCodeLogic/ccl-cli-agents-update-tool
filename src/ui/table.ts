@@ -2,6 +2,7 @@ import { log } from "@clack/prompts";
 import { stripVTControlCharacters } from "node:util";
 import pc from "picocolors";
 import type { InstallMethod, ToolScan } from "../types";
+import { displayVersion } from "./format";
 import { icons, stateStyle } from "./symbols";
 
 const visibleLength = (s: string) => stripVTControlCharacters(s).length;
@@ -20,8 +21,8 @@ export function renderTable(results: readonly ToolScan[], showAll = false): stri
     return [
       style.icon,
       !r.installed || retired ? pc.dim(r.name) : r.name,
-      r.installedVersion ?? pc.dim(r.installed ? "?" : "—"),
-      r.latestVersion ?? pc.dim("—"),
+      r.installedVersion ? displayVersion(r.installedVersion) : pc.dim(r.installed ? "?" : "—"),
+      r.latestVersion ? displayVersion(r.latestVersion) : pc.dim("—"),
       style.label,
       pc.dim(`${r.installMethod ?? ""}${r.shadowed.length > 0 ? ` +${r.shadowed.length} hidden` : ""}`),
     ];

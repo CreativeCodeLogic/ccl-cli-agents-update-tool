@@ -52,27 +52,31 @@ export class LatestResolver {
   }
 
   get(tool: ToolDescriptor, method?: InstallMethod, installedVersion?: string | null): Promise<string | null> {
-    const key = LatestResolver.key(tool, method, installedVersion);
+    return this.getByKey(LatestResolver.key(tool, method, installedVersion), () => tool.getLatestVersion(method, installedVersion));
+  }
+
+  /** Cached value for `key` without any network (null when missing, expired or refreshing). */
+  peek(key: string): string | null {
+    return this.refresh ? null : (this.cache?.get(key)?.version ?? null);
+  }
+
+  /** Any keyed latest-version lookup (also used for ccl-caut itself), cached and de-duplicated. */
+  getByKey(key: string, fetchLatest: () => Promise<string | null>, trackAge = true): Promise<string | null> {
     let pending = this.pending.get(key);
     if (!pending) {
-      pending = this.lookup(tool, method, installedVersion, key);
+      pending = this.lookup(key, fetchLatest, trackAge);
       this.pending.set(key, pending);
     }
     return pending;
   }
 
-  private async lookup(
-    tool: ToolDescriptor,
-    method: InstallMethod | undefined,
-    installedVersion: string | null | undefined,
-    key: string,
-  ): Promise<string | null> {
+  private async lookup(key: string, fetchLatest: () => Promise<string | null>, trackAge: boolean): Promise<string | null> {
     const hit = this.refresh ? null : this.cache?.get(key);
     if (hit) {
-      this.oldestCachedAt = Math.min(this.oldestCachedAt ?? hit.fetchedAt, hit.fetchedAt);
+      if (trackAge) this.oldestCachedAt = Math.min(this.oldestCachedAt ?? hit.fetchedAt, hit.fetchedAt);
       return hit.version;
     }
-    const live = await safe(() => tool.getLatestVersion(method, installedVersion), null);
+    const live = await safe(fetchLatest, null);
     if (live) this.cache?.set(key, live);
     return live;
   }

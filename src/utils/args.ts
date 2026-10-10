@@ -3,6 +3,7 @@ export interface CliOptions {
   json: boolean;
   refresh: boolean;
   showAll: boolean;
+  noClear: boolean;
   resetSelection: boolean;
   /** Non-interactive: update what would be preselected, no prompts. */
   yes: boolean;
@@ -21,6 +22,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     json: false,
     refresh: false,
     showAll: false,
+    noClear: false,
     resetSelection: false,
     yes: false,
     demo: false,
@@ -40,6 +42,9 @@ export function parseArgs(argv: readonly string[]): ParseResult {
         break;
       case "--show-all":
         options.showAll = true;
+        break;
+      case "--no-clear":
+        options.noClear = true;
         break;
       case "--reset-selection":
         options.resetSelection = true;
@@ -87,6 +92,7 @@ Options:
                  choices, else every outdated tool that isn't retired or self-updating).
   --reset-selection
                  Forget the selection remembered from previous runs, then run normally.
+  --no-clear     Don't clear the screen when starting the interactive checklist.
   --no-color     Disable colors.
   -v, --version  Print the version.
   -h, --help     Show this help.
@@ -98,6 +104,7 @@ Exit codes:
   130  cancelled (Ctrl+C)
 
 Environment:
-  CCL_CAUT_DEBUG=1  Print diagnostics (failed lookups, cache problems) to stderr.
+  CCL_CAUT_DEBUG=1             Print diagnostics (failed lookups, cache problems) to stderr.
+  CCL_CAUT_NO_UPDATE_CHECK=1   Don't check whether a newer ccl-caut is available.
 `;
 }
