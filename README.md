@@ -2,7 +2,7 @@
 
 **One command to check and update every AI coding CLI on your machine.**
 
-<!-- WHY: one line on the problem (many agents, many update commands, many install methods). The user will write this copy. -->
+Twelve CLIs. Ten ways to install them. One checklist.
 
 [![CI](https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)

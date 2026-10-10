@@ -1,0 +1,1 @@
+export function classifyTag(tag: string): { channel: "stable" | "rc" | "beta"; version: string; publishToNpm: boolean } | null;

@@ -51,6 +51,16 @@ describe("selfUpdateNotice", () => {
     expect(selfUpdateNotice("1.0.0", "not-a-version", "global")).toBeNull();
   });
 
+  it("handles release candidates sanely", () => {
+    // The final release is newer than its candidates.
+    expect(selfUpdateNotice("1.0.0-rc.1", "1.0.0", "global")).toBe("ccl-caut 1.0.0 is available · npm i -g ccl-caut");
+    // Never "update" an rc user to an older stable or an earlier candidate.
+    expect(selfUpdateNotice("1.0.0-rc.2", "0.9.0", "global")).toBeNull();
+    expect(selfUpdateNotice("1.0.0-rc.2", "1.0.0-rc.1", "global")).toBeNull();
+    // Nothing published yet (npm 404 -> latest null): silent.
+    expect(selfUpdateNotice("1.0.0-rc.1", null, "global")).toBeNull();
+  });
+
   it("is disabled in CI and with CCL_CAUT_NO_UPDATE_CHECK=1", () => {
     expect(selfCheckEnabled({})).toBe(true);
     expect(selfCheckEnabled({ CI: "true" })).toBe(false);

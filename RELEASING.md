@@ -1,12 +1,30 @@
 # Releasing
 
+## Release candidates (internal testing, repo private)
+
+Release candidates are GitHub pre-releases with the npm tarball attached. **They are never published to npm**; testers install the tarball (see [docs/TESTING.md](docs/TESTING.md)).
+
+```bash
+npm version 1.0.0-rc.N --no-git-tag-version   # package.json + lock
+git commit -am "Release candidate v1.0.0-rc.N"
+git push
+git tag -a v1.0.0-rc.N -m "Release candidate v1.0.0-rc.N"
+git push origin v1.0.0-rc.N
+```
+
+**Actions → Release** classifies the tag (`scripts/release-channel.mjs`: `vX.Y.Z-rc.N` → rc), runs typecheck, tests and build, packs `ccl-caut-X.Y.Z-rc.N.tgz` and creates a GitHub **pre-release** with it attached. Notes come from the `## [X.Y.Z]` section of `CHANGELOG.md` (or `## [Unreleased]`). Stable tags (`vX.Y.Z`) fail before publishing while the repository is private.
+
+The final launch sets the version to the stable number (`npm version 1.0.0 --no-git-tag-version`, commit) before the steps below.
+
 ## Going public (one time)
 
 Do these in order. Claude never changes repository visibility or publishes to npm; these are manual steps.
 
 1. **Social preview.** Review `docs/social-preview-a.png` (terminal style) and `docs/social-preview-b.png` (gradient), pick one, and upload it: GitHub → repository **Settings → General → Social preview → Edit → Upload an image**. There is no API for this.
 
-2. **Make the repository public.** GitHub → **Settings → General → Danger Zone → Change repository visibility → Make public**. Then enable private vulnerability reporting (used by `SECURITY.md`; GitHub only allows it on public repositories):
+2. **Make the repository public.** GitHub → **Settings → General → Danger Zone → Change repository visibility → Make public**. Then:
+   - enable the full CI matrix on push/PR: in `.github/workflows/ci.yml`, replace the `node:` expression with `[20, 22, 24]` and drop the "while the repo is private" comment (public repos get free hosted-runner minutes);
+   - enable private vulnerability reporting (used by `SECURITY.md`; GitHub only allows it on public repositories):
 
    ```bash
    gh api -X PUT repos/CreativeCodeLogic/ccl-cli-agents-update-tool/private-vulnerability-reporting
@@ -70,7 +88,7 @@ Do these in order. Claude never changes repository visibility or publishes to np
 ## Cutting a release (after 1.0.0)
 
 1. Move the entries under `## [Unreleased]` in `CHANGELOG.md` to a new `## [x.y.z] - YYYY-MM-DD` section and update the compare links at the bottom.
-2. Update `ROADMAP.md` (move shipped items to "Now", adjust "Next") and close the matching GitHub milestone.
+2. Update `ROADMAP.md` (move shipped items to "Now", adjust "Next") and close the matching GitHub milestone. If tools or install methods changed, update the counts in the README why line ("Twelve CLIs. Ten ways to install them.").
 3. Bump, tag and push:
 
    ```bash

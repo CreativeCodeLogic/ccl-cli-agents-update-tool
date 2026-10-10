@@ -1,8 +1,10 @@
 name: Release
 
-# Publishes to npm and creates a GitHub Release when a version tag is pushed:
-#   npm version 0.2.0 && git push --follow-tags
-# One-time setup (npm trusted publisher, first publish): see RELEASING.md.
+# One workflow for every version tag; scripts/release-channel.mjs decides what it may do:
+#   vX.Y.Z-rc.N     -> GitHub pre-release with the npm tarball attached. NEVER publishes to npm.
+#   vX.Y.Z          -> npm publish (latest) + GitHub Release. Refuses while the repo is private.
+#   vX.Y.Z-<other>  -> npm publish (next) + GitHub pre-release. Refuses while the repo is private.
+# Setup (npm trusted publisher, first publish): see RELEASING.md.
 on:
   push:
     tags: ["v*.*.*"]
@@ -27,7 +29,10 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           cache: npm
-      - run: npm install -g npm@latest && npm --version
+
+      - name: Classify the tag
+        id: channel
+        run: node scripts/release-channel.mjs "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
 
       - run: npm ci
       - run: npm run typecheck
@@ -36,37 +41,59 @@ jobs:
 
       - name: Verify the tag matches package.json
         run: |
-          tag="${GITHUB_REF_NAME#v}"
           pkg="$(node -p "require('./package.json').version")"
-          if [ "$tag" != "$pkg" ]; then
+          if [ "${{ steps.channel.outputs.version }}" != "$pkg" ]; then
             echo "::error::tag $GITHUB_REF_NAME does not match package.json version $pkg"
             exit 1
           fi
 
       - name: Extract release notes from CHANGELOG.md
-        run: node scripts/changelog-section.mjs "${GITHUB_REF_NAME#v}" > release-notes.md
+        run: node scripts/changelog-section.mjs "${{ steps.channel.outputs.version }}" > release-notes.md
+
+      # ---- Release candidates: GitHub pre-release only ----
+      - name: Pack the release candidate
+        if: steps.channel.outputs.channel == 'rc'
+        run: npm pack
+
+      - name: Create the GitHub pre-release (rc)
+        if: steps.channel.outputs.channel == 'rc'
+        run: |
+          gh release create "$GITHUB_REF_NAME" ccl-caut-*.tgz --verify-tag --prerelease \
+            --title "$GITHUB_REF_NAME" --notes-file release-notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      # ---- npm releases (stable and beta) ----
+      - name: Refuse to publish from a private repository
+        if: steps.channel.outputs.publish_to_npm == 'true' && github.event.repository.private
+        run: |
+          echo "::error::This repository is private. Make it public before publishing to npm (provenance requires a public repository, and the launch must not happen early). See RELEASING.md."
+          exit 1
+
+      - run: npm install -g npm@latest && npm --version
+        if: steps.channel.outputs.publish_to_npm == 'true'
 
       # Trusted publishing (OIDC) is used when configured on npmjs.com; NPM_TOKEN is
-      # only a fallback for the bootstrap publish (see RELEASING.md). Provenance
-      # requires a public repository.
-      # Skipped when the version is already on npm (manual bootstrap publish, re-runs).
+      # only a fallback (see RELEASING.md). Skipped when the version is already on npm.
       - name: Publish to npm
+        if: steps.channel.outputs.publish_to_npm == 'true' && steps.channel.outputs.channel != 'rc'
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${{ steps.channel.outputs.version }}"
           name="$(node -p "require('./package.json').name")"
           if npm view "$name@$version" version >/dev/null 2>&1; then
             echo "$name@$version is already on npm; skipping publish"
             exit 0
           fi
-          if [[ "$version" == *-* ]]; then dist_tag=next; else dist_tag=latest; fi
+          if [ "${{ steps.channel.outputs.channel }}" = "stable" ]; then dist_tag=latest; else dist_tag=next; fi
           npm publish --access public --provenance --tag "$dist_tag"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create the GitHub Release
+        if: steps.channel.outputs.publish_to_npm == 'true' && steps.channel.outputs.channel != 'rc'
         run: |
           prerelease=""
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
+          if [ "${{ steps.channel.outputs.channel }}" != "stable" ]; then prerelease="--prerelease"; fi
           gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file release-notes.md $prerelease
         env:
           GH_TOKEN: ${{ github.token }}
