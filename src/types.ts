@@ -86,9 +86,10 @@ export interface ToolDescriptor {
   latestChannel?(method?: InstallMethod, installedVersion?: string | null): string;
   /**
    * Explain an update command that succeeded but left the version unchanged,
-   * when that is expected (e.g. a staged rollout). null = genuinely unchanged.
+   * when that is expected (e.g. a staged rollout), judging by the command's
+   * output. null = genuinely unchanged (reported as a warning).
    */
-  explainUnchanged?(instance: BinaryInstance): { status: "held"; message: string } | null;
+  explainUnchanged?(instance: BinaryInstance, output: string): { status: "held"; message: string } | null;
 }
 
 export type ToolState =

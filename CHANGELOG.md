@@ -20,7 +20,7 @@ First public release of CCL CAUT, the CLI Agents Update Tool.
 - Deprecation notices: retired tools (Gemini CLI for consumer accounts, succeeded by Antigravity CLI) are flagged, never preselected, and can still be updated on request.
 - "Updates itself" state for tools that keep themselves current without a public latest version (Cursor CLI), with their own update command offered.
 - Interactive checklist with remembered per-tool selections (stored in the OS config folder; `--reset-selection` to clear).
-- Safe updates: automatic only for npm installs in the active prefix and documented self-updaters (`claude update`, `copilot update`, `agent update`, `opencode upgrade`, `agy update`, `qwen update`, `kimi upgrade`, `gcloud components update` in user-writable SDKs); everything else is shown as a ready-to-copy command with the reason.
+- Safe updates: automatic only for npm installs in the active prefix and documented self-updaters (`claude update`, `copilot update`, `agent update`, `opencode upgrade`, `agy update`, `qwen update`, `kimi upgrade` on macOS/Linux, `gcloud components update` in user-writable SDKs); everything else is shown as a ready-to-copy command with the reason.
 - Post-update version re-check; unchanged versions are warnings, Kimi Code staged rollouts are reported as "held".
 - Friendly hints for locked files and permission errors; Claude Code is never updated from inside a Claude Code session without confirmation.
 - Flags: `--check` (exit 1 when updates are available), `--json`, `--yes`, `--show-all`, `--refresh`, `--reset-selection`, `--no-color`, `--version`, `--help`.

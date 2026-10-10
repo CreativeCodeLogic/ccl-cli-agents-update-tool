@@ -119,15 +119,15 @@ export async function applyUpdates(
         log.success(`${scan.name} is current (${after})`);
         continue;
       }
-      const explained = tool.explainUnchanged?.(instance) ?? null;
+      const explained = tool.explainUnchanged?.(instance, result.output) ?? null;
       if (explained) {
         outcome.held++;
         log.warn(explained.message);
       } else {
         outcome.unchanged++;
         log.warn(
-          `${scan.name}: the update command succeeded but the running copy still reports ${after ?? "an unknown version"}. ` +
-            "Another install may be shadowing it, or a new terminal is needed.",
+          `${scan.name}: the update command finished but the running copy still reports ${after ?? "an unknown version"}. ` +
+            "Check its output above; another install may be shadowing it, or a new terminal is needed.",
         );
       }
     }

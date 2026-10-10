@@ -16,6 +16,7 @@ import { npmGlobalPlan, versionFromCommand } from "./shared";
  */
 const NPM_PKG = "@moonshot-ai/kimi-code";
 const LEGACY_PYPI_PKG = "kimi-cli";
+const WINDOWS_INSTALLER = "https://code.kimi.com/kimi-code/install.ps1";
 
 /** Directories where uv keeps tool environments. */
 export function uvToolDirs(host: Host): string[] {
@@ -116,8 +117,18 @@ export const kimi: ToolDescriptor = {
     const npmPlan = await npmGlobalPlan(instance, NPM_PKG);
     if (npmPlan) return npmPlan;
     switch (instance.installMethod) {
-      case "native": // documented self-updater: `kimi upgrade|update`
-        return { kind: "auto", command: [instance.path, "upgrade"] };
+      case "native":
+        // `kimi upgrade` on Windows only prints "Auto-update is not supported on
+        // this platform" (verified with 0.28.1); re-running the official installer
+        // upgrades %USERPROFILE%/.kimi-code in place.
+        if (getHost().platform === "win32") {
+          return {
+            kind: "manual",
+            command: `irm ${WINDOWS_INSTALLER} | iex`,
+            reason: "Kimi Code's built-in updater doesn't support Windows; re-run the official installer in PowerShell.",
+          };
+        }
+        return { kind: "auto", command: [instance.path, "upgrade"] }; // documented self-updater
       case "pip":
         return legacyPlan(instance, getHost());
       default:
@@ -129,8 +140,9 @@ export const kimi: ToolDescriptor = {
     }
   },
 
-  explainUnchanged: (instance) =>
-    instance.installMethod === "native"
+  // A staged rollout explains an unchanged version only if the updater didn't say it can't update.
+  explainUnchanged: (instance, output) =>
+    instance.installMethod === "native" && !/not supported|update manually/i.test(output)
       ? {
           status: "held",
           message: "Kimi Code: update held by staged rollout (releases roll out over ~24h). Try again later.",

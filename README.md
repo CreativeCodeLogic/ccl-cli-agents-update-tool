@@ -66,7 +66,7 @@ Then pick what to update (space toggles, enter confirms). Updates CCL CAUT can r
 | Gemini CLI | npm, Homebrew | **retired** for consumer accounts (see below) · npm: **auto** if you tick it · Homebrew: command |
 | Antigravity CLI (`agy`) | install script, Homebrew, winget | script: **auto** (`agy update`) · Homebrew, winget: command |
 | Qwen Code | npm, standalone installer, Homebrew | npm: **auto** · standalone: **auto** (`qwen update`) · Homebrew: command |
-| Kimi Code | npm, native installer, legacy `kimi-cli` (uv, pipx, pip) | npm: **auto** · native: **auto** (`kimi upgrade`) · legacy: command |
+| Kimi Code | npm, native installer, legacy `kimi-cli` (uv, pipx, pip) | npm: **auto** · native: **auto** on macOS/Linux (`kimi upgrade`), installer command on Windows · legacy: command |
 | Firebase CLI | npm, standalone binary | npm: **auto** · standalone: command |
 | Google Cloud CLI | official installer, apt, snap, Homebrew | installer in a folder you can write to: **auto** (`gcloud components update`) · Program Files, read-only folders, apt, snap, Homebrew: command |
 | npm | bundled with Node.js, global npm, Homebrew's Node | always a command |

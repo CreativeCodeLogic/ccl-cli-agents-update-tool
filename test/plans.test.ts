@@ -79,8 +79,23 @@ describe("Kimi Code", () => {
   it("auto-runs `kimi upgrade` for native installs and explains unchanged versions as a staged rollout", async () => {
     const i = instance(`${linuxHome}/.kimi-code/bin/kimi`, "native");
     expect(await kimi.getUpdatePlan(i)).toEqual({ kind: "auto", command: [i.path, "upgrade"] });
-    expect(kimi.explainUnchanged?.(i)).toMatchObject({ status: "held" });
-    expect(kimi.explainUnchanged?.(instance("/usr/local/bin/kimi", "npm"))).toBeNull();
+    expect(kimi.explainUnchanged?.(i, "Checking for updates... no update yet")).toMatchObject({ status: "held" });
+    expect(kimi.explainUnchanged?.(instance("/usr/local/bin/kimi", "npm"), "")).toBeNull();
+  });
+
+  it("never calls it a staged rollout when the updater says it can't update", () => {
+    const output = [
+      "A newer version of @moonshot-ai/kimi-code is available (0.28.1 -> 2.1.1).",
+      "Detected install source: native (windows). Auto-update is not supported on this platform.",
+      "To update manually, run: irm https://code.kimi.com/kimi-code/install.ps1 | iex",
+    ].join("\n");
+    expect(kimi.explainUnchanged?.(instance("/home/jane/.kimi-code/bin/kimi", "native"), output)).toBeNull();
+  });
+
+  it("only prints the official installer for native installs on Windows (no self-update there)", async () => {
+    useHost(fakeHost({ platform: "win32", homedir: win("C:/Users/Jane") }));
+    const plan = await kimi.getUpdatePlan(instance(win("C:/Users/Jane/.kimi-code/bin/kimi.exe"), "native"));
+    expect(plan).toMatchObject({ kind: "manual", command: "irm https://code.kimi.com/kimi-code/install.ps1 | iex" });
   });
 
   it("auto-updates npm installs of @moonshot-ai/kimi-code", async () => {
