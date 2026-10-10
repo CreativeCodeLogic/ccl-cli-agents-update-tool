@@ -28,6 +28,22 @@ export function isVoltaPath(p: string, host: Host): boolean {
   return localAppData !== undefined && isInside(p, pathFor(host.platform).join(localAppData, "Volta"), host.platform);
 }
 
+/** Windows package managers, recognized by where they put files. */
+function windowsPackageManager(p: string, host: Host): InstallMethod | null {
+  const path = pathFor(host.platform);
+  const local = envVar(host, "LOCALAPPDATA");
+  const wingetRoots = [
+    local && path.join(local, "Microsoft", "WinGet"), // per-user portable packages + Links
+    envVar(host, "ProgramFiles") && path.join(envVar(host, "ProgramFiles")!, "WinGet"), // machine scope
+  ];
+  if (wingetRoots.some((root) => root && isInside(p, root, host.platform))) return "winget";
+  const choco = envVar(host, "ChocolateyInstall") ?? "C:\x5cProgramData\x5cchocolatey";
+  if (isInside(p, choco, host.platform)) return "choco";
+  const scoop = envVar(host, "SCOOP") ?? (host.homedir && path.join(host.homedir, "scoop"));
+  if (scoop && isInside(p, scoop, host.platform)) return "scoop";
+  return null;
+}
+
 /** Install roots of vendor "native" installers. */
 function isNativeLocation(p: string, { host }: ClassifyContext): boolean {
   const { platform, homedir } = host;
@@ -94,6 +110,11 @@ export function classifyInstall(binPath: string, realPath: string, ctx: Classify
   if (isVoltaPath(binPath, host)) return "npm";
 
   if (any((p) => PIP_SEGMENTS.some((s) => p.includes(s)))) return "pip";
+
+  if (isWindows) {
+    const manager = windowsPackageManager(binPath, host) ?? windowsPackageManager(realPath, host);
+    if (manager) return manager;
+  }
 
   if (any((p) => p.startsWith("/usr/bin/") || p.startsWith("/usr/lib/") || p.startsWith("/usr/share/"))) {
     return "apt";

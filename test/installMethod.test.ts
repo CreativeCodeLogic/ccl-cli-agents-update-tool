@@ -44,6 +44,10 @@ describe("classifyInstall (win32)", () => {
     { name: "nvm4w npm next to node.exe", bin: win("C:/nvm4w/nodejs/npm.cmd"), files: [win("C:/nvm4w/nodejs/node.exe")], expected: "node" },
     { name: "Volta shim in LOCALAPPDATA", bin: win(`${home}/AppData/Local/Volta/bin/claude.exe`), expected: "npm" },
     { name: "LOCALAPPDATA Programs installer", bin: win(`${home}/AppData/Local/Programs/foo/foo.exe`), expected: "native" },
+    { name: "winget portable link", bin: win(`${home}/AppData/Local/Microsoft/WinGet/Links/copilot.exe`), expected: "winget" },
+    { name: "winget portable package dir", bin: win(`${home}/AppData/Local/Microsoft/WinGet/Packages/GitHub.Copilot_Microsoft.Winget.Source_8wekyb3d8bbwe/copilot.exe`), expected: "winget" },
+    { name: "Chocolatey shim", bin: win("C:/ProgramData/chocolatey/bin/opencode.exe"), expected: "choco" },
+    { name: "Scoop shim", bin: win(`${home}/scoop/shims/opencode.exe`), expected: "scoop" },
     { name: "random tools folder", bin: win("D:/tools/foo.exe"), expected: "unknown" },
   ]);
 });
