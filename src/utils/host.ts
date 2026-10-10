@@ -1,4 +1,4 @@
-import { accessSync, constants, existsSync, realpathSync, statSync } from "node:fs";
+import { accessSync, constants, existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -10,6 +10,10 @@ export interface FsProbe {
   /** Symlinks resolved; the input itself when resolution fails. */
   realpath(p: string): string;
   isWritable(p: string): boolean;
+  /** Small text file contents, or null when unreadable. */
+  readText(p: string): string | null;
+  /** Last modification time in ms, or null when the file does not exist. */
+  mtimeMs(p: string): number | null;
 }
 
 /** Everything platform-specific that detection depends on. */
@@ -44,6 +48,20 @@ export const nodeFs: FsProbe = {
       return true;
     } catch {
       return false;
+    }
+  },
+  readText(p) {
+    try {
+      return readFileSync(p, "utf8");
+    } catch {
+      return null;
+    }
+  },
+  mtimeMs(p) {
+    try {
+      return statSync(p).mtimeMs;
+    } catch {
+      return null;
     }
   },
 };

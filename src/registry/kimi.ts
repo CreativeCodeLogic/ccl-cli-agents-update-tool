@@ -3,6 +3,7 @@ import { envVar, getHost, pathFor, type Host } from "../utils/host";
 import { fetchJson, stringField } from "../utils/http";
 import { fetchLatestNpmVersion, readPackageVersionNear } from "../utils/npm";
 import { isInside, normalizePath } from "../utils/paths";
+import { extractVersion } from "../utils/version";
 import { npmGlobalPlan, versionFromCommand } from "./shared";
 
 /*
@@ -32,6 +33,31 @@ export function uvToolDirs(host: Host): string[] {
 function isLegacyUvInstall(host: Host): boolean {
   const path = pathFor(host.platform);
   return uvToolDirs(host).some((dir) => host.fs.exists(path.join(dir, LEGACY_PYPI_PKG)));
+}
+
+/**
+ * Installed version of a native Kimi Code install without spawning it (~1.2s):
+ * the self-updater appends JSON lines to <root>/updates/rollout.log, each with
+ * the running binary's "current" version. The last entry is only trusted if it
+ * was written after the binary was last replaced (otherwise it may predate an
+ * upgrade); null means "ask the binary".
+ */
+export function nativeVersionFromUpdaterLog(instance: BinaryInstance, host: Host = getHost()): string | null {
+  const path = pathFor(host.platform);
+  const root = path.dirname(path.dirname(instance.realPath)); // <root>/bin/kimi(.exe)
+  const log = host.fs.readText(path.join(root, "updates", "rollout.log"));
+  const binaryChanged = host.fs.mtimeMs(instance.realPath);
+  if (!log || binaryChanged === null) return null;
+
+  const lastLine = log.trimEnd().split("\n").pop();
+  try {
+    const entry = JSON.parse(lastLine ?? "") as { ts?: unknown; current?: unknown };
+    const writtenAt = typeof entry.ts === "string" ? Date.parse(entry.ts) : Number.NaN;
+    if (typeof entry.current !== "string" || !(writtenAt >= binaryChanged)) return null;
+    return extractVersion(entry.current);
+  } catch {
+    return null;
+  }
 }
 
 function legacyPlan(instance: BinaryInstance, host: Host): UpdatePlan {
@@ -64,6 +90,10 @@ export const kimi: ToolDescriptor = {
   },
 
   async getInstalledVersion(instance) {
+    if (instance.installMethod === "native") {
+      const fromLog = nativeVersionFromUpdaterLog(instance);
+      if (fromLog) return fromLog;
+    }
     if (instance.installMethod === "npm") {
       const fromPkg = await readPackageVersionNear(instance.path, instance.realPath, NPM_PKG);
       if (fromPkg) return fromPkg;

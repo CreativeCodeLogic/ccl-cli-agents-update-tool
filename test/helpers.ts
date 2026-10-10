@@ -15,6 +15,10 @@ export interface FakeHostOptions {
   links?: Record<string, string>;
   /** Directories (and everything below) the user can write to. */
   writable?: string[];
+  /** Text file contents (these files exist too). */
+  texts?: Record<string, string>;
+  /** Modification times in ms. */
+  mtimes?: Record<string, number>;
 }
 
 /** In-memory host: no real filesystem, any platform's rules on any OS. */
@@ -23,6 +27,9 @@ export function fakeHost(options: FakeHostOptions): Host {
   const norm = (p: string) => normalizePath(p, platform);
   const files = new Set((options.files ?? []).map(norm));
   const links = new Map(Object.entries(options.links ?? {}).map(([from, to]) => [norm(from), to]));
+  const texts = new Map(Object.entries(options.texts ?? {}).map(([p, text]) => [norm(p), text]));
+  const mtimes = new Map(Object.entries(options.mtimes ?? {}).map(([p, ms]) => [norm(p), ms]));
+  for (const p of texts.keys()) files.add(p);
   const fs: FsProbe = {
     exists: (p) => {
       const n = norm(p);
@@ -31,6 +38,8 @@ export function fakeHost(options: FakeHostOptions): Host {
     isExecutable: (p) => files.has(norm(p)),
     realpath: (p) => links.get(norm(p)) ?? p,
     isWritable: (p) => (options.writable ?? []).some((dir) => isInside(p, dir, platform)),
+    readText: (p) => texts.get(norm(p)) ?? null,
+    mtimeMs: (p) => mtimes.get(norm(p)) ?? (files.has(norm(p)) ? 0 : null),
   };
   return { platform, homedir: options.homedir, env: options.env ?? {}, fs };
 }
