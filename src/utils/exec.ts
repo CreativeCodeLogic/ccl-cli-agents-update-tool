@@ -96,3 +96,31 @@ export function execTee(command: string, args: string[]): Promise<TeeResult> {
     }
   });
 }
+
+/**
+ * Run a command, capturing its output (stdout + stderr, last 64 KB) and
+ * handing every chunk to `onChunk` instead of the terminal, so a live status
+ * can show progress. stdin stays attached so the child can still prompt.
+ * Never throws; honors the side-effect sandbox.
+ */
+export function execCapture(command: string, args: string[], onChunk: (text: string) => void): Promise<TeeResult> {
+  const blocked = sideEffectsBlocked();
+  if (blocked) return Promise.resolve({ code: null, output: `not running ${command}: ${blocked}` });
+  return new Promise((resolve) => {
+    let output = "";
+    const keep = (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      output = (output + text).slice(-TEE_LIMIT);
+      onChunk(text);
+    };
+    try {
+      const child = spawn(command, args, { stdio: ["inherit", "pipe", "pipe"] });
+      child.stdout?.on("data", keep);
+      child.stderr?.on("data", keep);
+      child.on("error", (error) => resolve({ code: null, output: output + String(error) }));
+      child.on("close", (code) => resolve({ code, output }));
+    } catch (error) {
+      resolve({ code: null, output: String(error) });
+    }
+  });
+}

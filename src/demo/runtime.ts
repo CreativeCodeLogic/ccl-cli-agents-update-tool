@@ -1,5 +1,6 @@
 import { registry } from "../registry";
 import { LatestResolver } from "../scan";
+import type { ProcessInfo } from "../processes";
 import type { InstallContext } from "../self";
 import type { SelectionStore, ToolChoice } from "../selection";
 import type { BinaryInstance, ToolDescriptor } from "../types";
@@ -19,8 +20,8 @@ import { blockSideEffects } from "../utils/sandbox";
  */
 
 const HOME = "/home/dev";
-/** As if the user unticked gcloud last time: shows the "Selection remembered" hint. */
-const DEMO_CHOICES: Record<string, ToolChoice> = { gcloud: "skip" };
+/** As if the user decided on Cursor last time: shows the "Selection remembered" hint. */
+const DEMO_CHOICES: Record<string, ToolChoice> = { cursor: "skip" };
 const NPM_GLOBAL = { prefix: "/usr/local", root: "/usr/local/lib/node_modules" };
 
 interface FixtureBinary {
@@ -67,7 +68,10 @@ const FIXTURE: Record<string, FixtureTool> = {
 
 /** Fake terminal output for each simulated update, by tool. */
 const UPDATE_OUTPUT: Record<string, string[]> = {
-  codex: ["resolving @openai/codex@0.162.1", "downloading codex-linux-x64 (31.4 MB)", "changed 2 packages in 2s"],
+  codex: [
+    ...Array.from({ length: 9 }, (_, i) => `npm http fetch GET 200 https://registry.npmjs.org/@openai%2fcodex-linux-x64/-/codex-0.162.1-part${i + 1}.tgz ${120 + i * 9}ms`),
+    "changed 2 packages in 3s",
+  ],
   gemini: ["resolving @google/gemini-cli@0.63.0", "changed 138 packages in 3s"],
   kimi: ["Checking for updates... 2.0.4 -> 2.1.1", "Downloading Kimi Code 2.1.1 (linux-x64)... done", "Installed Kimi Code 2.1.1"],
   antigravity: ["Checking for updates... 1.3.1 -> 1.3.3", "Downloading agy 1.3.3 (linux_amd64)... done", "agy is now 1.3.3"],
@@ -88,7 +92,8 @@ function demoHost(): Host {
     exists: (p) => [...files].some((f) => f === norm(p) || f.startsWith(`${norm(p)}/`)),
     isExecutable: (p) => files.has(norm(p)),
     realpath: (p) => links.get(norm(p)) ?? p,
-    isWritable: () => false,
+    // The user owns their home and the npm prefix; /usr/bin and /usr/lib belong to root.
+    isWritable: (p) => [HOME, "/usr/local"].some((root) => norm(p) === root || norm(p).startsWith(`${root}/`)),
     readText: () => null,
     mtimeMs: () => null,
   };
@@ -113,6 +118,10 @@ export interface DemoRuntime {
   latest: LatestResolver;
   selections: SelectionStore;
   executor: UpdateExecutor;
+  freshLatest: () => LatestResolver;
+  elevated: Promise<boolean>;
+  /** Codex "running" for the pre-flight check; no real processes are listed. */
+  listProcesses: () => Promise<ProcessInfo[]>;
   /** Shows the "newer ccl-caut" notice under the banner without any network. */
   selfFixture: { latest: string; context: InstallContext };
 }
@@ -142,7 +151,6 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
   primeNpmGlobalPaths(NPM_GLOBAL);
 
   const sleep = options.sleep ?? realSleep;
-  const write = options.write ?? ((text: string) => void process.stdout.write(text));
 
   /** Current fixture version per binary path; updates bump the copy that runs. */
   const versions = new Map<string, string>();
@@ -157,11 +165,11 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
     };
   });
 
-  const executor: UpdateExecutor = async (_command, _args, target) => {
+  const executor: UpdateExecutor = async (_command, _args, target, onChunk) => {
     const lines = UPDATE_OUTPUT[target.scan.id] ?? ["updating..."];
     for (const line of lines) {
-      await sleep(450);
-      write(`${line}\n`);
+      await sleep(Math.round(2_400 / lines.length));
+      onChunk(`${line}\n`);
     }
     const latest = FIXTURE[target.scan.id]?.latest;
     if (latest) versions.set(target.instance.path, latest);
@@ -172,6 +180,9 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
     tools,
     host,
     latest: new LatestResolver(null),
+    freshLatest: () => new LatestResolver(null),
+    elevated: Promise.resolve(false),
+    listProcesses: async () => [{ pid: 4242, commandLine: "node /usr/local/lib/node_modules/@openai/codex/bin/codex.js" }],
     selections: memorySelections(DEMO_CHOICES),
     executor,
     selfFixture: { latest: "1.0.1", context: "global" },

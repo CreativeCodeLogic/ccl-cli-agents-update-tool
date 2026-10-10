@@ -156,7 +156,7 @@ describe("Google Cloud CLI", () => {
     }));
     const plan = await gcloud.getUpdatePlan(instance(win(`${root}/bin/gcloud.cmd`), "native"));
     expect(plan.kind).toBe("manual");
-    expect(plan.kind === "manual" && plan.reason).toContain("elevated");
+    expect(plan.kind === "manual" && plan.reason).toContain("Run as administrator");
   });
 
   it("auto-updates a per-user SDK under AppData", async () => {

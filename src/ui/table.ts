@@ -4,6 +4,7 @@ import pc from "picocolors";
 import type { InstallMethod, ToolScan } from "../types";
 import { displayVersion } from "./format";
 import { icons, stateStyle } from "./symbols";
+import { tone } from "./theme";
 
 const visibleLength = (s: string) => stripVTControlCharacters(s).length;
 const pad = (s: string, width: number) => s + " ".repeat(Math.max(0, width - visibleLength(s)));
@@ -24,7 +25,8 @@ export function renderTable(results: readonly ToolScan[]): string {
       r.installedVersion ? displayVersion(r.installedVersion) : pc.dim(r.installed ? "?" : "—"),
       r.latestVersion ? displayVersion(r.latestVersion) : pc.dim("—"),
       style.label,
-      pc.dim(`${r.installMethod ?? ""}${r.shadowed.length > 0 ? ` +${r.shadowed.length} hidden` : ""}`),
+      tone.muted(`${r.installMethod ?? ""}${r.shadowed.length > 0 ? ` +${r.shadowed.length} hidden` : ""}`) +
+        (r.needsAdmin ? ` ${tone.action("needs admin")}` : ""),
     ];
   });
 
@@ -41,8 +43,8 @@ function describe(method: InstallMethod | null, version: string | null): string 
   return `${method ?? "unknown"} ${version ?? "?"}`;
 }
 
-/** Notes printed after the table: deprecations, then copies shadowed on PATH. */
-export function printNotes(results: readonly ToolScan[]): void {
+/** Notes printed after the table: deprecations, copies shadowed on PATH, then admin rights (once). */
+export function printNotes(results: readonly ToolScan[], platform: NodeJS.Platform = process.platform): void {
   for (const r of results) {
     // One sentence per line keeps notes within ~100 columns.
     if (r.installed && r.deprecation) log.warn(`${pc.bold(r.id)}: ${r.deprecation.message.replace(". ", ".\n")}`);
@@ -53,5 +55,9 @@ export function printNotes(results: readonly ToolScan[]): void {
     const others = r.shadowed.map((s) => describe(s.installMethod, s.version)).join(" and ");
     const verb = r.shadowed.length === 1 ? "is" : "are";
     log.warn(`${pc.bold(r.id)}: ${describe(r.installMethod, r.installedVersion)} runs; ${others} ${verb} installed but shadowed on PATH`);
+  }
+  if (results.some((r) => r.installed && r.needsAdmin)) {
+    const how = platform === "win32" ? "run ccl-caut from a terminal opened with Run as administrator" : "the command needs sudo";
+    log.message(`${tone.action("needs admin")} ${tone.muted(`= ${how}`)}`);
   }
 }

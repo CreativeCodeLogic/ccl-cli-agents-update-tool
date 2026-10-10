@@ -33,11 +33,15 @@ const PACKAGE_MANAGED = "the component manager is disabled for package-managed i
 function nativePlan(instance: BinaryInstance, host: Host): UpdatePlan {
   const path = pathFor(host.platform);
   const root = sdkRoot(instance, host) ?? path.dirname(path.dirname(instance.realPath));
+  const auto: UpdatePlan = { kind: "auto", command: [instance.path, "components", "update", "--quiet"] };
+  // Already elevated: permissions were the only blocker, so run it.
+  if (host.elevated) return auto;
   if (isUnderProgramFiles(root, host)) {
     return {
       kind: "manual",
       command: "gcloud components update",
-      reason: "The SDK is under Program Files; run this from an elevated (Administrator) terminal.",
+      reason: "The SDK is under Program Files; run ccl-caut (or this command) from a terminal opened with Run as administrator.",
+      needsAdmin: true,
     };
   }
   if (!host.fs.isWritable(root)) {
@@ -45,9 +49,10 @@ function nativePlan(instance: BinaryInstance, host: Host): UpdatePlan {
       kind: "manual",
       command: "sudo gcloud components update",
       reason: `The SDK directory (${root}) is not writable by your user.`,
+      needsAdmin: true,
     };
   }
-  return { kind: "auto", command: [instance.path, "components", "update", "--quiet"] };
+  return auto;
 }
 
 export const gcloud: ToolDescriptor = {
@@ -59,6 +64,7 @@ export const gcloud: ToolDescriptor = {
   binNames: ["gcloud"],
   // Anything that isn't a package-manager install is the official installer/archive.
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),
+  updateTargetDir: (instance) => sdkRoot(instance),
 
   // Reading <root>/VERSION avoids spawning gcloud (which boots Python, ~5s on Windows).
   async getInstalledVersion(instance) {

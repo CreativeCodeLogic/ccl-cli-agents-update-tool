@@ -72,8 +72,8 @@ describe("--demo", () => {
     }
   });
 
-  it("keeps demo selections in memory, starting with a remembered gcloud skip", () => {
-    expect(runtime.selections.toolChoices).toEqual({ gcloud: "skip" });
+  it("keeps demo selections in memory, starting with a remembered Cursor choice", () => {
+    expect(runtime.selections.toolChoices).toEqual({ cursor: "skip" });
   });
 
   it("shows a fixture with every state: updates, up-to-date, not installed, hidden copy, manual plan", async () => {

@@ -1,4 +1,4 @@
-import { accessSync, constants, existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { accessSync, closeSync, constants, existsSync, openSync, readFileSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -22,6 +22,8 @@ export interface Host {
   homedir: string;
   env: Readonly<Record<string, string | undefined>>;
   fs: FsProbe;
+  /** ccl-caut runs as administrator/root (set once at startup; never self-elevates). */
+  elevated?: boolean;
 }
 
 export const nodeFs: FsProbe = {
@@ -43,6 +45,18 @@ export const nodeFs: FsProbe = {
     }
   },
   isWritable(p) {
+    // On Windows access(W_OK) only checks the read-only flag, not folder permissions,
+    // so try to create (and remove) a probe file instead.
+    if (process.platform === "win32") {
+      const probe = path.join(p, `.ccl-caut-write-test-${process.pid}`);
+      try {
+        closeSync(openSync(probe, "wx"));
+        unlinkSync(probe);
+        return true;
+      } catch {
+        return false;
+      }
+    }
     try {
       accessSync(p, constants.W_OK);
       return true;

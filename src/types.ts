@@ -31,7 +31,7 @@ export interface Deprecation {
  */
 export type UpdatePlan =
   | { kind: "auto"; command: string[] }
-  | { kind: "manual"; command: string; reason: string };
+  | { kind: "manual"; command: string; reason: string; /** Needs an elevated terminal / sudo. */ needsAdmin?: boolean };
 
 /** One copy of a tool's executable found on PATH. */
 export interface BinaryInstance {
@@ -86,6 +86,8 @@ export interface ToolDescriptor {
    */
   getLatestVersion(method?: InstallMethod, installedVersion?: string | null): Promise<string | null>;
   getUpdatePlan(instance: BinaryInstance): Promise<UpdatePlan>;
+  /** Folder an automatic update writes to (default: npm global root for npm, else the binary's folder). */
+  updateTargetDir?(instance: BinaryInstance): string | null;
   /** Cache key for latest-version lookups per install method (default: one channel per tool). */
   latestChannel?(method?: InstallMethod, installedVersion?: string | null): string;
   /**
@@ -127,6 +129,8 @@ export interface ToolScan {
   state: ToolState;
   /** A newer version is known (true for "outdated", and for "retired" tools that are behind). */
   updateAvailable: boolean;
+  /** Updating needs administrator rights / sudo (false when ccl-caut already runs elevated). */
+  needsAdmin: boolean;
   plan: UpdatePlan | null;
   shadowed: ShadowedInstall[];
   deprecation: Deprecation | null;

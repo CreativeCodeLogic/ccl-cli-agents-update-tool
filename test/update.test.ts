@@ -28,8 +28,8 @@ describe("diagnose", () => {
 
   it("asks for an elevated terminal when npm's prefix is under Program Files", async () => {
     useWindows(win("C:/Program Files/nodejs"));
-    expect(await diagnose("npm error code EPERM", "Codex CLI", npmInstall)).toContain("elevated (Administrator)");
-    expect(await diagnose("npm error code EACCES", "Codex CLI", npmInstall)).toContain("elevated (Administrator)");
+    expect(await diagnose("npm error code EPERM", "Codex CLI", npmInstall)).toContain("Run as administrator");
+    expect(await diagnose("npm error code EACCES", "Codex CLI", npmInstall)).toContain("Run as administrator");
   });
 
   it("suggests fixing the npm prefix on POSIX permission errors", async () => {

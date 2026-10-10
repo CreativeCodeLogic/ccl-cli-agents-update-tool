@@ -1,6 +1,6 @@
 import type { BinaryInstance, InstallMethod, ToolDescriptor, ToolScan, ToolState, UpdatePlan } from "./types";
 import type { VersionCache } from "./utils/cache";
-import { getHost, type Host } from "./utils/host";
+import { getHost, pathFor, type Host } from "./utils/host";
 import { classifyInstall } from "./utils/installMethod";
 import { getNpmGlobalPaths } from "./utils/npm";
 import { compareVersions } from "./utils/version";
@@ -134,6 +134,30 @@ export function deriveState(
   return { state: compared, updateAvailable };
 }
 
+/**
+ * Whether updating needs administrator rights / sudo. Already elevated: never.
+ * Manual plans: when the descriptor says so or the command uses sudo.
+ * Auto plans: when the folder the update writes to isn't writable.
+ */
+export function computeNeedsAdmin(
+  tool: Pick<ToolDescriptor, "updateTargetDir">,
+  instance: BinaryInstance | undefined,
+  plan: UpdatePlan | null,
+  host: Host,
+  npmRoot: string | null,
+): boolean {
+  if (!instance || !plan || host.elevated) return false;
+  if (plan.kind === "manual") {
+    if (plan.needsAdmin !== undefined) return plan.needsAdmin;
+    if (/^sudo\s/.test(plan.command)) return true;
+    // A manual "npm install -g ..." still writes to the npm global root.
+    return /^npm\s+(install|i)\b.*\s-g\b/.test(plan.command) && npmRoot ? !host.fs.isWritable(npmRoot) : false;
+  }
+  const isNpm = pathFor(host.platform).parse(plan.command[0] ?? "").name.toLowerCase() === "npm";
+  const dir = tool.updateTargetDir?.(instance) ?? (isNpm && npmRoot ? npmRoot : pathFor(host.platform).dirname(instance.realPath));
+  return dir ? !host.fs.isWritable(dir) : false;
+}
+
 /** Phase 2: latest versions + state + update plan for the copy that runs. */
 export function resolveLatest(detections: readonly Detection[], latest: LatestResolver): Promise<ToolScan[]> {
   return Promise.all(
@@ -147,6 +171,8 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
       const latestVersion = await latest.get(tool, active?.installMethod, active?.version);
       const plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
       const { state, updateAvailable } = deriveState(tool, active?.version, latestVersion, Boolean(active));
+      const npmRoot = (await getNpmGlobalPaths())?.root ?? null;
+      const needsAdmin = computeNeedsAdmin(tool, active, plan, getHost(), npmRoot);
       return {
         id: tool.id,
         name: tool.name,
@@ -159,6 +185,7 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
         latestVersion,
         state,
         updateAvailable,
+        needsAdmin,
         plan,
         shadowed: rest.map((i) => ({ path: i.path, installMethod: i.installMethod, version: i.version })),
         deprecation: tool.deprecation ?? null,

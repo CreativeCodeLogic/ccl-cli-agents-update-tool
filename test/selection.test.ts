@@ -18,6 +18,7 @@ function scan(id: string, overrides: Partial<ToolScan> = {}): ToolScan {
     latestVersion: "2.0.0",
     state: "outdated",
     updateAvailable: true,
+    needsAdmin: false,
     plan: { kind: "auto", command: ["npm", "install", "-g", `${id}@latest`] },
     shadowed: [],
     deprecation: null,

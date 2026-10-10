@@ -52,6 +52,7 @@ export const opencode: ToolDescriptor = {
           kind: "manual",
           command: "choco upgrade opencode -y",
           reason: "Installed with Chocolatey (needs an elevated terminal).",
+          needsAdmin: true,
         };
       case "scoop":
         return { kind: "manual", command: "scoop update opencode", reason: "Installed with Scoop; let Scoop manage the upgrade." };

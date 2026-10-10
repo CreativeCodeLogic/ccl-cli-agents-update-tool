@@ -92,6 +92,7 @@ Options:
                  (ccl-caut never installs tools.)
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
+                 Tools that are running right now are skipped and listed in the summary.
   --reset-selection
                  Forget the selection remembered from previous runs, then run normally.
   --no-clear     Don't clear the screen when starting the interactive checklist.
@@ -99,11 +100,16 @@ Options:
   -v, --version  Print the version.
   -h, --help     Show this help.
 
+Keys (interactive):
+  ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
+  Before updating, ccl-caut shows which selected CLIs are running and which
+  updates need administrator rights (needs admin). It never kills or elevates.
+
 Exit codes:
-  0    success / everything up-to-date
+  0    success / everything up-to-date / quit with q
   1    updates available (--check), or an update failed or did not apply
   2    invalid arguments
-  130  cancelled (Ctrl+C)
+  130  cancelled (Ctrl+C or Esc)
 
 Environment:
   CCL_CAUT_DEBUG=1             Print diagnostics (failed lookups, cache problems) to stderr.
