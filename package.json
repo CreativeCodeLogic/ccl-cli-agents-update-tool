@@ -4,14 +4,24 @@
   "description": "CLI Agents Update Tool — check and update AI/dev CLIs from one terminal UI",
   "keywords": [
     "cli",
-    "updater",
     "ai",
     "agents",
-    "claude-code",
+    "update",
+    "claude",
     "codex",
-    "gemini-cli",
-    "npm"
+    "gemini",
+    "kimi",
+    "gcloud",
+    "firebase"
   ],
+  "homepage": "https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool#readme",
+  "bugs": {
+    "url": "https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool.git"
+  },
   "license": "MIT",
   "author": "Creative Code Logic",
   "type": "module",
@@ -19,7 +29,9 @@
     "ccl-caut": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"
@@ -30,7 +42,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
