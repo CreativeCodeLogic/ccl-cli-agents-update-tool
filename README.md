@@ -8,7 +8,9 @@
 
 CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed (Claude Code, Codex, Gemini, Kimi Code, Firebase, Google Cloud CLI, npm), compares what you run with what's released, and lets you pick what to update from a single checklist.
 
-<!-- demo.gif goes here -->
+![CCL CAUT demo: scan, table, hidden-install warning, checklist and updates](docs/demo.gif)
+
+<sub>Recorded with `ccl-caut --demo` (fixture data, nothing real is updated) using [VHS](https://github.com/charmbracelet/vhs); see [`docs/demo.tape`](docs/demo.tape).</sub>
 
 ## Quick start
 
