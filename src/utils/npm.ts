@@ -1,7 +1,6 @@
-import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { exec } from "./exec";
+import { getHost, pathFor, type Host } from "./host";
 import { fetchJson, stringField } from "./http";
 import { isInside, samePath } from "./paths";
 
@@ -29,16 +28,21 @@ export function getNpmGlobalPaths(): Promise<NpmGlobalPaths | null> {
   return globalPaths;
 }
 
+/** Use known global paths instead of asking npm (tests, or callers that already know). */
+export function primeNpmGlobalPaths(paths: NpmGlobalPaths | null): void {
+  globalPaths = Promise.resolve(paths);
+}
+
 /**
  * True if this executable belongs to the global prefix of the npm on PATH,
  * i.e. `npm install -g` would actually replace it.
  */
-export async function isInCurrentNpmGlobal(binPath: string, realPath: string): Promise<boolean> {
+export async function isInCurrentNpmGlobal(binPath: string, realPath: string, host: Host = getHost()): Promise<boolean> {
   const npm = await getNpmGlobalPaths();
   if (!npm) return false;
-  if (isInside(realPath, npm.root)) return true;
+  if (isInside(realPath, npm.root, host.platform)) return true;
   // Windows shims are plain files in the prefix, not symlinks.
-  return process.platform === "win32" && samePath(path.dirname(binPath), npm.prefix);
+  return host.platform === "win32" && samePath(pathFor(host.platform).dirname(binPath), npm.prefix, host.platform);
 }
 
 async function readVersionIfNamed(pkgJson: string, pkg: string): Promise<string | null> {
@@ -56,7 +60,13 @@ async function readVersionIfNamed(pkgJson: string, pkg: string): Promise<string 
  * - above a POSIX symlink target: walk up from the real path.
  * Works for any prefix (nvm, volta, ...), not just the current global one.
  */
-export async function readPackageVersionNear(binPath: string, realPath: string, pkg: string): Promise<string | null> {
+export async function readPackageVersionNear(
+  binPath: string,
+  realPath: string,
+  pkg: string,
+  host: Host = getHost(),
+): Promise<string | null> {
+  const path = pathFor(host.platform);
   const candidates = [path.join(path.dirname(binPath), "node_modules", ...pkg.split("/"), "package.json")];
   let dir = path.dirname(realPath);
   for (let i = 0; i < 5; i++) {
@@ -66,7 +76,7 @@ export async function readPackageVersionNear(binPath: string, realPath: string, 
     dir = parent;
   }
   for (const file of candidates) {
-    if (!existsSync(file)) continue;
+    if (!host.fs.exists(file)) continue;
     const version = await readVersionIfNamed(file, pkg);
     if (version) return version;
   }

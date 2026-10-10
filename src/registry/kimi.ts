@@ -1,7 +1,5 @@
-import { existsSync } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import type { BinaryInstance, InstallMethod, ToolDescriptor, UpdatePlan } from "../types";
+import { envVar, getHost, pathFor, type Host } from "../utils/host";
 import { fetchJson, stringField } from "../utils/http";
 import { fetchLatestNpmVersion, readPackageVersionNear } from "../utils/npm";
 import { isInside, normalizePath } from "../utils/paths";
@@ -12,30 +10,35 @@ import { npmGlobalPlan, versionFromCommand } from "./shared";
  * - Kimi Code (current): npm @moonshot-ai/kimi-code, or the native installer
  *   (~/.kimi-code/bin) which self-updates via `kimi upgrade` from a CDN manifest
  *   that tracks the npm version line (cdn.kimi.com/kimi-code/latest.json == npm latest).
+ *   Native releases roll out in stages over ~24h.
  * - Kimi CLI (legacy, archived): PyPI kimi-cli, installed with uv/pipx/pip.
  */
 const NPM_PKG = "@moonshot-ai/kimi-code";
 const LEGACY_PYPI_PKG = "kimi-cli";
 
 /** Directories where uv keeps tool environments. */
-function uvToolDirs(): string[] {
-  const home = os.homedir();
-  const dirs = [process.env.UV_TOOL_DIR];
-  if (process.platform === "win32") dirs.push(process.env.APPDATA && path.join(process.env.APPDATA, "uv", "tools"));
-  dirs.push(path.join(process.env.XDG_DATA_HOME ?? path.join(home, ".local", "share"), "uv", "tools"));
+export function uvToolDirs(host: Host): string[] {
+  const path = pathFor(host.platform);
+  const dirs = [envVar(host, "UV_TOOL_DIR")];
+  if (host.platform === "win32") {
+    const appData = envVar(host, "APPDATA");
+    dirs.push(appData && path.join(appData, "uv", "tools"));
+  }
+  dirs.push(path.join(envVar(host, "XDG_DATA_HOME") ?? path.join(host.homedir, ".local", "share"), "uv", "tools"));
   return dirs.filter((d): d is string => Boolean(d));
 }
 
 /** uv on Windows copies launchers into ~/.local/bin, which looks "native" by path alone. */
-function isLegacyUvInstall(): boolean {
-  return uvToolDirs().some((dir) => existsSync(path.join(dir, LEGACY_PYPI_PKG)));
+function isLegacyUvInstall(host: Host): boolean {
+  const path = pathFor(host.platform);
+  return uvToolDirs(host).some((dir) => host.fs.exists(path.join(dir, LEGACY_PYPI_PKG)));
 }
 
-function legacyPlan(instance: BinaryInstance): UpdatePlan {
-  const p = normalizePath(instance.realPath);
+function legacyPlan(instance: BinaryInstance, host: Host): UpdatePlan {
+  const p = normalizePath(instance.realPath, host.platform);
   const command = p.includes("/pipx/")
     ? `pipx upgrade ${LEGACY_PYPI_PKG}`
-    : p.includes("/uv/") || isLegacyUvInstall()
+    : p.includes("/uv/") || isLegacyUvInstall(host)
       ? `uv tool upgrade ${LEGACY_PYPI_PKG}`
       : `pip install -U ${LEGACY_PYPI_PKG}`;
   return {
@@ -52,9 +55,10 @@ export const kimi: ToolDescriptor = {
   npmPackage: NPM_PKG,
 
   refineInstallMethod(method, instance) {
-    const userBin = path.join(os.homedir(), ".local", "bin");
-    if (method === "native" && process.platform === "win32" && isInside(instance.path, userBin)) {
-      return isLegacyUvInstall() ? "pip" : method;
+    const host = getHost();
+    const userBin = pathFor(host.platform).join(host.homedir, ".local", "bin");
+    if (method === "native" && host.platform === "win32" && isInside(instance.path, userBin, host.platform)) {
+      return isLegacyUvInstall(host) ? "pip" : method;
     }
     return method;
   },
@@ -66,6 +70,8 @@ export const kimi: ToolDescriptor = {
     }
     return versionFromCommand(instance.path);
   },
+
+  latestChannel: (method) => (method === "pip" ? "pypi" : "npm"),
 
   async getLatestVersion(method?: InstallMethod) {
     if (method === "pip") {
@@ -82,7 +88,7 @@ export const kimi: ToolDescriptor = {
       case "native": // documented self-updater: `kimi upgrade|update`
         return { kind: "auto", command: [instance.path, "upgrade"] };
       case "pip":
-        return legacyPlan(instance);
+        return legacyPlan(instance, getHost());
       default:
         return {
           kind: "manual",
@@ -91,4 +97,12 @@ export const kimi: ToolDescriptor = {
         };
     }
   },
+
+  explainUnchanged: (instance) =>
+    instance.installMethod === "native"
+      ? {
+          status: "held",
+          message: "Kimi Code: update held by staged rollout (releases roll out over ~24h). Try again later.",
+        }
+      : null,
 };

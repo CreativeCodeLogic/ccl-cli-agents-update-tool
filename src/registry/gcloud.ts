@@ -1,8 +1,7 @@
-import { accessSync, constants, existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
 import type { BinaryInstance, ToolDescriptor, UpdatePlan } from "../types";
 import { exec } from "../utils/exec";
+import { getHost, pathFor, type Host } from "../utils/host";
 import { fetchJson, stringField } from "../utils/http";
 import { isUnderProgramFiles, normalizePath } from "../utils/paths";
 import { brewPlan } from "./shared";
@@ -13,42 +12,35 @@ const COMPONENTS_URL = "https://dl.google.com/dl/cloudsdk/channels/rapid/compone
 const VERSION_TIMEOUT_MS = 20_000;
 
 /** SDK root (holds VERSION, bin/, lib/) for one gcloud executable. */
-function sdkRoot(instance: BinaryInstance): string | null {
+export function sdkRoot(instance: BinaryInstance, host: Host = getHost()): string | null {
+  const path = pathFor(host.platform);
   const candidates =
     instance.installMethod === "snap"
       ? ["/snap/google-cloud-cli/current", "/snap/google-cloud-sdk/current"]
       : [path.dirname(path.dirname(instance.realPath))]; // <root>/bin/gcloud
-  return candidates.find((root) => existsSync(path.join(root, "VERSION"))) ?? null;
+  return candidates.find((root) => host.fs.exists(path.join(root, "VERSION"))) ?? null;
 }
 
 /** Homebrew cask token from the Caskroom path (the cask was renamed google-cloud-sdk -> gcloud-cli). */
-function caskToken(instance: BinaryInstance): string {
-  const segments = normalizePath(instance.realPath).split("/");
-  const i = segments.indexOf("caskroom");
+export function caskToken(instance: BinaryInstance, host: Host = getHost()): string {
+  const segments = normalizePath(instance.realPath, host.platform).split("/");
+  const i = segments.findIndex((s) => s.toLowerCase() === "caskroom");
   return (i >= 0 && segments[i + 1]) || "gcloud-cli";
-}
-
-function isWritable(dir: string): boolean {
-  try {
-    accessSync(dir, constants.W_OK);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 const PACKAGE_MANAGED = "the component manager is disabled for package-managed installs.";
 
-function nativePlan(instance: BinaryInstance): UpdatePlan {
-  const root = sdkRoot(instance) ?? path.dirname(path.dirname(instance.realPath));
-  if (isUnderProgramFiles(root)) {
+function nativePlan(instance: BinaryInstance, host: Host): UpdatePlan {
+  const path = pathFor(host.platform);
+  const root = sdkRoot(instance, host) ?? path.dirname(path.dirname(instance.realPath));
+  if (isUnderProgramFiles(root, host)) {
     return {
       kind: "manual",
       command: "gcloud components update",
       reason: "The SDK is under Program Files; run this from an elevated (Administrator) terminal.",
     };
   }
-  if (!isWritable(root)) {
+  if (!host.fs.isWritable(root)) {
     return {
       kind: "manual",
       command: "sudo gcloud components update",
@@ -70,7 +62,7 @@ export const gcloud: ToolDescriptor = {
     const root = sdkRoot(instance);
     if (root) {
       try {
-        const version = (await readFile(path.join(root, "VERSION"), "utf8")).trim();
+        const version = (await readFile(pathFor(getHost().platform).join(root, "VERSION"), "utf8")).trim();
         if (/^\d+\.\d+/.test(version)) return version;
       } catch {
         // fall through to the slow path
@@ -89,6 +81,7 @@ export const gcloud: ToolDescriptor = {
 
   // `gcloud components update` must never run on apt/snap/brew installs.
   async getUpdatePlan(instance) {
+    const host = getHost();
     switch (instance.installMethod) {
       case "apt":
         return {
@@ -103,9 +96,9 @@ export const gcloud: ToolDescriptor = {
           reason: `Installed from snap; ${PACKAGE_MANAGED}`,
         };
       case "brew":
-        return brewPlan(caskToken(instance), true);
+        return brewPlan(caskToken(instance, host), true);
       default:
-        return nativePlan(instance);
+        return nativePlan(instance, host);
     }
   },
 };

@@ -1,67 +1,96 @@
-import { existsSync } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import type { InstallMethod } from "../types";
-import { getNpmGlobalPaths } from "./npm";
+import { envVar, pathFor, type Host } from "./host";
+import type { NpmGlobalPaths } from "./npm";
 import { isInside, normalizePath, samePath } from "./paths";
 
-const isWindows = process.platform === "win32";
+export interface ClassifyContext {
+  host: Host;
+  /** Global prefix/root of the npm on PATH, or null when npm is unavailable. */
+  npmGlobal: NpmGlobalPaths | null;
+}
 
 /** Executables that ship inside a Node.js install. */
 const NODE_BUNDLED = new Set(["npm", "npx", "corepack"]);
+/** Homebrew-managed packages live in Cellar (formulae) or Caskroom (casks); a bare Homebrew prefix is not enough. */
+const BREW_SEGMENTS = new Set(["cellar", "caskroom"]);
+const PIP_SEGMENTS = ["/site-packages/", "/pipx/", "/uv/tools/"];
 
-function hasSiblingNode(binPath: string): boolean {
-  const dir = path.dirname(binPath);
-  return existsSync(path.join(dir, isWindows ? "node.exe" : "node"));
+function segments(p: string): string[] {
+  return p.toLowerCase().split("/");
+}
+
+/** Volta: ~/.volta (POSIX) or %LOCALAPPDATA%/Volta (Windows). */
+export function isVoltaPath(p: string, host: Host): boolean {
+  if (segments(normalizePath(p, host.platform)).includes(".volta")) return true;
+  const localAppData = host.platform === "win32" ? envVar(host, "LOCALAPPDATA") : undefined;
+  return localAppData !== undefined && isInside(p, pathFor(host.platform).join(localAppData, "Volta"), host.platform);
 }
 
 /** Install roots of vendor "native" installers. */
-function isNativeLocation(p: string): boolean {
-  const home = os.homedir();
-  if (home && isInside(p, path.join(home, ".local", "bin"))) return true; // Claude Code, many installers
-  if (home && isInside(p, home) && /^\/\.[^/]+\/bin\//.test(normalizePath(p).slice(normalizePath(home).length))) {
-    return true; // ~/.<vendor>/bin, e.g. ~/.kimi-code/bin
+function isNativeLocation(p: string, { host }: ClassifyContext): boolean {
+  const { platform, homedir } = host;
+  const path = pathFor(platform);
+  if (homedir && isInside(p, path.join(homedir, ".local", "bin"), platform)) return true; // Claude Code, many installers
+  if (homedir && isInside(p, homedir, platform)) {
+    // ~/.<vendor>/bin, e.g. ~/.kimi-code/bin
+    const rel = normalizePath(p, platform).slice(normalizePath(homedir, platform).length + 1).split("/");
+    if (rel.length >= 3 && rel[0]?.startsWith(".") && rel[1] === "bin") return true;
   }
-  if (isWindows) {
-    const roots = [process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "Programs"), process.env.ProgramFiles, process.env["ProgramFiles(x86)"]];
-    if (roots.some((root) => root && isInside(p, root))) return true;
+  if (platform === "win32") {
+    const localAppData = envVar(host, "LOCALAPPDATA");
+    const roots = [
+      localAppData && path.join(localAppData, "Programs"),
+      envVar(host, "ProgramFiles"),
+      envVar(host, "ProgramFiles(x86)"),
+    ];
+    return roots.some((root) => root && isInside(p, root, platform));
   }
-  return isInside(p, "/opt");
+  return isInside(p, "/opt", platform);
 }
 
 /**
  * Best-effort guess of how one executable was installed, from where it (and
- * its symlink target) lives. Order matters: Homebrew-packaged node apps also
- * contain "node_modules" in their path, and on Debian `npm root -g` can live
- * under /usr/lib. Tools can refine the result (see ToolDescriptor).
+ * its symlink target) lives. Pure: everything comes from `ctx`.
+ * Order matters: npm globals of a Homebrew Node live under the Homebrew prefix,
+ * Homebrew-packaged node apps contain "node_modules" inside Cellar, and on
+ * Debian `npm root -g` lives under /usr/lib.
+ * Tools can refine the result (see ToolDescriptor.refineInstallMethod).
  */
-export async function classifyInstall(binPath: string, realPath: string): Promise<InstallMethod> {
-  const paths = [normalizePath(binPath), normalizePath(realPath)];
+export function classifyInstall(binPath: string, realPath: string, ctx: ClassifyContext): InstallMethod {
+  const { host, npmGlobal } = ctx;
+  const { platform } = host;
+  const path = pathFor(platform);
+  const isWindows = platform === "win32";
+  const paths = [normalizePath(binPath, platform), normalizePath(realPath, platform)];
   const any = (test: (p: string) => boolean) => paths.some(test);
 
-  if (any((p) => /\/(cellar|caskroom|homebrew|linuxbrew)\//i.test(p))) return "brew";
   if (any((p) => p.startsWith("/snap/"))) return "snap";
 
+  const binDir = path.dirname(binPath);
   const name = path.parse(binPath).name.toLowerCase();
-  if (NODE_BUNDLED.has(name) && hasSiblingNode(binPath)) return "node";
+  if (NODE_BUNDLED.has(name) && host.fs.exists(path.join(binDir, isWindows ? "node.exe" : "node"))) return "node";
 
-  const npm = await getNpmGlobalPaths();
-  if (npm) {
-    // POSIX global bins are symlinks into the root; Windows uses shims in the prefix.
-    // (Matching /usr/bin by directory alone would mislabel apt packages.)
-    if (isInside(realPath, npm.root) || (isWindows && samePath(path.dirname(binPath), npm.prefix))) return "npm";
+  // POSIX global bins are symlinks into the root; Windows uses shims in the prefix.
+  // (Matching /usr/bin by directory alone would mislabel apt packages.)
+  if (npmGlobal) {
+    if (isInside(realPath, npmGlobal.root, platform)) return "npm";
+    if (isWindows && samePath(binDir, npmGlobal.prefix, platform)) return "npm";
   }
+  if (any((p) => segments(p).some((s) => BREW_SEGMENTS.has(s)))) return "brew";
+
   // Globals of other Node installs (nvm, volta, fnm, ...).
   if (any((p) => p.includes("/node_modules/"))) return "npm";
-  if (isWindows && existsSync(path.join(path.dirname(binPath), "node_modules"))) return "npm";
+  if (isWindows && host.fs.exists(path.join(binDir, "node_modules"))) return "npm";
 
-  if (any((p) => p.includes("/site-packages/") || p.includes("/pipx/") || p.includes("/uv/tools/"))) return "pip";
+  // Volta shims resolve to Volta itself, not to node_modules.
+  if (isVoltaPath(binPath, host)) return "npm";
 
-  if (any((p) => p.startsWith("/usr/lib/google-cloud-sdk/"))) return "apt";
+  if (any((p) => PIP_SEGMENTS.some((s) => p.includes(s)))) return "pip";
+
   if (any((p) => p.startsWith("/usr/bin/") || p.startsWith("/usr/lib/") || p.startsWith("/usr/share/"))) {
     return "apt";
   }
 
-  if (isNativeLocation(binPath) || isNativeLocation(realPath)) return "native";
+  if (isNativeLocation(binPath, ctx) || isNativeLocation(realPath, ctx)) return "native";
   return "unknown";
 }

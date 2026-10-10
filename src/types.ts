@@ -41,6 +41,13 @@ export interface ToolDescriptor {
   /** Latest release for the given install channel (channels can differ, e.g. legacy pip builds). */
   getLatestVersion(method?: InstallMethod): Promise<string | null>;
   getUpdatePlan(instance: BinaryInstance): Promise<UpdatePlan>;
+  /** Cache key for latest-version lookups per install method (default: one channel per tool). */
+  latestChannel?(method?: InstallMethod): string;
+  /**
+   * Explain an update command that succeeded but left the version unchanged,
+   * when that is expected (e.g. a staged rollout). null = genuinely unchanged.
+   */
+  explainUnchanged?(instance: BinaryInstance): { status: "held"; message: string } | null;
 }
 
 export type ToolState = "up-to-date" | "outdated" | "not-installed" | "unknown";

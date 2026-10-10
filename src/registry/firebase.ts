@@ -1,9 +1,11 @@
+import { getHost } from "../utils/host";
 import { createNpmPackageTool } from "./npm-package-tool";
 
-const standaloneCommand =
-  process.platform === "win32"
+function standaloneCommand(): string {
+  return getHost().platform === "win32"
     ? "Download the latest firebase-tools-instant-win.exe from https://firebase.tools"
     : "curl -sL https://firebase.tools | upgrade=true bash";
+}
 
 export const firebase = createNpmPackageTool({
   id: "firebase",
@@ -16,7 +18,7 @@ export const firebase = createNpmPackageTool({
     instance.installMethod === "native"
       ? {
           kind: "manual",
-          command: standaloneCommand,
+          command: standaloneCommand(),
           reason: "Standalone Firebase binary; it is replaced by re-running the installer.",
         }
       : null,

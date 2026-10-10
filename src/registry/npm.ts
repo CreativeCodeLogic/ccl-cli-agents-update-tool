@@ -1,15 +1,14 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
 import type { ToolDescriptor } from "../types";
+import { getHost, pathFor } from "../utils/host";
 import { fetchLatestNpmVersion, getNpmGlobalPaths, readPackageVersionNear } from "../utils/npm";
 import { samePath } from "../utils/paths";
 import { versionFromCommand } from "./shared";
 
-/** Path of the npm package installed in the global prefix of the npm on PATH, if any. */
-async function prefixNpmDir(): Promise<string | null> {
+/** True when the global prefix of the npm on PATH holds its own npm package. */
+async function hasPrefixNpm(): Promise<boolean> {
+  const host = getHost();
   const paths = await getNpmGlobalPaths();
-  const dir = paths && path.join(paths.root, "npm");
-  return dir && existsSync(path.join(dir, "package.json")) ? dir : null;
+  return paths !== null && host.fs.exists(pathFor(host.platform).join(paths.root, "npm", "package.json"));
 }
 
 /*
@@ -17,8 +16,6 @@ async function prefixNpmDir(): Promise<string | null> {
  * <prefix>/node_modules/npm when present (i.e. after `npm install -g npm`).
  * In that case the bundled copy is dormant and the prefix copy is what runs.
  */
-const isWindows = process.platform === "win32";
-
 export const npm: ToolDescriptor = {
   id: "npm",
   name: "npm",
@@ -26,16 +23,18 @@ export const npm: ToolDescriptor = {
   npmPackage: "npm",
 
   async refineInstallMethod(method) {
-    return isWindows && method === "node" && (await prefixNpmDir()) ? "npm" : method;
+    return getHost().platform === "win32" && method === "node" && (await hasPrefixNpm()) ? "npm" : method;
   },
 
   async runsThrough(active, other) {
+    const host = getHost();
+    const path = pathFor(host.platform);
     const paths = await getNpmGlobalPaths();
     return (
-      isWindows &&
+      host.platform === "win32" &&
       paths !== null &&
-      existsSync(path.join(path.dirname(active.path), "node.exe")) &&
-      samePath(path.dirname(other.path), paths.prefix)
+      host.fs.exists(path.join(path.dirname(active.path), "node.exe")) &&
+      samePath(path.dirname(other.path), paths.prefix, host.platform)
     );
   },
 

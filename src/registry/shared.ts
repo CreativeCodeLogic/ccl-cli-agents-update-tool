@@ -1,5 +1,7 @@
 import type { BinaryInstance, UpdatePlan } from "../types";
 import { exec } from "../utils/exec";
+import { getHost } from "../utils/host";
+import { isVoltaPath } from "../utils/installMethod";
 import { isInCurrentNpmGlobal } from "../utils/npm";
 import { extractVersion } from "../utils/version";
 
@@ -23,6 +25,9 @@ export async function npmGlobalPlan(instance: BinaryInstance, pkg: string): Prom
   const command = `npm install -g ${pkg}@latest`;
   if (await isInCurrentNpmGlobal(instance.path, instance.realPath)) {
     return { kind: "auto", command: command.split(" ") };
+  }
+  if (isVoltaPath(instance.path, getHost())) {
+    return { kind: "manual", command: `volta install ${pkg}`, reason: "Managed by Volta; let Volta install the new version." };
   }
   return {
     kind: "manual",
