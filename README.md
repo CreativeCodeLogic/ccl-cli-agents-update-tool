@@ -6,9 +6,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](package.json)
 
-CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed (Claude Code, Codex, Gemini, Kimi Code, Firebase, Google Cloud CLI, npm), compares what you run with what's released, and lets you pick what to update from a single checklist.
+CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed, compares what you run with what's released, and lets you pick what to update from a single checklist. It supports 12 tools: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini, Antigravity, Qwen Code, Kimi Code, Firebase, the Google Cloud CLI and npm.
 
-![CCL CAUT demo: scan, table, hidden-install warning, checklist and updates](docs/demo.gif)
+![CCL CAUT demo: scan, table, notes, remembered checklist and updates](docs/demo.gif)
 
 <sub>Recorded with `ccl-caut --demo` (fixture data, nothing real is updated) using [VHS](https://github.com/charmbracelet/vhs); see [`docs/demo.tape`](docs/demo.tape).</sub>
 
@@ -36,44 +36,57 @@ Requires Node.js 20 or newer.
 ## What it looks like
 
 ```text
-     Tool              Installed  Latest   State             Via
-  ───────────────────────────────────────────────────────────────────────────
-  ↑  Claude Code       2.1.295    2.1.296  update available  npm
-  ✔  Codex CLI         0.162.1    0.162.1  up-to-date        npm
-  ✔  Gemini CLI        0.63.0     0.63.0   up-to-date        npm
-  ↑  Kimi Code         0.28.1     2.1.1    update available  native +1 hidden
-  ↑  Firebase CLI      15.32.1    15.33.0  update available  npm
-  ↑  Google Cloud CLI  563.0.0    588.0.0  update available  native
-  ✔  npm               12.2.0     12.2.0   up-to-date        npm
-▲  kimi: running native 0.28.1 (~\.kimi-code\bin); npm @moonshot-ai/kimi-code 2.1.1
-   (~\AppData\Roaming\npm) is installed but never runs (shadowed on PATH).
+     Tool              Installed           Latest   State             Via
+  ────────────────────────────────────────────────────────────────────────────────────
+  ✔  Claude Code       2.1.296             2.1.296  up-to-date        native
+  ↑  Codex CLI         0.161.0             0.162.1  update available  npm
+  ↻  Cursor CLI        2026.10.01-e373342  —        updates itself    native
+  ⊘  Gemini CLI        0.62.1              0.63.0   retired           npm
+  ↑  Antigravity CLI   1.3.1               1.3.3    update available  native
+  ↑  Kimi Code         2.0.4               2.1.1    update available  native +1 hidden
+  ↑  Google Cloud CLI  587.0.0             588.0.0  update available  apt
+  ✔  npm               12.2.0              12.2.0   up-to-date        node
+│  4 not installed: Copilot, OpenCode, Qwen, Firebase · --show-all to list
+▲  gemini: retired for consumer accounts since Jun 2026 -> use Antigravity CLI (agy).
+   Still works with enterprise licenses / paid API keys.
+▲  kimi: native 2.0.4 runs; npm 2.1.1 is installed but shadowed on PATH
 ```
 
-Outdated tools are pre-selected in a checklist (space toggles, enter confirms). Updates CCL CAUT can run safely run with live output; everything else is shown as a ready-to-copy command.
+Then pick what to update (space toggles, enter confirms). Updates CCL CAUT can run safely run with live output; everything else is shown as a ready-to-copy command with the reason.
 
 ## Supported tools
 
 | Tool | Install methods detected | How it is updated |
 | --- | --- | --- |
-| Claude Code | npm, native installer (`~/.local/bin`), Homebrew | npm: **auto** · native: **auto** (`claude update`) · Homebrew: command shown |
-| Codex CLI | npm, Homebrew, standalone binary | npm: **auto** · others: command shown |
-| Gemini CLI | npm, Homebrew | npm: **auto** · Homebrew: command shown |
-| Kimi Code | npm, native installer (`~/.kimi-code`), legacy `kimi-cli` (uv, pipx, pip) | npm: **auto** · native: **auto** (`kimi upgrade`) · legacy: command shown |
-| Firebase CLI | npm, standalone binary | npm: **auto** · standalone: command shown |
-| Google Cloud CLI | official installer, apt, snap, Homebrew | official installer in a folder you can write to: **auto** (`gcloud components update`) · Program Files, read-only folders, apt, snap, Homebrew: command shown |
-| npm | bundled with Node.js, global npm | always command shown |
+| Claude Code | npm, native installer, Homebrew | npm: **auto** · native: **auto** (`claude update`) · Homebrew: command |
+| Codex CLI | npm, Homebrew, standalone binary | npm: **auto** · others: command |
+| GitHub Copilot CLI | npm, install script, Homebrew, winget | npm: **auto** · script: **auto** (`copilot update`) · Homebrew, winget: command |
+| Cursor CLI (`agent`) | installer, Homebrew | installer: **updates itself** (`agent update` offered) · Homebrew: command |
+| OpenCode | npm (v1 and v2), install script, Homebrew, Chocolatey, Scoop, winget | npm: **auto** · script: **auto** (`opencode upgrade`) · others: command |
+| Gemini CLI | npm, Homebrew | **retired** for consumer accounts (see below) · npm: **auto** if you tick it · Homebrew: command |
+| Antigravity CLI (`agy`) | install script, Homebrew, winget | script: **auto** (`agy update`) · Homebrew, winget: command |
+| Qwen Code | npm, standalone installer, Homebrew | npm: **auto** · standalone: **auto** (`qwen update`) · Homebrew: command |
+| Kimi Code | npm, native installer, legacy `kimi-cli` (uv, pipx, pip) | npm: **auto** · native: **auto** (`kimi upgrade`) · legacy: command |
+| Firebase CLI | npm, standalone binary | npm: **auto** · standalone: command |
+| Google Cloud CLI | official installer, apt, snap, Homebrew | installer in a folder you can write to: **auto** (`gcloud components update`) · Program Files, read-only folders, apt, snap, Homebrew: command |
+| npm | bundled with Node.js, global npm, Homebrew's Node | always a command |
 
 "npm" means the global prefix of the npm on your `PATH`. Copies installed under another Node version (nvm, fnm, Volta) are detected too, and you get the right command to run with that version active.
 
+### Gemini CLI retirement
+
+Google retired Gemini CLI for consumer accounts (Google AI Pro and Ultra, and free use through Gemini Code Assist for individuals) on June 18, 2026; Antigravity CLI (`agy`) is the successor. Gemini CLI keeps working with Gemini Code Assist Standard/Enterprise licenses and paid API keys, so CCL CAUT still detects and can update it, but marks it **retired** and never preselects it. See [Google's announcement](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/).
+
 ## Safe by design
 
-- **We only run what we can run safely.** Automatic updates are limited to `npm install -g` into your active npm prefix and the tools' own documented self-updaters, run against the exact binary on your `PATH`. Everything else (apt, snap, Homebrew, admin-only folders, npm itself) gets the exact command and a one-line reason instead. Package-manager installs of the Google Cloud CLI never get `gcloud components update`.
+- **We only run what we can run safely.** Automatic updates are limited to `npm install -g` into your active npm prefix and the tools' own documented self-updaters, run against the exact binary on your `PATH`. Everything else (apt, snap, Homebrew, winget, Chocolatey, Scoop, admin-only folders, npm itself) gets the exact command and a one-line reason instead. Package-manager installs of the Google Cloud CLI never get `gcloud components update`.
 - **Shadowed installs are called out.** CCL CAUT finds every copy of a tool on your `PATH`, updates the one that actually runs, and warns about copies that are installed but never run.
-- **Every update is verified.** After an update, CCL CAUT asks the running binary for its version again. If it didn't change, you get a warning instead of a false success. Kimi Code's staged rollouts (new versions roll out over ~24h) are reported as "held".
+- **No false positives.** A generic binary name like Cursor's `agent` is only claimed inside Cursor's own install layout, and editor launcher shims (such as VS Code's Copilot Chat launcher) are ignored.
+- **Every update is verified.** After an update, CCL CAUT asks the running binary for its version again. If it didn't change, you get a warning instead of a false success. Kimi Code's staged rollouts are reported as "held".
 - **Friendly failure hints.** Locked files ("Claude Code appears to be running…") and permission problems ("run from an elevated terminal") are explained, not just dumped.
-- **Careful inside agents.** Updating Claude Code from inside a Claude Code session asks for confirmation first.
+- **Careful inside agents.** Updating Claude Code from inside a Claude Code session asks for confirmation first, and `--yes` skips it.
 
-Platform support: developed and used daily on Windows. Detection rules for macOS and Linux (Homebrew, apt, snap, `~/.local/bin`, uv, pipx, nvm, fnm, Volta) are covered by fixture-based unit tests, and every push runs the test suite plus a real scan on Ubuntu, macOS and Windows runners in CI.
+Platform support: developed and used daily on Windows. Detection rules for macOS and Linux (Homebrew, apt, snap, `~/.local/bin`, uv, pipx, nvm, fnm, Volta) are covered by fixture-based unit tests, every push runs the test suite plus a real scan on Ubuntu, macOS and Windows runners, and a weekly canary installs the npm-distributed CLIs for real to catch upstream changes.
 
 ## Usage
 
@@ -84,12 +97,21 @@ ccl-caut [options]
   --json         Print the scan result as JSON (no banner, no colors).
                  Combined with --check, the exit code follows --check.
   --refresh      Ignore cached latest versions (cached for 1 hour) and look them up again.
+  --show-all     Also list tools that are not installed.
+  -y, --yes      Don't ask: update the tools that would be preselected (your remembered
+                 choices, else every outdated tool that isn't retired or self-updating).
+  --reset-selection
+                 Forget the selection remembered from previous runs, then run normally.
   --no-color     Disable colors.
   -v, --version  Print the version.
   -h, --help     Show this help.
 ```
 
-Latest versions are cached for an hour in your OS cache folder (`%LOCALAPPDATA%\ccl-caut`, `~/Library/Caches/ccl-caut`, or `$XDG_CACHE_HOME/ccl-caut`). Set `CCL_CAUT_DEBUG=1` to see failed lookups and cache problems on stderr.
+### Remembered selections
+
+When you confirm the checklist, CCL CAUT remembers your choice per tool: ticked tools are preselected next time, unticked ones start unticked ("Selection remembered from your last run" appears under the prompt). Tools you've never decided on follow the defaults: preselected if outdated, unticked if retired or self-updating. `--yes` applies the same selection without asking, which makes it handy for a scheduled task. `--reset-selection` forgets everything.
+
+Choices are stored in your OS config folder: `%APPDATA%\ccl-caut\config.json` on Windows, and `$XDG_CONFIG_HOME/ccl-caut/config.json` or `~/.config/ccl-caut/config.json` on macOS and Linux (like other developer CLIs). Latest versions are cached for an hour in your OS cache folder (`%LOCALAPPDATA%\ccl-caut`, `~/Library/Caches/ccl-caut` or `$XDG_CACHE_HOME/ccl-caut`). Set `CCL_CAUT_DEBUG=1` to see failed lookups and config or cache problems on stderr.
 
 ### Exit codes
 
@@ -111,30 +133,36 @@ ccl-caut --json
 ```json
 {
   "tool": "ccl-caut",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "platform": "win32",
   "latestCachedAt": null,
-  "summary": { "total": 7, "upToDate": 3, "outdated": 4, "notInstalled": 0, "unknown": 0, "shadowed": 1 },
+  "summary": { "total": 12, "upToDate": 2, "outdated": 4, "notInstalled": 5, "unknown": 0, "retired": 1, "selfUpdating": 0, "shadowed": 1 },
   "tools": [
     {
-      "id": "kimi",
-      "name": "Kimi Code",
+      "id": "gemini",
+      "name": "Gemini CLI",
+      "shortName": "Gemini",
       "installed": true,
-      "installMethod": "native",
-      "binaryPath": "C:\\Users\\you\\.kimi-code\\bin\\kimi.exe",
-      "installedVersion": "0.28.1",
-      "latestVersion": "2.1.1",
-      "state": "outdated",
-      "plan": { "kind": "auto", "command": ["C:\\Users\\you\\.kimi-code\\bin\\kimi.exe", "upgrade"] },
-      "shadowed": [
-        { "path": "C:\\Users\\you\\AppData\\Roaming\\npm\\kimi.cmd", "installMethod": "npm", "version": "2.1.1" }
-      ]
+      "installMethod": "npm",
+      "binaryPath": "C:\\Users\\you\\AppData\\Roaming\\npm\\gemini.cmd",
+      "installedVersion": "0.63.0",
+      "latestVersion": "0.63.0",
+      "state": "retired",
+      "updateAvailable": false,
+      "plan": { "kind": "auto", "command": ["npm", "install", "-g", "@google/gemini-cli@latest"] },
+      "shadowed": [],
+      "deprecation": {
+        "message": "retired for consumer accounts since Jun 2026 -> use Antigravity CLI (agy). Still works with enterprise licenses / paid API keys.",
+        "successorId": "antigravity",
+        "since": "2026-06-18",
+        "url": "https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
+      }
     }
   ]
 }
 ```
 
-`state` is one of `up-to-date`, `outdated`, `not-installed` or `unknown` (a version could not be determined; never reported as outdated). `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`).
+`state` is one of `up-to-date`, `outdated`, `not-installed`, `unknown` (a version could not be determined; never reported as outdated), `retired` or `self-updating`. `updateAvailable` tells you whether a newer version exists, even for retired tools. `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`).
 
 ## Adding a new tool
 
@@ -148,6 +176,7 @@ import { brewPlan } from "./shared";
 export const mytool = createNpmPackageTool({
   id: "mytool",
   name: "My Tool",
+  shortName: "MyTool",
   binNames: ["mytool"],
   pkg: "@acme/mytool",
   // Optional: plans for installs npm doesn't manage.
@@ -155,7 +184,7 @@ export const mytool = createNpmPackageTool({
 });
 ```
 
-Then add it to the list in [`src/registry/index.ts`](src/registry/index.ts). Tools with their own installer implement the `ToolDescriptor` interface directly (see `gcloud.ts` and `kimi.ts`): read the installed version, look up the latest one, and return an `auto` or `manual` update plan per install method. See [CONTRIBUTING.md](CONTRIBUTING.md) for tests.
+Then add it to the list in [`src/registry/index.ts`](src/registry/index.ts). Tools with their own installer implement the `ToolDescriptor` interface directly (see `antigravity.ts`, `cursor.ts` and `gcloud.ts`): read the installed version, look up the latest one, and return an `auto` or `manual` update plan per install method. Optional fields cover `deprecation`, `selfUpdating` and `identify` (for generic binary names). See [CONTRIBUTING.md](CONTRIBUTING.md) for tests.
 
 ## License
 

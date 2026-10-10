@@ -29,7 +29,7 @@ Set `CCL_CAUT_DEBUG=1` to see failed lookups and cache problems on stderr.
 
 `node dist/index.js --demo` (or `npm run dev -- --demo`) runs the full interactive UI against fixture data: an in-memory Linux machine with a mix of up-to-date tools, updates, a missing tool, a hidden install and a manual-only plan. It's used to record the README GIF (`docs/demo.tape`) and is handy for UI work.
 
-Demo mode is safe by construction: it blocks process spawning, network access and cache writes process-wide (`src/utils/sandbox.ts`), detects against a fake host, and runs "updates" through a fake executor that only prints. `test/demo.test.ts` asserts that nothing real can run, even through the real executor. The flag is intentionally not listed in `--help`.
+Demo mode is safe by construction: it blocks process spawning, network access, cache writes and config reads/writes process-wide (`src/utils/sandbox.ts`), detects against a fake host, and runs "updates" through a fake executor that only prints. `test/demo.test.ts` asserts that nothing real can run, even through the real executor. The flag is intentionally not listed in `--help`.
 
 To re-render the GIF, run the **Demo GIF** workflow (Actions → Demo GIF → Run workflow) and download the `demo-gif` artifact, or locally with [VHS](https://github.com/charmbracelet/vhs): `npm run build && vhs docs/demo.tape`.
 ## Project layout
@@ -57,6 +57,9 @@ Ground rules for descriptors:
 - **Never throw.** Return `null` for unknown versions; the scan treats unknown as "unknown", never "outdated".
 - **`auto` only when it's safe**: npm installs in the active prefix, or a documented self-updater run on the exact binary (`instance.path`). Everything else is `manual` with the exact command and a one-line `reason`.
 - Read platform, home directory, environment and filesystem through `getHost()`, never through `process`/`os`/`fs` directly, so the rules stay testable.
+- Verify facts (package names, bin names, install paths, update commands) against the tool's **official** docs, install scripts and the registries, not blog posts; cite the source in a comment.
+- Generic binary names (like Cursor's `agent`) need an `identify` hook that only claims files inside the tool's own install layout. Never run an unknown binary to find out what it is.
+- Retired tools get `deprecation` (shown as "retired", never preselected); tools that keep themselves current without a public latest version get `selfUpdating: true` ("updates itself").
 
 ## Testing platform rules
 
