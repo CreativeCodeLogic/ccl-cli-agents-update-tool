@@ -16,10 +16,11 @@ CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLI
 
 ## Quick start
 
-> **Coming to npm soon.** Until then, run it from source (below).
-
 ```bash
 npx ccl-caut            # run once, no install
+```
+
+```bash
 npm install -g ccl-caut  # or keep it around
 ccl-caut
 ```
@@ -38,17 +39,18 @@ Requires Node.js 20 or newer.
 ## What it looks like
 
 ```text
-     Tool              Installed           Latest   State             Via
-  ────────────────────────────────────────────────────────────────────────────────────
-  ✔  Claude Code       2.1.296             2.1.296  up-to-date        native
-  ↑  Codex CLI         0.161.0             0.162.1  update available  npm
-  ↻  Cursor CLI        2026.10.01-e373342  —        updates itself    native
-  ⊘  Gemini CLI        0.62.1              0.63.0   retired           npm
-  ↑  Antigravity CLI   1.3.1               1.3.3    update available  native
-  ↑  Kimi Code         2.0.4               2.1.1    update available  native +1 hidden
-  ↑  Google Cloud CLI  587.0.0             588.0.0  update available  apt
-  ✔  npm               12.2.0              12.2.0   up-to-date        node
-│  4 not installed: Copilot, OpenCode, Qwen, Firebase · --show-all to list
+◇  Found 8 of 12 supported CLIs · ccl-caut --discover to see all
+
+     Tool              Installed   Latest   State             Via
+  ─────────────────────────────────────────────────────────────────────────────
+  ✔  Claude Code       2.1.296     2.1.296  up-to-date        native
+  ↑  Codex CLI         0.161.0     0.162.1  update available  npm
+  ↻  Cursor CLI        2026.10.01  —        updates itself    native
+  ⊘  Gemini CLI        0.62.1      0.63.0   retired           npm
+  ↑  Antigravity CLI   1.3.1       1.3.3    update available  native
+  ↑  Kimi Code         2.0.4       2.1.1    update available  native +1 hidden
+  ↑  Google Cloud CLI  587.0.0     588.0.0  update available  apt
+  ✔  npm               12.2.0      12.2.0   up-to-date        node
 ▲  gemini: retired for consumer accounts since Jun 2026 -> use Antigravity CLI (agy).
    Still works with enterprise licenses / paid API keys.
 ▲  kimi: native 2.0.4 runs; npm 2.1.1 is installed but shadowed on PATH
@@ -99,7 +101,8 @@ ccl-caut [options]
   --json         Print the scan result as JSON (no banner, no colors).
                  Combined with --check, the exit code follows --check.
   --refresh      Ignore cached latest versions (cached for 1 hour) and look them up again.
-  --show-all     Also list tools that are not installed.
+  --discover     List every supported CLI with its official install docs.
+                 (ccl-caut never installs tools.)
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
   --reset-selection
@@ -113,6 +116,10 @@ ccl-caut [options]
 The interactive checklist starts on a clean screen: earlier output is pushed up into your scrollback, never erased. Use `--no-clear` to keep it in view; `--check`, `--json`, `--yes` and CI runs never clear.
 
 When a newer ccl-caut is published, a one-line notice under the banner tells you how to upgrade for the way you run it (`npx ccl-caut@latest` or `npm i -g ccl-caut`). The check runs in the background, never slows a run down, stays silent when offline, and is off in CI or with `CCL_CAUT_NO_UPDATE_CHECK=1`. `--json` reports it as `"self": { "version", "latest" }`.
+
+### Discover supported tools
+
+CCL CAUT updates what you already have; it never installs anything. `ccl-caut --discover` lists all 12 supported CLIs with a one-line description, whether each is installed (and which version runs), and a link to its official install docs. `--json` includes the same `docsUrl` for every tool.
 
 ### Remembered selections
 
@@ -162,6 +169,7 @@ ccl-caut --json
       "id": "gemini",
       "name": "Gemini CLI",
       "shortName": "Gemini",
+      "docsUrl": "https://github.com/google-gemini/gemini-cli",
       "installed": true,
       "installMethod": "npm",
       "binaryPath": "C:\\Users\\you\\AppData\\Roaming\\npm\\gemini.cmd",

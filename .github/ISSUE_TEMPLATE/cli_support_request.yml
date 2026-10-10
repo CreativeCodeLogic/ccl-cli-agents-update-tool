@@ -1,0 +1,30 @@
+name: Request support for a CLI
+description: Ask for an AI or developer CLI to be detected and updated.
+labels: [new tool]
+body:
+  - type: input
+    id: tool
+    attributes:
+      label: Tool name
+      placeholder: e.g. Aider
+    validations:
+      required: true
+  - type: input
+    id: docs
+    attributes:
+      label: Official install docs URL
+      description: The vendor's own install page, not a blog post.
+      placeholder: https://...
+    validations:
+      required: true
+  - type: textarea
+    id: methods
+    attributes:
+      label: Install methods you use
+      description: For example npm package name, Homebrew formula or cask, winget id, install script, pip/uv. Include the binary name and, if you know it, the tool's own update command.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else?
