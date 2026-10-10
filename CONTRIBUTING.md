@@ -32,6 +32,10 @@ Set `CCL_CAUT_DEBUG=1` to see failed lookups and cache problems on stderr.
 Demo mode is safe by construction: it blocks process spawning, network access, cache writes and config reads/writes process-wide (`src/utils/sandbox.ts`), detects against a fake host, and runs "updates" through a fake executor that only prints. `test/demo.test.ts` asserts that nothing real can run, even through the real executor. The flag is intentionally not listed in `--help`.
 
 To re-render the GIF, run the **Demo GIF** workflow (Actions → Demo GIF → Run workflow) and download the `demo-gif` artifact, or locally with [VHS](https://github.com/charmbracelet/vhs): `npm run build && vhs docs/demo.tape`.
+## Testing the self-update notice
+
+A source checkout never shows the "newer ccl-caut" notice. To see it before anything is published: `npm pack`, `npm install -g ./ccl-caut-<version>.tgz`, then add an entry `"ccl-caut:self": { "version": "<newer>", "fetchedAt": <Date.now()> }` to `latest-versions.json` in the cache folder and run `ccl-caut --check`. `npm uninstall -g ccl-caut` afterwards.
+
 ## Project layout
 
 ```text

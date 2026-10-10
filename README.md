@@ -2,6 +2,8 @@
 
 **One command to check and update every AI coding CLI on your machine.**
 
+<!-- WHY: one line on the problem (many agents, many update commands, many install methods). The user will write this copy. -->
+
 [![CI](https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/actions/workflows/ci.yml/badge.svg)](https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](package.json)
@@ -84,7 +86,7 @@ Google retired Gemini CLI for consumer accounts (Google AI Pro and Ultra, and fr
 - **No false positives.** A generic binary name like Cursor's `agent` is only claimed inside Cursor's own install layout, and editor launcher shims (such as VS Code's Copilot Chat launcher) are ignored.
 - **Every update is verified.** After an update, CCL CAUT asks the running binary for its version again. If it didn't change, you get a warning instead of a false success. Kimi Code's staged rollouts are reported as "held".
 - **Friendly failure hints.** Locked files ("Claude Code appears to be running…") and permission problems ("run from an elevated terminal") are explained, not just dumped.
-- **Careful inside agents.** Updating Claude Code from inside a Claude Code session asks for confirmation first, and `--yes` skips it.
+- **Careful inside agents.** Updating Claude Code from inside a Claude Code session asks for confirmation first. Under `--yes`, Claude Code is skipped: it is never updated without an explicit yes.
 
 Platform support: developed and used daily on Windows. Detection rules for macOS and Linux (Homebrew, apt, snap, `~/.local/bin`, uv, pipx, nvm, fnm, Volta) are covered by fixture-based unit tests, every push runs the test suite plus a real scan on Ubuntu, macOS and Windows runners, and a weekly canary installs the npm-distributed CLIs for real to catch upstream changes.
 
@@ -102,16 +104,34 @@ ccl-caut [options]
                  choices, else every outdated tool that isn't retired or self-updating).
   --reset-selection
                  Forget the selection remembered from previous runs, then run normally.
+  --no-clear     Don't clear the screen when starting the interactive checklist.
   --no-color     Disable colors.
   -v, --version  Print the version.
   -h, --help     Show this help.
 ```
+
+The interactive checklist starts on a clean screen: earlier output is pushed up into your scrollback, never erased. Use `--no-clear` to keep it in view; `--check`, `--json`, `--yes` and CI runs never clear.
+
+When a newer ccl-caut is published, a one-line notice under the banner tells you how to upgrade for the way you run it (`npx ccl-caut@latest` or `npm i -g ccl-caut`). The check runs in the background, never slows a run down, stays silent when offline, and is off in CI or with `CCL_CAUT_NO_UPDATE_CHECK=1`. `--json` reports it as `"self": { "version", "latest" }`.
 
 ### Remembered selections
 
 When you confirm the checklist, CCL CAUT remembers your choice per tool: ticked tools are preselected next time, unticked ones start unticked ("Selection remembered from your last run" appears under the prompt). Tools you've never decided on follow the defaults: preselected if outdated, unticked if retired or self-updating. `--yes` applies the same selection without asking, which makes it handy for a scheduled task. `--reset-selection` forgets everything.
 
 Choices are stored in your OS config folder: `%APPDATA%\ccl-caut\config.json` on Windows, and `$XDG_CONFIG_HOME/ccl-caut/config.json` or `~/.config/ccl-caut/config.json` on macOS and Linux (like other developer CLIs). Latest versions are cached for an hour in your OS cache folder (`%LOCALAPPDATA%\ccl-caut`, `~/Library/Caches/ccl-caut` or `$XDG_CACHE_HOME/ccl-caut`). Set `CCL_CAUT_DEBUG=1` to see failed lookups and config or cache problems on stderr.
+
+### Privacy & network
+
+CCL CAUT only reads public version information. It contacts exactly these hosts, and only to fetch latest-version metadata:
+
+| Host | What for |
+| --- | --- |
+| `registry.npmjs.org` | Latest versions of npm-distributed tools, and of ccl-caut itself |
+| `api.github.com` | Antigravity CLI's latest release |
+| `dl.google.com` | The Google Cloud SDK release feed |
+| `pypi.org` | Legacy `kimi-cli` installs only |
+
+Nothing about you or your machine is sent: no identifiers, no list of installed tools, no telemetry or analytics of any kind. Requests are plain GETs (with a `ccl-caut` user agent). Results are cached for an hour in your OS cache folder, and your remembered selections stay in your OS config folder (see above). Update commands you choose to run (for example `claude update` or `npm install -g …`) contact their own vendors, exactly as if you ran them yourself.
 
 ### Exit codes
 
@@ -192,4 +212,4 @@ MIT © Creative Code Logic. See [LICENSE](LICENSE).
 
 ---
 
-Built by **Creative Code Logic**.
+Built by [Creative Code Logic](https://creativecodelogic.com).

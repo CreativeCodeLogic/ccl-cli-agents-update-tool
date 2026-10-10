@@ -39,6 +39,28 @@ jobs:
             exit 1
           fi
 
+      # Copilot auto-updates itself into a cache dir; check whether the binary
+      # that runs reports a different version than the npm package (warning only).
+      - name: Copilot self-update check (informational)
+        run: |
+          pkg_version="$(node -p "require('$(npm root -g)/@github/copilot/package.json').version")"
+          for attempt in 1 2; do
+            cli_output="$(timeout 120 copilot --version 2>&1 | head -5 || true)"
+            echo "attempt $attempt: npm package $pkg_version | copilot --version: $cli_output"
+          done
+          if ! printf '%s' "$cli_output" | grep -qF "$pkg_version"; then
+            echo "::warning title=Copilot version mismatch::npm package $pkg_version, but copilot --version prints: $cli_output"
+          fi
+          for dir in "$HOME/.copilot" "$HOME/.cache/copilot" "$HOME/.config/copilot" "$HOME/.local/state/copilot"; do
+            if [ -e "$dir" ]; then
+              echo "::group::$dir"
+              find "$dir" -maxdepth 4 \( -type f -o -type d \) -printf '%y %10s %p\n' | head -80
+              echo "::endgroup::"
+            else
+              echo "$dir: (none)"
+            fi
+          done
+
       - name: Check detection
         run: |
           node dist/index.js --json --refresh > scan.json || true

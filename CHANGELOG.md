@@ -23,7 +23,9 @@ First public release of CCL CAUT, the CLI Agents Update Tool.
 - Safe updates: automatic only for npm installs in the active prefix and documented self-updaters (`claude update`, `copilot update`, `agent update`, `opencode upgrade`, `agy update`, `qwen update`, `kimi upgrade` on macOS/Linux, `gcloud components update` in user-writable SDKs); everything else is shown as a ready-to-copy command with the reason.
 - Post-update version re-check; unchanged versions are warnings, Kimi Code staged rollouts are reported as "held".
 - Friendly hints for locked files and permission errors; Claude Code is never updated from inside a Claude Code session without confirmation.
-- Flags: `--check` (exit 1 when updates are available), `--json`, `--yes`, `--show-all`, `--refresh`, `--reset-selection`, `--no-color`, `--version`, `--help`.
+- Interactive runs start on a clean screen without losing scrollback (`--no-clear` to opt out); long build versions (Cursor's date-hash) are shortened in the table.
+- A one-line notice when a newer ccl-caut is available, with the right upgrade command for npx or global installs; background-only, silent offline, off in CI or with `CCL_CAUT_NO_UPDATE_CHECK=1`.
+- Flags: `--check` (exit 1 when updates are available), `--json`, `--yes`, `--show-all`, `--refresh`, `--reset-selection`, `--no-clear`, `--no-color`, `--version`, `--help`.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
 [Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.0...HEAD
