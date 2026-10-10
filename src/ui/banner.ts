@@ -3,21 +3,35 @@ import gradient from "gradient-string";
 import pc from "picocolors";
 
 const BRAND = gradient(["#00c6ff", "#7b5cff", "#ff4fd8"]);
+const TITLE = "CCL CAUT";
+const TAGLINE = "CLI Agents Update Tool — by Creative Code Logic";
 
-/** Figlet banner with a gradient; falls back to a single line on narrow terminals. */
+function figletArt(): string | null {
+  try {
+    return figlet.textSync(TITLE, { font: "ANSI Shadow" }).replace(/\s+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Figlet banner with a gradient when it fits; otherwise a compact one-line
+ * banner trimmed to the terminal width, so narrow terminals never wrap.
+ */
 export function printBanner(version: string): void {
   const columns = process.stdout.columns ?? 80;
-  let art: string;
-  try {
-    art = figlet.textSync("CCL AUT", { font: "ANSI Shadow" });
-  } catch {
-    art = "CCL AUT";
-  }
-  const widest = Math.max(...art.split("\n").map((line) => line.length));
-  const output = widest <= columns ? art.replace(/\s+$/, "") : "CCL AUT";
+  const art = figletArt();
+  const artWidth = art ? Math.max(...art.split("\n").map((line) => line.length)) : Infinity;
 
   console.log();
-  console.log(BRAND.multiline(output));
-  console.log(pc.dim(`Agents Update Tool — by Creative Code Logic  v${version}`));
+  if (art && artWidth <= columns) {
+    console.log(BRAND.multiline(art));
+    console.log(pc.dim(`${TAGLINE}  v${version}`));
+  } else {
+    // Longest variant that fits: title + tagline + version, then title + version.
+    const full = ` v${version} · ${TAGLINE}`;
+    const suffix = TITLE.length + full.length <= columns ? full : ` v${version}`;
+    console.log(BRAND(TITLE) + pc.dim(suffix));
+  }
   console.log();
 }

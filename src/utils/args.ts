@@ -36,13 +36,13 @@ export function parseArgs(argv: readonly string[]): ParseResult {
 }
 
 export function helpText(version: string): string {
-  return `ccl-aut v${version} — Agents Update Tool by Creative Code Logic
+  return `ccl-caut v${version} — CLI Agents Update Tool by Creative Code Logic
 
 Checks which AI/dev CLIs are installed, compares them with the latest
 releases, and lets you pick which ones to update.
 
 Usage:
-  ccl-aut [options]
+  ccl-caut [options]
 
 Options:
   --check        Scan and print the table only. Exit code 1 if updates exist, else 0.
@@ -53,6 +53,6 @@ Options:
   -h, --help     Show this help.
 
 Environment:
-  CCL_AUT_DEBUG=1  Print diagnostics (e.g. failed registry lookups) to stderr.
+  CCL_CAUT_DEBUG=1  Print diagnostics (e.g. failed registry lookups) to stderr.
 `;
 }

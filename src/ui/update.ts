@@ -43,12 +43,12 @@ async function diagnose(output: string, target: UpdateTarget, command: readonly 
     const adminPrefix = prefix !== undefined && isUnderProgramFiles(prefix);
     if (/EACCES/i.test(output) || (adminPrefix && /EPERM/i.test(output))) {
       return process.platform === "win32"
-        ? "npm cannot write to its global folder; run ccl-aut from an elevated (Administrator) terminal."
+        ? "npm cannot write to its global folder; run ccl-caut from an elevated (Administrator) terminal."
         : "npm cannot write to its global prefix. Avoid sudo npm; use a Node version manager or set a user-owned prefix.";
     }
   }
   if (LOCK_RE.test(output)) {
-    return `${name} appears to be running (another terminal, VS Code). Close it and run ccl-aut again.`;
+    return `${name} appears to be running (another terminal, VS Code). Close it and run ccl-caut again.`;
   }
   return null;
 }

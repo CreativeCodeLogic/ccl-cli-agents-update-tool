@@ -48,7 +48,7 @@ async function runJson(check: boolean): Promise<number> {
   const { results } = await scan();
   const summary = summarize(results);
   const report = {
-    tool: "ccl-aut",
+    tool: "ccl-caut",
     version: VERSION,
     generatedAt: new Date().toISOString(),
     platform: process.platform,
@@ -96,7 +96,7 @@ async function confirmClaudeSelfUpdate(targets: UpdateTarget[]): Promise<UpdateT
   const claude = targets.find((t) => t.scan.id === "claude" && t.scan.plan?.kind === "auto");
   if (!claude || !process.env.CLAUDECODE) return targets;
   log.warn(
-    "ccl-aut is running inside a Claude Code session. Updating Claude Code now may fail " +
+    "ccl-caut is running inside a Claude Code session. Updating Claude Code now may fail " +
       "because the running session locks its files, or the session may keep using the old version.",
   );
   const ok = await confirm({ message: "Update Claude Code anyway?", initialValue: false });
@@ -185,8 +185,8 @@ main().then(
   (code) => process.exit(code),
   (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`${pc.red(`ccl-aut: ${message}`)}\n`);
-    if (process.env.CCL_AUT_DEBUG && error instanceof Error) process.stderr.write(`${error.stack ?? ""}\n`);
+    process.stderr.write(`${pc.red(`ccl-caut: ${message}`)}\n`);
+    if (process.env.CCL_CAUT_DEBUG && error instanceof Error) process.stderr.write(`${error.stack ?? ""}\n`);
     process.exit(1);
   },
 );
