@@ -65,4 +65,8 @@ jobs:
               tool: t.id, via: t.installMethod, installed: t.installedVersion,
               latest: t.latestVersion, state: t.state, hidden: t.shadowed.length,
             })));
+            for (const t of report.tools.filter((t) => t.installed)) {
+              console.log(`${t.id}: ${t.binaryPath} (${t.installMethod})`);
+              for (const s of t.shadowed) console.log(`  hidden: ${s.path} (${s.installMethod} ${s.version ?? "?"})`);
+            }
           '
