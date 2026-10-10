@@ -44,7 +44,7 @@ async function scan(): Promise<ScanResult> {
   return { results: await resolveLatest(detections), detections };
 }
 
-async function runJson(): Promise<number> {
+async function runJson(check: boolean): Promise<number> {
   const { results } = await scan();
   const summary = summarize(results);
   const report = {
@@ -57,7 +57,7 @@ async function runJson(): Promise<number> {
     tools: results,
   };
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  return 0;
+  return check ? checkExitCode(summary) : 0;
 }
 
 /** Banner + two progress phases + table + warnings. Shared by --check and the interactive flow. */
@@ -173,7 +173,7 @@ async function main(): Promise<number> {
     process.stdout.write(`${VERSION}\n`);
     return 0;
   }
-  if (options.json) return runJson();
+  if (options.json) return runJson(options.check);
   if (options.check) return runCheck();
 
   // Ctrl+C outside a prompt (e.g. during a scan) exits cleanly too.

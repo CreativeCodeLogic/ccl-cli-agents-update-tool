@@ -47,6 +47,7 @@ Usage:
 Options:
   --check        Scan and print the table only. Exit code 1 if updates exist, else 0.
   --json         Print the scan result as JSON (no banner, no colors).
+                 Combined with --check, the exit code follows --check.
   --no-color     Disable colors.
   -v, --version  Print the version.
   -h, --help     Show this help.
