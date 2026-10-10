@@ -22,6 +22,7 @@ Thumbs.db
 .claude/
 .codex/
 .cursor/
+.secrets/
 CLAUDE.md
 AGENTS.md
 GEMINI.md
