@@ -9,13 +9,17 @@ const APP_DIR = "ccl-caut";
 const FILE_NAME = "config.json";
 
 /**
- * schema 2 (1.1): adds hiddenGroups. Schema 1 files (1.0) are read as-is with
- * no hidden groups and rewritten as schema 2 on the next save.
+ * The file stays readable by 1.0.x: `schema: 1` and `tools` are exactly what
+ * 1.0.x reads (it ignores any other key), and newer settings are extra keys
+ * (`hiddenGroups`, 1.1). A downgrade therefore keeps the per-tool selections.
+ * `schema: 2` files written by 1.1 development builds are read too and
+ * rewritten in this shape on load.
  */
 interface ConfigFile {
-  schema: 2;
+  schema: 1;
   tools: Record<string, ToolChoice>;
-  hiddenGroups: ToolGroup[];
+  /** 1.1+: groups hidden with --hide-group (1.0.x ignores this key). */
+  hiddenGroups?: ToolGroup[];
 }
 
 const isGroup = (value: unknown): value is ToolGroup => (TOOL_GROUPS as readonly unknown[]).includes(value);
@@ -58,6 +62,7 @@ export class UserConfig {
     const file = dir ? pathFor(host.platform).join(dir, FILE_NAME) : null;
     const choices: Record<string, ToolChoice> = {};
     const hidden: ToolGroup[] = [];
+    let migrate = false;
     if (file && !sideEffectsBlocked()) {
       try {
         const parsed = JSON.parse(readFileSync(file, "utf8")) as { schema?: unknown; tools?: unknown; hiddenGroups?: unknown } | null;
@@ -65,14 +70,18 @@ export class UserConfig {
           throw new Error("unexpected config format");
         }
         for (const [id, choice] of Object.entries(parsed.tools)) if (isChoice(choice)) choices[id] = choice;
-        if (parsed.schema === 2 && Array.isArray(parsed.hiddenGroups)) {
+        if (Array.isArray(parsed.hiddenGroups)) {
           for (const group of parsed.hiddenGroups) if (isGroup(group) && !hidden.includes(group)) hidden.push(group);
         }
+        migrate = parsed.schema === 2;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") debug(`ignoring config ${file}: ${String(error)}`);
       }
     }
-    return new UserConfig(file, choices, hidden);
+    const config = new UserConfig(file, choices, hidden);
+    // A 1.1 development build wrote schema 2, which 1.0.x ignores: put it back in the shape 1.0.x reads.
+    if (migrate && host) config.write(host);
+    return config;
   }
 
   /** Groups hidden with --hide-group (persistent until --show-group). */
@@ -91,7 +100,7 @@ export class UserConfig {
     try {
       mkdirSync(pathFor(host.platform).dirname(this.file), { recursive: true });
       const tmp = `${this.file}.${process.pid}.tmp`;
-      const data: ConfigFile = { schema: 2, tools: this.choices, hiddenGroups: this.hidden };
+      const data: ConfigFile = { schema: 1, tools: this.choices, ...(this.hidden.length > 0 && { hiddenGroups: this.hidden }) };
       writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`);
       renameSync(tmp, this.file);
     } catch (error) {

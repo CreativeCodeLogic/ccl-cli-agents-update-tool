@@ -34,7 +34,7 @@ describe("UserConfig on disk", () => {
   it("round-trips choices with a schema version", () => {
     const { host, file } = tempHost();
     UserConfig.load(host).saveChoices({ codex: "update", gcloud: "skip" }, host);
-    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 2, tools: { codex: "update", gcloud: "skip" }, hiddenGroups: [] });
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: { codex: "update", gcloud: "skip" } });
     expect(UserConfig.load(host).toolChoices).toEqual({ codex: "update", gcloud: "skip" });
   });
 
@@ -57,7 +57,7 @@ describe("UserConfig on disk", () => {
     expect(UserConfig.load(host).toolChoices).toEqual({});
   });
 
-  it("migrates a 1.0 (schema 1) file: keeps the choices, adds hiddenGroups on the next save", () => {
+  it("reads a 1.0 file and adds hiddenGroups as an extra key, keeping schema 1", () => {
     const { host, file } = tempHost();
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, JSON.stringify({ schema: 1, tools: { codex: "update", kimi: "skip" } }));
@@ -65,7 +65,40 @@ describe("UserConfig on disk", () => {
     expect(config.toolChoices).toEqual({ codex: "update", kimi: "skip" });
     expect(config.hiddenGroups).toEqual([]);
     config.setGroupHidden("dev", true, host);
-    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 2, tools: { codex: "update", kimi: "skip" }, hiddenGroups: ["dev"] });
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: { codex: "update", kimi: "skip" }, hiddenGroups: ["dev"] });
+  });
+
+  it("migrates a schema 2 file from a 1.1 development build back to the shape 1.0.x reads", () => {
+    const { host, file } = tempHost();
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify({ schema: 2, tools: { codex: "skip" }, hiddenGroups: ["dev"] }));
+    const config = UserConfig.load(host);
+    expect(config.toolChoices).toEqual({ codex: "skip" });
+    expect(config.hiddenGroups).toEqual(["dev"]);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: { codex: "skip" }, hiddenGroups: ["dev"] });
+  });
+
+  it("downgrade safety: the 1.0.1 parser (verbatim) keeps the per-tool selections of a 1.1 file", () => {
+    const { host, file } = tempHost();
+    const config = UserConfig.load(host);
+    config.saveChoices({ codex: "update", gcloud: "skip" }, host);
+    config.setGroupHidden("dev", true, host);
+    // src/utils/config.ts UserConfig.load at 1.0.1 (commit f03ae31):
+    const isChoice = (value: unknown) => value === "update" || value === "skip";
+    const load101 = (text: string) => {
+      const choices: Record<string, string> = {};
+      try {
+        const parsed = JSON.parse(text) as { schema?: unknown; tools?: Record<string, unknown> } | null;
+        if (parsed?.schema !== 1 || typeof parsed.tools !== "object" || parsed.tools === null) {
+          throw new Error("unexpected config format");
+        }
+        for (const [id, choice] of Object.entries(parsed.tools)) if (isChoice(choice)) choices[id] = choice as string;
+      } catch {
+        // 1.0.1 ignores the file
+      }
+      return choices;
+    };
+    expect(load101(readFileSync(file, "utf8"))).toEqual({ codex: "update", gcloud: "skip" });
   });
 
   it("hides and shows groups persistently, ignoring unknown group names", () => {
@@ -74,7 +107,7 @@ describe("UserConfig on disk", () => {
     expect(UserConfig.load(host).hiddenGroups).toEqual(["dev"]);
     UserConfig.load(host).setGroupHidden("dev", false, host);
     expect(UserConfig.load(host).hiddenGroups).toEqual([]);
-    writeFileSync(file, JSON.stringify({ schema: 2, tools: {}, hiddenGroups: ["dev", "games", "dev"] }));
+    writeFileSync(file, JSON.stringify({ schema: 1, tools: {}, hiddenGroups: ["dev", "games", "dev"] }));
     expect(UserConfig.load(host).hiddenGroups).toEqual(["dev"]);
   });
 
@@ -84,7 +117,7 @@ describe("UserConfig on disk", () => {
     config.saveChoices({ codex: "skip" }, host);
     config.setGroupHidden("dev", true, host);
     config.reset(host);
-    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 2, tools: {}, hiddenGroups: ["dev"] });
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: {}, hiddenGroups: ["dev"] });
   });
 
   it("drops invalid choice values but keeps valid ones", () => {
