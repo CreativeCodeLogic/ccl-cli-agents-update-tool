@@ -5,6 +5,7 @@ import type { Detection } from "../src/scan";
 import type { ToolScan } from "../src/types";
 import { renderDiscovery } from "../src/ui/discover";
 import { checklist } from "../src/ui/prompts";
+import { icons } from "../src/ui/symbols";
 import { printNotes, renderTable } from "../src/ui/table";
 
 const ANSI = new RegExp(String.fromCharCode(27) + "\\[[0-9;]*m", "g");
@@ -28,7 +29,9 @@ describe("tool groups", () => {
   it("puts a dim heading above each group, agents first, order kept inside a group", () => {
     const lines = strip(renderTable([row("npm", "dev"), row("claude", "agents"), row("firebase", "dev"), row("codex", "agents")])).split("\n");
     const names = lines.slice(2).map((l) => l.trim().split(/\s+/).slice(0, 2).join(" "));
-    expect(names).toEqual(["AI agents", "✔ claude", "✔ codex", "Dev CLIs", "✔ npm", "✔ firebase"]);
+    // The glyph comes from the symbol module, so the test passes in any terminal (conhost uses fallbacks).
+    const ok = icons.ok;
+    expect(names).toEqual(["AI agents", `${ok} claude`, `${ok} codex`, "Dev CLIs", `${ok} npm`, `${ok} firebase`]);
   });
 
   it("leaves out empty groups (and not-installed rows)", () => {

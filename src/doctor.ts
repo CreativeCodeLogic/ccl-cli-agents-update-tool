@@ -8,6 +8,7 @@ import { getHost, pathFor } from "./utils/host";
 import { githubTokenSource } from "./utils/github";
 import { classifyError, createDispatcher, proxySettings, redactProxy, type NetFailure } from "./utils/http";
 import { formatAgo } from "./ui/format";
+import { icons } from "./ui/symbols";
 
 /** Every host ccl-caut reads latest versions from, with a cheap URL to probe. */
 export const VERSION_HOSTS = [
@@ -110,7 +111,7 @@ export async function doctorReport(version: string, deps: DoctorDeps = realDocto
     const https = r.https.ok
       ? `HTTPS ${r.https.status} in ${r.https.ms}ms`
       : `${r.https.failure.kind === "timeout" ? "timeout" : r.https.failure.kind === "dns" ? "DNS error" : r.https.failure.kind} (${r.https.failure.detail})`;
-    const icon = reachable(r) ? pc.green("✔") : pc.red("✖");
+    const icon = reachable(r) ? pc.green(icons.ok) : pc.red(icons.fail);
     const verdict = reachable(r) ? pc.green("reachable") : pc.red("unreachable");
     lines.push(`  ${icon} ${r.host.padEnd(width)}  ${verdict} · ${dns} · ${https}  ${pc.dim(`(${r.usedFor})`)}`);
   }

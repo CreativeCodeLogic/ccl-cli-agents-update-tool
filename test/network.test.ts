@@ -7,6 +7,7 @@ import { LatestResolver, resolveLatest, summarize } from "../src/scan";
 import type { ToolDescriptor } from "../src/types";
 import { bannerLines, centerBlock } from "../src/ui/banner";
 import { formatAgo } from "../src/ui/format";
+import { icons } from "../src/ui/symbols";
 import { renderTable } from "../src/ui/table";
 import { CACHE_TTL_MS, VersionCache } from "../src/utils/cache";
 import { getHost, type Host } from "../src/utils/host";
@@ -248,14 +249,18 @@ describe("ccl-caut --doctor", () => {
     const { lines, code } = await doctorReport("1.0.1", deps);
     const text = strip(lines.join("\n"));
     expect(code).toBe(1);
-    expect(text).toMatch(/✔ registry\.npmjs\.org\s+reachable · DNS \d+ms · HTTPS 200 in \d+ms/);
-    expect(text).toMatch(/✖ api\.github\.com\s+unreachable · DNS \d+ms · timeout \(timed out after 8\.0s\)/);
-    expect(text).toMatch(/✖ pypi\.org\s+unreachable · DNS failed \(ENOTFOUND pypi\.org\) · DNS error/);
+    // Glyphs come from the symbol module (Unicode, or fallbacks in a classic console).
+    expect(text).toContain(`${icons.ok} registry.npmjs.org`);
+    expect(text).toMatch(/registry\.npmjs\.org\s+reachable · DNS \d+ms · HTTPS 200 in \d+ms/);
+    expect(text).toContain(`${icons.fail} api.github.com`);
+    expect(text).toMatch(/api\.github\.com\s+unreachable · DNS \d+ms · timeout \(timed out after 8\.0s\)/);
+    expect(text).toContain(`${icons.fail} pypi.org`);
+    expect(text).toMatch(/pypi\.org\s+unreachable · DNS failed \(ENOTFOUND pypi\.org\) · DNS error/);
     expect(text).toContain("HTTPS_PROXY  http://***@corp:3128");
     expect(text).not.toContain("pw@");
     expect(text).toMatch(/cache\s+/);
     expect(text).toContain("2 of 5 version servers unreachable: api.github.com, pypi.org.");
-    expect(text).toContain("✔ prod.download.cli.kiro.dev");
+    expect(text).toContain(`${icons.ok} prod.download.cli.kiro.dev`);
   });
 });
 
