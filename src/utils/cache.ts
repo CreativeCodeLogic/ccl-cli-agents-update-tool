@@ -67,12 +67,12 @@ export class VersionCache {
     return new VersionCache(file, entries, now);
   }
 
-  /** Fresh entry for `key`, or null when missing or expired. */
-  get(key: string): Entry | null {
+  /** Fresh entry for `key`, or null when missing or older than `ttlMs` (default 1h). */
+  get(key: string, ttlMs: number = CACHE_TTL_MS): Entry | null {
     const entry = this.entries[key];
     if (!entry) return null;
     const age = this.now() - entry.fetchedAt;
-    return age >= 0 && age < CACHE_TTL_MS ? entry : null;
+    return age >= 0 && age < ttlMs ? entry : null;
   }
 
   /** Entry for `key` whatever its age: the fallback when a live lookup fails. */

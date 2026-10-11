@@ -4,8 +4,8 @@
 # Render: npm run build && vhs docs/demo.tape
 # (or the "Demo GIF" workflow, which uploads docs/demo.gif as an artifact)
 #
-# Layout (100 cols): the checklist needs 47 rows (banner = top 10) and the pre-flight 55,
-# so ~49 rows keep the banner visible at the checklist and scroll it off afterwards.
+# Layout (100 cols): the checklist needs 60 rows (banner = top 10) and the pre-flight 64,
+# so ~62 rows keep the banner visible at the checklist and scroll it off afterwards.
 
 Output docs/demo.gif
 
@@ -14,7 +14,7 @@ Require node
 Set Shell "bash"
 Set FontSize 18
 Set Width 1200
-Set Height 1180
+Set Height 1440
 Set Padding 24
 Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful
@@ -32,10 +32,11 @@ Type "ccl-caut --demo"
 Sleep 600ms
 Enter
 
-# Banner, scan, table, notes and the remembered checklist (amber = selected, dim = not).
-Sleep 4.5s
+# Banner, scan, the table in two groups (AI agents, Dev CLIs), notes (Wrangler's
+# vendor note and the project that pins it) and the remembered checklist.
+Sleep 5s
 
-# Untick Antigravity CLI (4th item), then confirm.
+# Untick Kimi Code (4th item), then confirm: Codex (npm), Aider (uv), gcloud (manual), Netlify (npm).
 Down@450ms 3
 Sleep 500ms
 Space
@@ -50,7 +51,7 @@ Enter
 
 # Live progress (spinner, elapsed time, latest output line), results, the gcloud
 # command on its own line, the summary and the "What next?" menu.
-Sleep 7s
+Sleep 6.5s
 
 # q quits from any prompt.
 Type "q"

@@ -32,7 +32,7 @@ describe("npm README", () => {
     for (const gone of ["## Adding a new tool", "## Roadmap", "CONTRIBUTING", "TESTING", "git clone", "From source"]) {
       expect(text).not.toContain(gone);
     }
-    expect(text).toContain("Twelve CLIs. Ten ways to install them. One checklist.");
+    expect(text).toContain("Twenty-three CLIs. Twelve ways to install them. One checklist.");
     expect(text).toContain("mailto:admin@creativecodelogic.com");
     expect(text).toContain("Built by [Creative Code Logic](https://creativecodelogic.com)");
   });

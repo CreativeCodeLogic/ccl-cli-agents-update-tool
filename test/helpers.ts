@@ -59,6 +59,6 @@ export function instance(path: string, installMethod: InstallMethod, realPath = 
  * Route lookups through `fetch` (a vi.fn) instead of the network, without the
  * warm-up request. Call the returned restore() in afterEach.
  */
-export function useFakeFetch(fetch: (url: string) => Promise<Response> | Response): () => void {
-  return setNetwork(new Network({ fetch: async (url) => fetch(url), dispatcher: () => undefined, warmUpUrl: null }));
+export function useFakeFetch(fetch: (url: string, init: { headers: Record<string, string> }) => Promise<Response> | Response): () => void {
+  return setNetwork(new Network({ fetch: async (url, init) => fetch(url, { headers: init.headers }), dispatcher: () => undefined, warmUpUrl: null }));
 }

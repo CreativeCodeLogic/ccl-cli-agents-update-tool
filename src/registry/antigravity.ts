@@ -1,5 +1,5 @@
 import type { ToolDescriptor, UpdatePlan } from "../types";
-import { fetchLatestGithubRelease } from "../utils/github";
+import { fetchLatestGithubRelease, GITHUB_CACHE_TTL_MS } from "../utils/github";
 import { versionFromCommand } from "./shared";
 
 // antigravity.google/docs/cli/install: install scripts put `agy` in ~/.local/bin
@@ -19,6 +19,7 @@ export const antigravity: ToolDescriptor = {
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),
   getInstalledVersion: (instance) => versionFromCommand(instance.path),
   getLatestVersion: () => fetchLatestGithubRelease(RELEASES_REPO),
+  latestCacheTtlMs: GITHUB_CACHE_TTL_MS,
   async getUpdatePlan(instance): Promise<UpdatePlan> {
     switch (instance.installMethod) {
       case "brew":

@@ -7,34 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Toward 1.1.0 (Dev CLIs & more agents).
+## [1.1.0-beta.1] - 2026-10-11
 
-### Added (Round B: 11 new tools, 23 in total)
-
-- Dev CLIs: Wrangler (with Cloudflare's per-project advice), Vercel CLI, Netlify CLI, Supabase CLI (all plans are commands; project copies via the `supabase` package) and GitHub CLI (winget/MSI, Homebrew, apt, dnf, zypper, Scoop, Chocolatey, snap; always a command).
-- AI agents: Aider and Mistral Vibe (uv/pipx/pip), Cline CLI (npm), Amp (install script, Homebrew tap, npm; a note to migrate from the old `@sourcegraph/amp` name), Kiro CLI (installer self-update, Homebrew cask, dnf; latest from Kiro's release manifest) and Goose (install script with `goose update`, Homebrew `block-goose-cli`; releases from aaif-goose/goose).
-- Generic binary names (`amp`, `goose`, `vibe`, `cline`) are identified by install location or package metadata before a row is shown; the Amp text editor and pressly/goose count as not installed and are never run.
-- Shared GitHub-releases lookup: one request per repository per run, cached for an hour, stale-cache fallback on a rate limit (reason under CCL_CAUT_DEBUG).
-- The table compacts step by step to fit the terminal width (80 columns with every tool installed).
-- `--doctor` also checks Kiro's release server.
-
-### Changed
-
-- The config file stays readable by 1.0.x: `schema: 1` with new settings as extra keys (`hiddenGroups`), so a downgrade keeps the remembered selections. Files written as schema 2 by development builds are rewritten on load.
-
-Round A: foundations.
+Beta of 1.1.0 (Dev CLIs & more agents): 23 CLIs in two groups. Install it with `npm i -g ccl-caut@next`; `npm i -g ccl-caut@latest` goes back to the stable release.
 
 ### Added
 
-- Tool groups: the table and checklist are split into AI agents and Dev CLIs (Firebase, Google Cloud CLI, npm). `--only agents|dev` for one run; `--hide-group` / `--show-group` persist it in the config. `--discover` and `--json` always cover every group; `--json` adds `group` per tool and `hiddenGroups`.
-- Info notes on rows (dim cyan "i"), never changing state or preselection; `notes` in `--json`.
-- Project-copy check: inside a project whose package.json pins a supported CLI, a note says the global update won't affect it (with the version in node_modules); `projectPin` in `--json`. Read-only.
-- Python tool detection shared by all PyPI-distributed CLIs: uv and pipx install methods (documented locations, UV_TOOL_DIR, PIPX_HOME, legacy pipx homes) and pip, version from dist-info METADATA; uv/pipx update automatically, pip gets a command (PEP 668). Legacy kimi-cli now uses it.
-- Beta channel safety: `prepublishOnly` refuses a prerelease without `--tag next` and a stable version with it; beta users get update notices for the higher of `latest` and `next` (`npm i -g ccl-caut@next`).
+- **Groups:** the table and checklist are split into AI agents and Dev CLIs. `--only agents|dev` shows one group for a run; `--hide-group` / `--show-group` keep a group hidden (saved in the config, and the scan line says so). `--discover` and `--json` always cover every group; `--json` adds `group` per tool and `hiddenGroups`.
+- **11 new tools.** Dev CLIs: Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI. AI agents: Aider, Mistral Vibe, Cline CLI, Amp, Kiro CLI and Goose. Every install method and update command was checked against the vendor's docs. Generic binary names (`amp`, `goose`, `vibe`, `cline`) are identified by install location or package metadata before a row is shown; the Amp text editor and pressly/goose count as not installed and are never run.
+- **Python tool detection:** uv tool and pipx environments (documented locations, `UV_TOOL_DIR`, `PIPX_HOME`, older pipx homes) and pip installs, with the version read from package metadata. uv and pipx installs update automatically; pip installs get a command (PEP 668). The legacy `kimi-cli` uses it too.
+- **Project-copy check:** inside a project whose `package.json` pins a supported CLI, an info note says the global update won't affect it (with the version in `node_modules`); `projectPin` in `--json`. Read-only.
+- **Info notes** on rows (dim cyan "i"), such as Cloudflare's advice to install Wrangler per project or a migration hint for the old `@sourcegraph/amp` package. They never change a row's state or preselection; `notes` in `--json`.
+- **GitHub token support:** `GITHUB_TOKEN` (or `GH_TOKEN`) raises GitHub's API limit for the tools whose latest version comes from GitHub releases. It is sent only to api.github.com and never printed; `--doctor` shows only whether it is set. GitHub-sourced versions are cached for 6 hours, and on a rate limit the cached version is used with one notice per run.
+- **Safe beta publishing:** `prepublishOnly` refuses a prerelease without `--tag next` and a stable version with it. Beta users are told about the higher of the latest beta and the latest stable release; stable users are never pointed at a beta.
+- The table compacts step by step to fit narrow terminals (80 columns with every tool installed).
+- `--doctor` also checks Kiro's release server and shows the GitHub token status.
+
+### Changed
+
+- **Config downgrade safety:** the config file stays readable by 1.0.x (`schema: 1`, new settings as extra keys), so going back to 1.0.x keeps your remembered selections.
 
 ### Fixed
 
-- uv tool environments on Windows are found at the documented %APPDATA%/uv/data/tools (the older %APPDATA%/uv/tools is still checked).
+- uv tool environments on Windows are found at the documented `%APPDATA%/uv/data/tools` (the older `%APPDATA%/uv/tools` is still checked).
 
 ## [1.0.1] - 2026-10-11
 
@@ -84,6 +79,7 @@ First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. 
 - Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
-[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0-beta.1...HEAD
+[1.1.0-beta.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.1...v1.1.0-beta.1
 [1.0.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/releases/tag/v1.0.0

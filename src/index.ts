@@ -22,10 +22,11 @@ import { displayVersion } from "./ui/format";
 import { icons } from "./ui/symbols";
 import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
 import { renderDiscovery } from "./ui/discover";
-import { printNotes, renderTable } from "./ui/table";
+import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
 import { CANCELLED, checklist, choose, QUIT, RETRY } from "./ui/prompts";
 import { getNetwork, networkProblem } from "./utils/http";
 import { doctorReport } from "./doctor";
+import { githubRateLimitNotice } from "./utils/github";
 import { findProjectManifest, type ProjectManifest } from "./project";
 import { GROUP_LABELS, TOOL_GROUPS, type ToolGroup } from "./types";
 import { tone } from "./ui/theme";
@@ -60,8 +61,10 @@ function networkIssueLine(results: readonly ToolScan[]): string | null {
 /** What a run works against: the real machine, or the --demo fixture. */
 interface Runtime {
   tools: readonly ToolDescriptor[];
-  /** Folder whose package.json the project-copy check reads (null: no check, e.g. the demo). */
+  /** Folder whose package.json the project-copy check reads (null: no check). */
   cwd: string | null;
+  /** Demo only: the project to check instead of reading a folder. */
+  projectFixture?: ProjectManifest;
   /** "Dev CLIs hidden · --show-group dev" when a group is left out of this run. */
   hiddenNote?: string | null;
   host: Host;
@@ -194,6 +197,7 @@ async function scan(runtime: Runtime): Promise<ScanResult> {
 
 /** The current folder's package.json for the project-copy check (read-only; a few ms). */
 function project(runtime: Runtime): ProjectManifest | null {
+  if (runtime.projectFixture) return runtime.projectFixture;
   return runtime.cwd ? findProjectManifest(runtime.cwd, runtime.host) : null;
 }
 
@@ -286,6 +290,8 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
     const age = formatAge(Date.now() - latest.oldestCachedAt);
     log.message(pc.dim(`Latest versions cached ${age} ago · --refresh to recheck`));
   }
+  const rateNotice = githubRateLimitNotice();
+  if (rateNotice) log.message(tone.muted(rateNotice), { symbol: INFO_SYMBOL });
   if (networkIssue) {
     const offerRetry = Boolean(process.stdin.isTTY && process.stdout.isTTY);
     log.warn(`${tone.action(networkIssue)}\n${tone.muted(offerRetry ? "Press r to retry, or run ccl-caut --doctor to see what's wrong." : "Run ccl-caut --doctor to see what's wrong.")}`);

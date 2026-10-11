@@ -17,9 +17,9 @@
 
 **1.0.x patches** focus on confirming every automatic update path on real Windows, macOS and Linux machines, and on fixing what people report.
 
-## Next: 1.1
+## In beta: 1.1
 
-Dev CLIs and more agents ship together in 1.1.
+Dev CLIs and more agents ship together in 1.1, now in beta as 1.1.0-beta.1: `npm i -g ccl-caut@next` (back to stable: `npm i -g ccl-caut@latest`). It becomes stable once it meets the bar under "Release channels" below.
 
 - **Two groups in the table:** AI agents and Dev CLIs. Firebase, the Google Cloud CLI and npm move to Dev CLIs, and you can hide a group you don't need.
 - **New Dev CLIs:** Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI.

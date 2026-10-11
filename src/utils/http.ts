@@ -28,6 +28,8 @@ export interface NetFailure {
   kind: NetFailureKind;
   /** e.g. "ENOTFOUND registry.npmjs.org", "HTTP 503", "timed out after 8.0s" */
   detail: string;
+  /** Set when the server said "rate limited" (429, or 403 with rate-limit headers). */
+  rateLimit?: { resetAt: number | null };
 }
 
 export type FetchResult = { ok: true; value: unknown } | { ok: false; failure: NetFailure };
@@ -35,8 +37,23 @@ export type FetchResult = { ok: true; value: unknown } | { ok: false; failure: N
 export type FetchImpl = (url: string, init: { headers: Record<string, string>; signal: AbortSignal; dispatcher?: Dispatcher }) => Promise<{
   ok: boolean;
   status: number;
+  headers?: { get(name: string): string | null };
   json(): Promise<unknown>;
 }>;
+
+/**
+ * Rate limit from an HTTP answer: 429, or 403 with x-ratelimit-remaining: 0 or
+ * retry-after (GitHub's primary and secondary limits). resetAt is epoch ms.
+ */
+export function rateLimitOf(status: number, headers: { get(name: string): string | null } | undefined, now: number): { resetAt: number | null } | null {
+  const remaining = headers?.get("x-ratelimit-remaining");
+  const retryAfter = headers?.get("retry-after");
+  if (status !== 429 && !(status === 403 && (remaining === "0" || retryAfter))) return null;
+  const reset = Number(headers?.get("x-ratelimit-reset"));
+  if (Number.isFinite(reset) && reset > 0) return { resetAt: reset * 1000 };
+  const after = Number(retryAfter);
+  return { resetAt: Number.isFinite(after) && after > 0 ? now + after * 1000 : null };
+}
 
 export interface ProxySettings {
   httpsProxy: string | null;
@@ -186,15 +203,18 @@ export class Network {
     return this.dispatcherInstance ?? undefined;
   }
 
-  private async fetchOnce(url: string, timeoutMs: number): Promise<FetchResult> {
+  private async fetchOnce(url: string, timeoutMs: number, headers: Record<string, string> = {}): Promise<FetchResult> {
     try {
       const dispatcher = this.dispatcher;
       const res = await this.fetchImpl(url, {
-        headers: { accept: "application/json", "user-agent": USER_AGENT },
+        headers: { accept: "application/json", "user-agent": USER_AGENT, ...headers },
         signal: this.timeout(timeoutMs),
         ...(dispatcher && { dispatcher }),
       });
-      if (!res.ok) return { ok: false, failure: { kind: "http", detail: `HTTP ${res.status}` } };
+      if (!res.ok) {
+        const rateLimit = rateLimitOf(res.status, res.headers, this.now());
+        return { ok: false, failure: { kind: "http", detail: `HTTP ${res.status}`, ...(rateLimit && { rateLimit }) } };
+      }
       return { ok: true, value: await res.json() };
     } catch (error) {
       return { ok: false, failure: classifyError(error, timeoutMs) };
@@ -214,7 +234,7 @@ export class Network {
     return this.warm;
   }
 
-  private async lookup(url: string): Promise<FetchResult> {
+  private async lookup(url: string, headers: Record<string, string>): Promise<FetchResult> {
     const warm = await this.warmUp();
     // Lookups started inside the window share its deadline; a later one gets a window of its own.
     const now = this.now();
@@ -224,19 +244,23 @@ export class Network {
     for (let attempt = 0; attempt < timeouts.length; attempt++) {
       const left = deadline - this.now();
       if (left < MIN_ATTEMPT_MS) break;
-      last = await this.fetchOnce(url, Math.min(timeouts[attempt]!, left));
+      last = await this.fetchOnce(url, Math.min(timeouts[attempt]!, left), headers);
       if (last.ok) return last;
       debug(`GET ${url} failed (attempt ${attempt + 1}): ${last.failure.kind} (${last.failure.detail})`);
-      if (!retryable(last.failure)) break;
+      if (!retryable(last.failure) || last.failure.rateLimit) break;
     }
     return last;
   }
 
-  /** GET a JSON document once per run (de-duplicated), with the result kept for the network report. */
-  get(url: string): Promise<FetchResult> {
+  /**
+   * GET a JSON document once per run (de-duplicated by URL), with the result
+   * kept for the network report. `headers` (e.g. an Authorization header) are
+   * sent but never stored, logged or reported.
+   */
+  get(url: string, headers: Record<string, string> = {}): Promise<FetchResult> {
     let pending = this.results.get(url);
     if (!pending) {
-      pending = this.lookup(url).then((r) => {
+      pending = this.lookup(url, headers).then((r) => {
         this.outcomes.set(url, r);
         return r;
       });

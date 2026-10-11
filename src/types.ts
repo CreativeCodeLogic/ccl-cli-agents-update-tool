@@ -133,6 +133,8 @@ export interface ToolDescriptor {
   getUpdatePlan(instance: BinaryInstance): Promise<UpdatePlan>;
   /** Folder an automatic update writes to (default: npm global root for npm, else the binary's folder). */
   updateTargetDir?(instance: BinaryInstance): string | null;
+  /** How long a looked-up latest version stays fresh (default 1h; GitHub-sourced tools use 6h). */
+  latestCacheTtlMs?: number;
   /** Cache key for latest-version lookups per install method (default: one channel per tool). */
   latestChannel?(method?: InstallMethod, installedVersion?: string | null): string;
   /**

@@ -1,5 +1,5 @@
 import type { ToolDescriptor, UpdatePlan } from "../types";
-import { fetchLatestGithubRelease } from "../utils/github";
+import { fetchLatestGithubRelease, GITHUB_CACHE_TTL_MS } from "../utils/github";
 import { versionFromCommand } from "./shared";
 
 /*
@@ -25,6 +25,7 @@ export const supabase: ToolDescriptor = {
 
   getInstalledVersion: (instance) => versionFromCommand(instance.path),
   getLatestVersion: () => fetchLatestGithubRelease("supabase/cli"),
+  latestCacheTtlMs: GITHUB_CACHE_TTL_MS,
 
   async getUpdatePlan(instance): Promise<UpdatePlan> {
     switch (instance.installMethod) {

@@ -2,11 +2,11 @@
 
 **One command to check and update every AI coding CLI on your machine.**
 
-Twelve CLIs. Ten ways to install them. One checklist.
+Twenty-three CLIs. Twelve ways to install them. One checklist.
 
 CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed, compares what you run with what's released, and lets you pick what to update from a single checklist. It supports 23 tools. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini, Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro and Goose. Dev CLIs: Firebase, the Google Cloud CLI, npm, Wrangler, Vercel, Netlify, Supabase and the GitHub CLI.
 
-![CCL CAUT demo: scan, table, notes, remembered checklist and updates](https://cdn.jsdelivr.net/npm/ccl-caut@1.0.1/docs/demo.gif)
+![CCL CAUT demo: scan, table, notes, remembered checklist and updates](https://cdn.jsdelivr.net/npm/ccl-caut@1.1.0-beta.1/docs/demo.gif)
 
 <sub>Recorded with `ccl-caut --demo` (fixture data, nothing real is updated).</sub>
 
@@ -21,27 +21,39 @@ npm install -g ccl-caut  # or keep it around
 ccl-caut
 ```
 
+Try the beta (1.1: 23 CLIs, groups, Python tools):
+
+```bash
+npm install -g ccl-caut@next   # back to stable: npm install -g ccl-caut@latest
+```
+
 Requires Node.js 20 or newer.
 
 ## What it looks like
 
 ```text
-◇  Found 8 of 12 supported CLIs · ccl-caut --discover to see all
-
+◇  Found 10 of 23 supported CLIs · ccl-caut --discover to see all
      Tool              Installed   Latest   State             Via
-  ─────────────────────────────────────────────────────────────────────────────
+  ────────────────────────────────────────────────────────────────────────────
+  AI agents
   ✔  Claude Code       2.1.296     2.1.296  up-to-date        native
   ↑  Codex CLI         0.161.0     0.162.1  update available  npm
   ↻  Cursor CLI        2026.10.01  —        updates itself    native
   ⊘  Gemini CLI        0.62.1      0.63.0   retired           npm
-  ↑  Antigravity CLI   1.3.1       1.3.3    update available  native
   ↑  Kimi Code         2.0.4       2.1.1    update available  native +1 hidden
+  ↑  Aider             0.86.1      0.86.2   update available  uv
+  Dev CLIs
   ↑  Google Cloud CLI  587.0.0     588.0.0  update available  apt needs admin
   ✔  npm               12.2.0      12.2.0   up-to-date        node
+  ✔  Wrangler          4.149.0     4.149.0  up-to-date        npm
+  ↑  Netlify CLI       27.11.0     27.12.0  update available  npm
 ▲  gemini: retired for consumer accounts since Jun 2026 -> use Antigravity CLI (agy).
    Still works with enterprise licenses / paid API keys.
 ▲  kimi: native 2.0.4 runs; npm 2.1.1 is installed but shadowed on PATH
-
+i  wrangler: Cloudflare recommends installing Wrangler per project (npm i -D wrangler).
+   https://developers.cloudflare.com/workers/wrangler/install-and-update/
+i  wrangler: This project pins wrangler ^4.149.0 (devDependencies; 4.148.0 in node_modules).
+   Updating the global copy won't affect it; use `npx wrangler` here.
    needs admin = the command needs sudo
 ```
 
@@ -50,6 +62,8 @@ Then pick what to update: `↑/↓` move, `space` selects, `a` toggles all, `ent
 Before anything runs, a short **pre-flight** check shows which selected CLIs are running right now (close agent sessions and the IDEs or terminals that use them first) and which updates need administrator rights. Choose *Update now*, *Re-check*, *Back to selection* or *Quit*. Each update shows a spinner, the elapsed time and the latest output line, then collapses to `Codex CLI 0.161.0 → 0.162.1`; the full log is printed only when something fails (or with `CCL_CAUT_DEBUG=1`). Commands CCL CAUT can't run safely are printed on a line of their own, ready to select and copy. Afterwards, *Rescan* runs the whole check again with fresh versions, or *Quit*.
 
 ## Supported tools
+
+### AI agents
 
 | Tool | Install methods detected | How it is updated |
 | --- | --- | --- |
@@ -68,6 +82,11 @@ Before anything runs, a short **pre-flight** check shows which selected CLIs are
 | Amp | install script (`~/.amp/bin`), Homebrew tap, npm `@ampcode/cli` (or the old `@sourcegraph/amp`) | script: **auto** (`amp update`) · npm: **auto** · old npm name: migration command · Homebrew: command |
 | Kiro CLI (`kiro-cli`) | install script, Windows 11 installer, Homebrew cask, dnf | installer: **auto** (`kiro-cli update`) · Homebrew, dnf: command |
 | Goose | install script, Homebrew `block-goose-cli` | script: **auto** (`goose update`) · Homebrew: command |
+
+### Dev CLIs
+
+| Tool | Install methods detected | How it is updated |
+| --- | --- | --- |
 | Firebase CLI | npm, standalone binary | npm: **auto** · standalone: command |
 | Google Cloud CLI | official installer, apt, snap, Homebrew | installer in a folder you can write to: **auto** (`gcloud components update`) · Program Files, read-only folders, apt, snap, Homebrew: command |
 | npm | bundled with Node.js, global npm, Homebrew's Node | always a command |
@@ -76,6 +95,8 @@ Before anything runs, a short **pre-flight** check shows which selected CLIs are
 | Netlify CLI | npm | npm: **auto** |
 | Supabase CLI | Homebrew, Scoop, Linux packages, install script (npm only per project) | always a command |
 | GitHub CLI (`gh`) | winget / MSI, Homebrew, apt, dnf, zypper, Scoop, Chocolatey, snap | always a command (`gh` has no self-update) |
+
+Install methods CCL CAUT recognizes (12): npm (any global prefix, including nvm, fnm and Volta), npm bundled with Node.js, vendor installers and install scripts ("native"), Homebrew, pip, uv, pipx, apt and other Linux package repositories, snap, winget, Chocolatey and Scoop.
 
 "npm" means the global prefix of the npm on your `PATH`. Copies installed under another Node version (nvm, fnm, Volta) are detected too, and you get the right command to run with that version active.
 
@@ -171,7 +192,7 @@ CCL CAUT only reads public version information. It contacts exactly these hosts,
 | `pypi.org` | Aider, Mistral Vibe and legacy `kimi-cli` |
 | `prod.download.cli.kiro.dev` | Kiro CLI's release manifest |
 
-Nothing about you or your machine is sent: no identifiers, no list of installed tools, no telemetry or analytics of any kind. Requests are plain GETs (with a `ccl-caut` user agent), plus one tiny warm-up request to `registry.npmjs.org/-/ping`; `--doctor` sends a HEAD request to each host. Results are cached for an hour in your OS cache folder, and your remembered selections stay in your OS config folder (see above). Update commands you choose to run (for example `claude update` or `npm install -g …`) contact their own vendors, exactly as if you ran them yourself.
+Nothing about you or your machine is sent: no identifiers, no list of installed tools, no telemetry or analytics of any kind. Requests are plain GETs (with a `ccl-caut` user agent), plus one tiny warm-up request to `registry.npmjs.org/-/ping`; `--doctor` sends a HEAD request to each host. If `GITHUB_TOKEN` (or `GH_TOKEN`) is set, it is sent to `api.github.com` only, to raise GitHub's limit of 60 unauthenticated requests per hour for the tools whose latest version comes from GitHub releases; it is never printed, logged or cached, and `--doctor` only says whether it is set. Results are cached for an hour in your OS cache folder (6 hours for GitHub releases), and your remembered selections stay in your OS config folder (see above). Update commands you choose to run (for example `claude update` or `npm install -g …`) contact their own vendors, exactly as if you ran them yourself.
 
 ### Slow or offline networks, proxies
 

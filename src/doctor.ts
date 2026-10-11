@@ -5,6 +5,7 @@ import { fetch as undiciFetch, type Dispatcher } from "undici";
 import { cacheDir } from "./utils/cache";
 import { configDir } from "./utils/config";
 import { getHost, pathFor } from "./utils/host";
+import { githubTokenSource } from "./utils/github";
 import { classifyError, createDispatcher, proxySettings, redactProxy, type NetFailure } from "./utils/http";
 import { formatAgo } from "./ui/format";
 
@@ -121,6 +122,10 @@ export async function doctorReport(version: string, deps: DoctorDeps = realDocto
     `  HTTP_PROXY   ${redactProxy(proxy.httpProxy) ?? pc.dim("(not set)")}`,
     `  NO_PROXY     ${proxy.noProxy ?? pc.dim("(not set)")}`,
     `  ${pc.dim(usingProxy ? "ccl-caut sends its lookups through this proxy (DNS above is this machine's own)." : "No proxy: lookups connect directly.")}`,
+    "",
+    pc.bold("GitHub API"),
+    // Only where the token comes from, never its value.
+    `  token  ${githubTokenSource(deps.env) ? `set (${githubTokenSource(deps.env)})` : pc.dim("not set (60 requests/hour per IP; set GITHUB_TOKEN for more)")}`,
     "",
     pc.bold("Files"),
     `  cache   ${describeCache()}`,

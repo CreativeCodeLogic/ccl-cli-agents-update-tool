@@ -1,5 +1,5 @@
 import type { ToolDescriptor, UpdatePlan } from "../types";
-import { fetchLatestGithubRelease } from "../utils/github";
+import { fetchLatestGithubRelease, GITHUB_CACHE_TTL_MS } from "../utils/github";
 import { getHost, pathFor } from "../utils/host";
 import { linuxPackageManager } from "./detect-helpers";
 import { brewPlan, versionFromCommand } from "./shared";
@@ -28,6 +28,7 @@ export const gh: ToolDescriptor = {
 
   getInstalledVersion: (instance) => versionFromCommand(instance.path),
   getLatestVersion: () => fetchLatestGithubRelease("cli/cli"),
+  latestCacheTtlMs: GITHUB_CACHE_TTL_MS,
 
   async getUpdatePlan(instance): Promise<UpdatePlan> {
     switch (instance.installMethod) {

@@ -78,7 +78,8 @@ function describe(method: InstallMethod | null, version: string | null): string 
 
 /** Info notes (vendor advice, project pins): a dim cyan "i", never a warning. */
 export function formatInfoNote(id: string, note: ToolNote): string {
-  return `${pc.bold(id)}: ${note.message}${note.url ? `\n${tone.muted(note.url)}` : ""}`;
+  // One sentence per line keeps notes within ~100 columns (like the retirement notes).
+  return `${pc.bold(id)}: ${note.message.replace(". ", ".\n")}${note.url ? `\n${tone.muted(note.url)}` : ""}`;
 }
 
 export const INFO_SYMBOL = pc.dim(pc.cyan("i"));

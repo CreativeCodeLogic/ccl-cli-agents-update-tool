@@ -1,6 +1,6 @@
 import type { BinaryInstance, ToolDescriptor, UpdatePlan } from "../types";
 import { exec } from "../utils/exec";
-import { fetchLatestGithubRelease } from "../utils/github";
+import { fetchLatestGithubRelease, GITHUB_CACHE_TTL_MS } from "../utils/github";
 import { envVar, getHost, pathFor, type Host } from "../utils/host";
 import { isInside, normalizePath } from "../utils/paths";
 import { fromBrewToken } from "./detect-helpers";
@@ -66,6 +66,7 @@ export const goose: ToolDescriptor = {
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),
   getInstalledVersion: (instance) => versionFromCommand(instance.path),
   getLatestVersion: () => fetchLatestGithubRelease(REPO),
+  latestCacheTtlMs: GITHUB_CACHE_TTL_MS,
 
   async getUpdatePlan(instance): Promise<UpdatePlan> {
     if (instance.installMethod === "brew") {

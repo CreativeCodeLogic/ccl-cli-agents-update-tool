@@ -1,6 +1,7 @@
 import { registry } from "../registry";
 import { LatestResolver } from "../scan";
 import type { ProcessInfo } from "../processes";
+import type { ProjectManifest } from "../project";
 import type { InstallContext } from "../self";
 import type { SelectionStore, ToolChoice } from "../selection";
 import type { BinaryInstance, ToolDescriptor, ToolGroup } from "../types";
@@ -23,6 +24,18 @@ const HOME = "/home/dev";
 /** As if the user decided on Cursor last time: shows the "Selection remembered" hint. */
 const DEMO_CHOICES: Record<string, ToolChoice> = { cursor: "skip" };
 const NPM_GLOBAL = { prefix: "/usr/local", root: "/usr/local/lib/node_modules" };
+const UV_TOOLS = `${HOME}/.local/share/uv/tools`;
+/** Text files the Python detector reads (uv's environment for Aider). */
+const TEXTS: Record<string, string> = {
+  [`${UV_TOOLS}/aider-chat/lib/python3.12/site-packages/aider_chat-0.86.1.dist-info/METADATA`]: "Metadata-Version: 2.1\nName: aider-chat\nVersion: 0.86.1\n",
+  [`${HOME}/projects/shop/node_modules/wrangler/package.json`]: JSON.stringify({ name: "wrangler", version: "4.148.0" }),
+};
+/** The project in the "current folder": it pins its own Wrangler. */
+export const DEMO_PROJECT: ProjectManifest = {
+  file: `${HOME}/projects/shop/package.json`,
+  dir: `${HOME}/projects/shop`,
+  deps: new Map([["wrangler", { range: "^4.149.0", field: "devDependencies" }]]),
+};
 
 interface FixtureBinary {
   path: string;
@@ -38,9 +51,10 @@ interface FixtureTool {
 }
 
 /**
- * A v1.0 tour: up-to-date tools, updates, a self-updating tool (Cursor), a
- * retired one (Gemini), a hidden copy (Kimi), a remembered "skip" (gcloud, manual
- * apt plan) and four tools that are not installed.
+ * A 1.1 tour, in two groups: up-to-date tools, updates (npm, a uv tool, a native
+ * self-updater), a self-updating tool (Cursor), a retired one (Gemini), a hidden
+ * copy (Kimi), a manual apt plan (gcloud), Wrangler's vendor note plus a project
+ * that pins Wrangler, and tools that are not installed (only installed ones show).
  */
 const FIXTURE: Record<string, FixtureTool> = {
   claude: { latest: "2.1.296", binaries: [{ path: `${HOME}/.local/bin/claude`, target: `${HOME}/.local/share/claude/versions/2.1.296`, version: "2.1.296" }] },
@@ -52,7 +66,7 @@ const FIXTURE: Record<string, FixtureTool> = {
   },
   opencode: { latest: "1.18.35", binaries: [] },
   gemini: { latest: "0.63.0", binaries: [{ path: "/usr/local/bin/gemini", target: "/usr/local/lib/node_modules/@google/gemini-cli/dist/index.js", version: "0.62.1" }] },
-  antigravity: { latest: "1.3.3", binaries: [{ path: `${HOME}/.local/bin/agy`, version: "1.3.1" }] },
+  antigravity: { latest: "1.3.3", binaries: [] },
   qwen: { latest: "0.25.0", binaries: [] },
   kimi: {
     latest: "2.1.1",
@@ -61,7 +75,13 @@ const FIXTURE: Record<string, FixtureTool> = {
       { path: "/usr/local/bin/kimi", target: "/usr/local/lib/node_modules/@moonshot-ai/kimi-code/dist/main.mjs", version: "2.1.1" },
     ],
   },
+  aider: {
+    latest: "0.86.2",
+    binaries: [{ path: `${HOME}/.local/bin/aider`, target: `${UV_TOOLS}/aider-chat/bin/aider`, version: "0.86.1" }],
+  },
   firebase: { latest: "15.33.0", binaries: [] },
+  wrangler: { latest: "4.149.0", binaries: [{ path: "/usr/local/bin/wrangler", target: "/usr/local/lib/node_modules/wrangler/bin/wrangler.js", version: "4.149.0" }] },
+  netlify: { latest: "27.12.0", binaries: [{ path: "/usr/local/bin/netlify", target: "/usr/local/lib/node_modules/netlify-cli/bin/run.js", version: "27.11.0" }] },
   gcloud: { latest: "588.0.0", binaries: [{ path: "/usr/bin/gcloud", target: "/usr/lib/google-cloud-sdk/bin/gcloud", version: "587.0.0" }] },
   npm: { latest: "12.2.0", binaries: [{ path: "/usr/local/bin/npm", target: "/usr/local/lib/node_modules/npm/bin/npm-cli.js", version: "12.2.0" }] },
 };
@@ -75,16 +95,25 @@ const UPDATE_OUTPUT: Record<string, string[]> = {
   gemini: ["resolving @google/gemini-cli@0.63.0", "changed 138 packages in 3s"],
   kimi: ["Checking for updates... 2.0.4 -> 2.1.1", "Downloading Kimi Code 2.1.1 (linux-x64)... done", "Installed Kimi Code 2.1.1"],
   antigravity: ["Checking for updates... 1.3.1 -> 1.3.3", "Downloading agy 1.3.3 (linux_amd64)... done", "agy is now 1.3.3"],
+  aider: ["Resolved 92 packages in 412ms", "Updated aider-chat v0.86.1 -> v0.86.2", "Installed 1 executable: aider"],
+  netlify: [
+    ...Array.from({ length: 6 }, (_, i) => `npm http fetch GET 200 https://registry.npmjs.org/netlify-cli/-/netlify-cli-27.12.0-part${i + 1}.tgz ${90 + i * 11}ms`),
+    "changed 31 packages in 2s",
+  ],
   cursor: ["Checking for updates...", "Cursor Agent is up to date (2026.10.01-e373342)"],
   claude: ["Checking for updates...", "Claude Code is up to date"],
 };
 function demoHost(): Host {
-  const files = new Set<string>(["/usr/local/bin/node"]);
+  // uv on PATH, so Aider's uv plan runs automatically.
+  const files = new Set<string>(["/usr/local/bin/node", `${HOME}/.local/bin/uv`, ...Object.keys(TEXTS)]);
   const links = new Map<string, string>();
   for (const tool of Object.values(FIXTURE)) {
     for (const bin of tool.binaries) {
       files.add(bin.path);
-      if (bin.target) links.set(bin.path, bin.target);
+      if (bin.target) {
+        links.set(bin.path, bin.target);
+        files.add(bin.target);
+      }
     }
   }
   const norm = (p: string) => normalizePath(p, "linux");
@@ -94,9 +123,12 @@ function demoHost(): Host {
     realpath: (p) => links.get(norm(p)) ?? p,
     // The user owns their home and the npm prefix; /usr/bin and /usr/lib belong to root.
     isWritable: (p) => [HOME, "/usr/local"].some((root) => norm(p) === root || norm(p).startsWith(`${root}/`)),
-    readText: () => null,
+    readText: (p) => TEXTS[norm(p)] ?? null,
     mtimeMs: () => null,
-    list: () => [],
+    list: (dir) => {
+      const prefix = `${norm(dir)}/`;
+      return [...new Set([...files].filter((f) => f.startsWith(prefix)).map((f) => f.slice(prefix.length).split("/")[0]!))];
+    },
   };
   return {
     platform: "linux",
@@ -115,8 +147,9 @@ export interface DemoOptions {
 
 export interface DemoRuntime {
   tools: ToolDescriptor[];
-  /** No project-copy check in the demo (it never reads the current folder). */
+  /** The demo never reads the current folder; it uses DEMO_PROJECT instead. */
   cwd: null;
+  projectFixture: ProjectManifest;
   host: Host;
   latest: LatestResolver;
   selections: SelectionStore;
@@ -178,7 +211,7 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
   const executor: UpdateExecutor = async (_command, _args, target, onChunk) => {
     const lines = UPDATE_OUTPUT[target.scan.id] ?? ["updating..."];
     for (const line of lines) {
-      await sleep(Math.round(2_400 / lines.length));
+      await sleep(Math.round(1_500 / lines.length));
       onChunk(`${line}\n`);
     }
     const latest = FIXTURE[target.scan.id]?.latest;
@@ -194,6 +227,7 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
     elevated: Promise.resolve(false),
     listProcesses: async () => [{ pid: 4242, commandLine: "node /usr/local/lib/node_modules/@openai/codex/bin/codex.js" }],
     cwd: null,
+    projectFixture: DEMO_PROJECT,
     selections: memorySelections(DEMO_CHOICES),
     executor,
     selfFixture: { latest: "1.0.1", context: "global" },

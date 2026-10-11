@@ -37,7 +37,7 @@ beforeAll(() => {
 
 async function scanDemo() {
   const detections = await detectAll(runtime.tools, runtime.host);
-  const results = await resolveLatest(detections, runtime.latest);
+  const results = await resolveLatest(detections, runtime.latest, runtime.projectFixture);
   const targets: UpdateTarget[] = results
     .filter((r) => r.state === "outdated")
     .map((scan) => {
@@ -87,6 +87,13 @@ describe("--demo", () => {
     expect(byId.gemini).toMatchObject({ state: "retired", updateAvailable: true, deprecation: { successorId: "antigravity" } });
     expect(byId.cursor).toMatchObject({ state: "self-updating", installedVersion: "2026.10.01-e373342", latestVersion: null });
     expect(byId.codex).toMatchObject({ state: "outdated", plan: { kind: "auto" } });
+    // 1.1: a uv tool, a Dev CLI update, and Wrangler with its vendor note plus the fixture project pin.
+    expect(byId.aider).toMatchObject({ installMethod: "uv", group: "agents", plan: { kind: "auto", command: ["uv", "tool", "upgrade", "aider-chat"] } });
+    expect(byId.netlify).toMatchObject({ group: "dev", state: "outdated", plan: { kind: "auto" } });
+    expect(byId.wrangler!.notes.map((n) => n.message)).toEqual([
+      "Cloudflare recommends installing Wrangler per project (npm i -D wrangler).",
+      "This project pins wrangler ^4.149.0 (devDependencies; 4.148.0 in node_modules). Updating the global copy won't affect it; use `npx wrangler` here.",
+    ]);
     expect(byId.kimi?.shadowed).toHaveLength(1);
     expect(byId.gcloud).toMatchObject({ installMethod: "apt", plan: { kind: "manual" } });
     expect(spawnSpy).not.toHaveBeenCalled();
@@ -106,7 +113,7 @@ describe("--demo", () => {
   it("simulates updates with the demo executor and re-checks the new versions", async () => {
     const { targets } = await scanDemo();
     const outcome = await applyUpdates(targets, runtime.latest.cache, runtime.executor);
-    expect(outcome).toMatchObject({ updated: 3, manual: 1, failed: 0, unchanged: 0 });
+    expect(outcome).toMatchObject({ updated: 4, manual: 1, failed: 0, unchanged: 0 });
     expect(spawnSpy).not.toHaveBeenCalled();
   });
 });

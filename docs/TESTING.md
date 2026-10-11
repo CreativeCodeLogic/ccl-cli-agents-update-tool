@@ -26,6 +26,26 @@ To uninstall:
 npm uninstall -g ccl-caut
 ```
 
+## Testing a beta
+
+Betas are published to npm under the `next` tag; a normal install keeps getting the stable version.
+
+```bash
+npm install -g ccl-caut@next      # e.g. 1.1.0-beta.1
+ccl-caut --version
+npm install -g ccl-caut@latest    # back to the stable release
+```
+
+`npx ccl-caut@next` runs a beta once without installing it. Your remembered selections stay compatible both ways. While you are on a beta, the notice under the banner points you to the next beta or to the stable release, whichever is newer.
+
+For 1.1 in particular, please check:
+
+- **Groups:** `ccl-caut --only dev`, `--hide-group dev` / `--show-group dev` (the scan line should say what is hidden).
+- **New tools** you have installed (Wrangler, Vercel, Netlify, Supabase, GitHub CLI, Aider, Mistral Vibe, Cline, Amp, Kiro, Goose): right install method, version and update command? Anything with the same name that is *not* that tool (for example the Amp text editor or pressly/goose) must show as not installed.
+- **Python tools** installed with uv, pipx or pip.
+- **Inside a project** that has one of these CLIs in its `package.json`: you should see an info note, and nothing in the project is changed.
+- **GitHub rate limits:** with and without `GITHUB_TOKEN` set (`ccl-caut --doctor` shows whether it is).
+
 ## What to test
 
 First, note what you have: which of the 12 CLIs are installed and how (npm, Homebrew, winget, an install script, apt, ...). `ccl-caut --discover` lists them all.
