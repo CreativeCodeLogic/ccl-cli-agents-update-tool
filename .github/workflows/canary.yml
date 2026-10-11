@@ -82,11 +82,13 @@ jobs:
       - name: Install uv, then Aider and Mistral Vibe as uv tools
         run: |
           pipx install uv
+          # Runners set PIPX_BIN_DIR, so find uv on PATH; uv tool shims go to ~/.local/bin.
+          uv="$(command -v uv || echo "$PIPX_BIN_DIR/uv")"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           # Aider pins Python 3.12 the way aider-install does; Vibe needs 3.12+.
-          timeout 600 "$HOME/.local/bin/uv" tool install --python python3.12 aider-chat
-          timeout 600 "$HOME/.local/bin/uv" tool install mistral-vibe
-          "$HOME/.local/bin/uv" tool list
+          timeout 600 "$uv" tool install --python python3.12 aider-chat
+          timeout 600 "$uv" tool install mistral-vibe
+          "$uv" tool list
       - name: Check detection
         run: |
           node dist/index.js --json --refresh > scan.json || true
