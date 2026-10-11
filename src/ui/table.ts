@@ -2,7 +2,7 @@ import { log } from "@clack/prompts";
 import { stripVTControlCharacters } from "node:util";
 import pc from "picocolors";
 import type { InstallMethod, ToolScan } from "../types";
-import { displayVersion } from "./format";
+import { displayVersion, formatAgo } from "./format";
 import { icons, stateStyle } from "./symbols";
 import { tone } from "./theme";
 
@@ -23,7 +23,8 @@ export function renderTable(results: readonly ToolScan[]): string {
       style.icon,
       !r.installed || retired ? pc.dim(r.name) : r.name,
       r.installedVersion ? displayVersion(r.installedVersion) : pc.dim(r.installed ? "?" : "—"),
-      r.latestVersion ? displayVersion(r.latestVersion) : pc.dim("—"),
+      (r.latestVersion ? displayVersion(r.latestVersion) : pc.dim("—")) +
+        (r.latestStaleCachedAt ? ` ${tone.muted(`cached ${formatAgo(r.latestStaleCachedAt)} ago`)}` : ""),
       style.label,
       tone.muted(`${r.installMethod ?? ""}${r.shadowed.length > 0 ? ` +${r.shadowed.length} hidden` : ""}`) +
         (r.needsAdmin ? ` ${tone.action("needs admin")}` : ""),

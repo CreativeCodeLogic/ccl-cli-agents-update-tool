@@ -1,4 +1,5 @@
 import figlet from "figlet";
+import { stripVTControlCharacters } from "node:util";
 import pc from "picocolors";
 
 /**
@@ -24,25 +25,39 @@ function figletArt(): string | null {
   }
 }
 
+/** Pad every line of a block by the same amount so the block sits centered (by visible width). */
+export function centerBlock(lines: readonly string[], columns: number): string[] {
+  const width = Math.max(0, ...lines.map((line) => stripVTControlCharacters(line).length));
+  const pad = " ".repeat(Math.max(0, Math.floor((columns - width) / 2)));
+  return lines.map((line) => pad + line);
+}
+
 /**
  * Figlet banner in the brand color when it fits; otherwise a compact one-line
- * banner trimmed to the terminal width, so narrow terminals never wrap.
+ * banner trimmed to the terminal width, so narrow terminals never wrap. With
+ * `center`, the art and the subtitle are each centered as a block for the width
+ * at that moment (no re-centering on resize).
  */
-export function printBanner(version: string, notice: string | null = null): void {
-  const columns = process.stdout.columns ?? 80;
+export function bannerLines(version: string, options: { columns: number; center: boolean; color?: (text: string) => string }): string[] {
+  const { columns, center } = options;
+  const brand = options.color ?? BRAND;
+  const place = (lines: string[]) => (center ? centerBlock(lines, columns) : lines);
   const art = figletArt();
-  const artWidth = art ? Math.max(...art.split("\n").map((line) => line.length)) : Infinity;
+  const artLines = art ? art.split("\n") : [];
+  const artWidth = art ? Math.max(...artLines.map((line) => line.length)) : Infinity;
 
-  console.log();
   if (art && artWidth <= columns) {
-    console.log(BRAND(art));
-    console.log(pc.dim(`${TAGLINE}  v${version}`));
-  } else {
-    // Longest variant that fits: title + tagline + version, then title + version.
-    const full = ` v${version} · ${TAGLINE}`;
-    const suffix = TITLE.length + full.length <= columns ? full : ` v${version}`;
-    console.log(BRAND(TITLE) + pc.dim(suffix));
+    return [...place(artLines).map((line) => brand(line)), ...place([pc.dim(`${TAGLINE}  v${version}`)])];
   }
+  // Longest variant that fits: title + tagline + version, then title + version.
+  const full = ` v${version} · ${TAGLINE}`;
+  const suffix = TITLE.length + full.length <= columns ? full : ` v${version}`;
+  return place([brand(TITLE) + pc.dim(suffix)]);
+}
+
+export function printBanner(version: string, notice: string | null = null, center = false): void {
+  console.log();
+  for (const line of bannerLines(version, { columns: process.stdout.columns ?? 80, center })) console.log(line);
   if (notice) console.log(pc.dim(notice));
   console.log();
 }

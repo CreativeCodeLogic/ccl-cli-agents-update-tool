@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for reporting! The `--json` output below is the most useful thing you can share.
+        Thanks for reporting! The `--json` output below is the most useful thing you can share; for "unknown" versions or a slow check, also run `ccl-caut --doctor` and paste its output.
         **Please redact your username** in binary paths (for example `C:\Users\you\...` or `/home/you/...`).
   - type: textarea
     id: what-happened
@@ -51,3 +51,11 @@ body:
       render: json
     validations:
       required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: ccl-caut --doctor output
+      description: Versions shown as "unknown", or a slow or failing check? Run `ccl-caut --doctor` and paste the output (redact usernames in paths).
+      render: text
+    validations:
+      required: false

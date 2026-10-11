@@ -41,6 +41,8 @@ export class LatestResolver {
   private readonly pending = new Map<string, Promise<string | null>>();
   /** fetchedAt of the oldest cached value served this run, if any. */
   oldestCachedAt: number | null = null;
+  /** Keys answered from an expired cache entry because the live lookup failed: key -> fetchedAt. */
+  readonly stale = new Map<string, number>();
 
   constructor(
     readonly cache: VersionCache | null = null,
@@ -77,8 +79,15 @@ export class LatestResolver {
       return hit.version;
     }
     const live = await safe(fetchLatest, null);
-    if (live) this.cache?.set(key, live);
-    return live;
+    if (live) {
+      this.cache?.set(key, live);
+      return live;
+    }
+    // Offline or a slow network: an old answer beats "unknown" (marked "cached 9h ago").
+    const old = this.cache?.getStale(key);
+    if (!old) return null;
+    this.stale.set(key, old.fetchedAt);
+    return old.version;
   }
 }
 
@@ -169,6 +178,7 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
         if (!delegated) rest.push(other);
       }
       const latestVersion = await latest.get(tool, active?.installMethod, active?.version);
+      const staleAt = latest.stale.get(LatestResolver.key(tool, active?.installMethod, active?.version));
       const plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
       const { state, updateAvailable } = deriveState(tool, active?.version, latestVersion, Boolean(active));
       const npmRoot = (await getNpmGlobalPaths())?.root ?? null;
@@ -183,6 +193,7 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
         binaryPath: active?.path ?? null,
         installedVersion: active?.version ?? null,
         latestVersion,
+        latestStaleCachedAt: staleAt === undefined ? null : new Date(staleAt).toISOString(),
         state,
         updateAvailable,
         needsAdmin,
@@ -203,6 +214,8 @@ export interface ScanSummary {
   retired: number;
   selfUpdating: number;
   shadowed: number;
+  /** Latest versions taken from an expired cache because the live lookup failed. */
+  stale: number;
 }
 
 export function summarize(results: readonly ToolScan[]): ScanSummary {
@@ -216,5 +229,6 @@ export function summarize(results: readonly ToolScan[]): ScanSummary {
     retired: count("retired"),
     selfUpdating: count("self-updating"),
     shadowed: results.filter((r) => r.shadowed.length > 0).length,
+    stale: results.filter((r) => r.latestStaleCachedAt !== null).length,
   };
 }

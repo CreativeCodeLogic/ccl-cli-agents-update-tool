@@ -11,3 +11,11 @@ export function displayVersion(version: string): string {
   if (version.length <= MAX_DISPLAY_LENGTH) return version;
   return BUILD_SUFFIX.exec(version)?.[1] ?? version;
 }
+
+/** "9h", "45m", "3d": how long ago `iso` was, for "cached 9h ago". */
+export function formatAgo(iso: string, now: number = Date.now()): string {
+  const minutes = Math.max(0, Math.floor((now - Date.parse(iso)) / 60_000));
+  if (minutes < 60) return `${Math.max(1, minutes)}m`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 48 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
+}

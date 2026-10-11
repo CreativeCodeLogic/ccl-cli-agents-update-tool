@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-11
+
+### Fixed
+
+- First run after the machine wakes up no longer shows every tool as "unknown". Latest-version lookups used to open one connection (DNS + TLS) per request all at once and gave up after 2 × 5s on a cold network. Now one warm-up request goes first, lookups share a few keep-alive connections per host, the first attempt gets 8s on a cold start, and the whole check stays under ~15s (the spinner says "slow connection" after 5s).
+- A refused proxy tunnel is reported as a proxy problem, not as a timeout.
+
+### Added
+
+- Stale cache as a fallback: when a live lookup fails, an expired cached version is used and marked "cached 9h ago" ("unknown" only without any cached value). `--json`: `latestStaleCachedAt` per tool, `summary.stale`.
+- One clear line when most or all lookups fail, naming the reason (timed out, DNS lookup failed, no network connection, proxy refused, certificate problem, HTTP errors), with **r** to retry on the checklist and a Retry/Quit menu when nothing else can be offered. `--json` adds `network` (`attempted`, `failures`, `problem`).
+- Proxy support: `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY` (upper or lower case) are honored for all lookups.
+- `ccl-caut --doctor`: DNS and HTTPS checks with timings for every version server, the proxy settings in use (credentials hidden), and the cache and config paths. The bug report form asks for it.
+
+### Changed
+
+- UI polish: the banner and its subtitle are centered in interactive terminals.
+
 ## [1.0.0] - 2026-10-10
 
 First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. Release candidates 1.0.0-rc.1 and rc.2 were tested internally; their changes are folded in below.
@@ -37,5 +55,6 @@ First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. 
 - Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
-[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/releases/tag/v1.0.0

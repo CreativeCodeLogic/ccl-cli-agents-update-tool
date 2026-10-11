@@ -1,6 +1,6 @@
 {
   "name": "ccl-caut",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI Agents Update Tool — check and update AI/dev CLIs from one terminal UI",
   "keywords": [
     "cli",
@@ -49,7 +49,8 @@
     "cross-spawn": "^7.0.6",
     "figlet": "^1.12.0",
     "picocolors": "^1.1.1",
-    "semver": "^7.8.5"
+    "semver": "^7.8.5",
+    "undici": "^6.29.0"
   },
   "devDependencies": {
     "@types/cross-spawn": "^6.0.6",

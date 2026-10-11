@@ -23,7 +23,9 @@ import { icons } from "./ui/symbols";
 import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
 import { renderDiscovery } from "./ui/discover";
 import { printNotes, renderTable } from "./ui/table";
-import { CANCELLED, checklist, choose, QUIT } from "./ui/prompts";
+import { CANCELLED, checklist, choose, QUIT, RETRY } from "./ui/prompts";
+import { getNetwork, networkProblem } from "./utils/http";
+import { doctorReport } from "./doctor";
 import { tone } from "./ui/theme";
 import { applyUpdates, type UpdateExecutor, type UpdateOutcome, type UpdateTarget } from "./ui/update";
 import { helpText, parseArgs, type CliOptions } from "./utils/args";
@@ -38,6 +40,19 @@ const VERSION = pkg.version;
 interface ScanResult {
   results: ToolScan[];
   detections: Detection[];
+  /** "Couldn't reach the version servers (timed out)." when most or all lookups failed. */
+  networkIssue: string | null;
+}
+
+/** After this long, the latest-versions spinner says the connection is slow. */
+const SLOW_LOOKUP_MS = 5_000;
+
+/** The network line under the table, or null when lookups mostly worked. */
+function networkIssueLine(results: readonly ToolScan[]): string | null {
+  const problem = networkProblem(getNetwork().report());
+  if (!problem) return null;
+  const shown = results.some((r) => r.latestStaleCachedAt) ? "Showing installed versions and cached results." : "Showing installed versions only.";
+  return `${problem} ${shown}`;
 }
 
 /** What a run works against: the real machine, or the --demo fixture. */
@@ -119,7 +134,9 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 /** CI semantics for --check: 0 = all current, 1 = updates exist. */
 const checkExitCode = (summary: ScanSummary) => (summary.outdated > 0 ? 1 : 0);
 
-function scanVerdict({ outdated, upToDate, unknown, retired, selfUpdating }: ScanSummary): string {
+function scanVerdict({ outdated, upToDate, unknown, retired, selfUpdating, stale }: ScanSummary): string {
+  // Never "Everything is up-to-date" from an old cache: say where the answer came from.
+  const cached = stale > 0 ? pc.gray(` · ${stale} from cached results`) : "";
   const extras = [
     retired > 0 ? `${retired} retired` : "",
     selfUpdating > 0 ? `${selfUpdating} updating itself` : "",
@@ -129,9 +146,9 @@ function scanVerdict({ outdated, upToDate, unknown, retired, selfUpdating }: Sca
     .map((part) => pc.gray(`, ${part}`))
     .join("");
   if (outdated > 0) {
-    return pc.yellow(`${plural(outdated, "update")} available`) + pc.dim(`, ${upToDate} up-to-date`) + extras;
+    return pc.yellow(`${plural(outdated, "update")} available`) + pc.dim(`, ${upToDate} up-to-date`) + extras + cached;
   }
-  if (extras) return pc.green(`No updates found`) + pc.dim(` (${upToDate} up-to-date`) + extras + pc.dim(")");
+  if (extras || cached) return pc.green(`No updates found`) + pc.dim(` (${upToDate} up-to-date`) + extras + pc.dim(")") + cached;
   return pc.green(`Everything is up-to-date (${upToDate})`);
 }
 
@@ -152,7 +169,7 @@ async function scan(runtime: Runtime): Promise<ScanResult> {
   await applyElevation(runtime);
   const results = await resolveLatest(detections, latest);
   latest.cache?.save();
-  return { results, detections };
+  return { results, detections, networkIssue: networkIssueLine(results) };
 }
 
 async function runJson(runtime: Runtime, check: boolean): Promise<number> {
@@ -169,6 +186,8 @@ async function runJson(runtime: Runtime, check: boolean): Promise<number> {
     node: process.version,
     // Set when some latest versions came from the disk cache (oldest entry used).
     latestCachedAt: latest.oldestCachedAt === null ? null : new Date(latest.oldestCachedAt).toISOString(),
+    // How the latest-version lookups went; problem is set when most or all of them failed.
+    network: { ...getNetwork().report(), problem: networkProblem(getNetwork().report()) },
     summary,
     tools: results,
   };
@@ -190,13 +209,14 @@ function printLateSelfNotice(): void {
   if (notice) console.log(pc.dim(notice));
 }
 
-async function scanWithProgress(runtime: Runtime): Promise<ScanResult> {
+/** Center the banner only for a person at a terminal: --check, --json and piped output stay left-aligned. */
+async function scanWithProgress(runtime: Runtime, center: boolean): Promise<ScanResult> {
   const { tools, host, latest } = runtime;
   const self = startSelfCheck(runtime);
   // Under the banner only what is known right now (cache or demo fixture).
   selfNotice = createNoticeSlot(VERSION, self.context, () => self.settled() ?? self.immediate);
   const bannerNotice = self.immediate ? selfNotice.take() : null;
-  printBanner(VERSION, bannerNotice);
+  printBanner(VERSION, bannerNotice, center);
   intro(pc.inverse(" Scan "));
   prefetchLatest(tools, latest);
 
@@ -208,10 +228,13 @@ async function scanWithProgress(runtime: Runtime): Promise<ScanResult> {
   progress.stop(`Found ${found} of ${detections.length} supported CLIs${discoverHint}`);
 
   progress.start("Checking latest versions...");
+  const slow = setTimeout(() => progress.message("Checking latest versions… (slow connection)"), SLOW_LOOKUP_MS);
   await applyElevation(runtime);
   const results = await resolveLatest(detections, latest);
+  clearTimeout(slow);
   latest.cache?.save();
-  progress.stop("Latest versions checked");
+  const networkIssue = networkIssueLine(results);
+  progress.stop(networkIssue ? "Latest versions could not be checked" : "Latest versions checked");
 
   console.log(`${pc.gray("│")}\n${renderTable(results)}`);
   printNotes(results, getHost().platform);
@@ -221,12 +244,16 @@ async function scanWithProgress(runtime: Runtime): Promise<ScanResult> {
     const age = formatAge(Date.now() - latest.oldestCachedAt);
     log.message(pc.dim(`Latest versions cached ${age} ago · --refresh to recheck`));
   }
-  return { results, detections };
+  if (networkIssue) {
+    const offerRetry = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+    log.warn(`${tone.action(networkIssue)}\n${tone.muted(offerRetry ? "Press r to retry, or run ccl-caut --doctor to see what's wrong." : "Run ccl-caut --doctor to see what's wrong.")}`);
+  }
+  return { results, detections, networkIssue };
 }
 
 /** --discover: every supported tool, installed or not, with its official install docs. */
 async function runDiscover(runtime: Runtime): Promise<number> {
-  printBanner(VERSION);
+  printBanner(VERSION, null, Boolean(process.stdout.isTTY));
   intro(pc.inverse(" Discover "));
   const progress = createProgress();
   progress.start("Scanning for installed CLIs...");
@@ -239,7 +266,7 @@ async function runDiscover(runtime: Runtime): Promise<number> {
 }
 
 async function runCheck(runtime: Runtime): Promise<number> {
-  const { results } = await scanWithProgress(runtime);
+  const { results } = await scanWithProgress(runtime, false);
   const summary = summarize(results);
   outro(scanVerdict(summary));
   return checkExitCode(summary);
@@ -348,7 +375,7 @@ function quitNothingChanged(): RoundResult {
 
 interface RoundResult {
   code: number;
-  next: "done" | "rescan";
+  next: "done" | "rescan" | "retry";
 }
 
 function summaryLine(outcome: UpdateOutcome, upToDate: number, skipped: number): string {
@@ -363,11 +390,28 @@ function summaryLine(outcome: UpdateOutcome, upToDate: number, skipped: number):
 
 /** One pass: scan, checklist, pre-flight, updates, summary, then Rescan / Quit. */
 async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<RoundResult> {
-  const { results, detections } = await scanWithProgress(runtime);
+  const { results, detections, networkIssue } = await scanWithProgress(runtime, Boolean(process.stdout.isTTY));
   const summary = summarize(results);
   const offered = results.filter(isOffered);
+  // Retry is offered (r key) when the lookups failed and someone is there to press it.
+  const retry = Boolean(networkIssue) && !options.yes && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
   if (offered.length === 0) {
+    if (retry) {
+      const next = await choose({
+        message: "Latest versions could not be checked",
+        options: [
+          { value: "retry", label: "Retry" },
+          { value: "quit", label: "Quit" },
+        ],
+        initialValue: "retry",
+        retry: true,
+      });
+      if (next === CANCELLED) exitCancelled();
+      if (next === "retry" || next === RETRY) return { code: 0, next: "retry" };
+      outro(tone.muted("Nothing was changed."));
+      return { code: 0, next: "done" };
+    }
     outro(scanVerdict(summary));
     return { code: 0, next: "done" };
   }
@@ -403,8 +447,10 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
         ...(initial.remembered && { hint: "Selection remembered from your last run · --reset-selection to clear" }),
         options: offered.map((r) => ({ value: r.id, label: optionLabel(r), hint: optionHint(r) })),
         initialValues: picked,
+        retry,
       });
       if (answer === QUIT) return quitNothingChanged();
+      if (answer === RETRY) return { code: 0, next: "retry" };
       if (answer === CANCELLED) exitCancelled();
       picked = answer;
       runtime.selections.saveChoices(recordSelection(runtime.selections.toolChoices, offered, picked));
@@ -453,7 +499,9 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
 async function runInteractive(runtime: Runtime, options: CliOptions): Promise<number> {
   for (;;) {
     const round = await interactiveRound(runtime, options);
-    if (round.next !== "rescan") return round.code;
+    if (round.next !== "rescan" && round.next !== "retry") return round.code;
+    // Retry: forget this run's failed lookups so they go to the network again.
+    if (round.next === "retry") getNetwork().reset();
     // Fresh lookups for everything (the tools just updated were dropped from the cache).
     runtime.latest = runtime.freshLatest();
     if (shouldClearScreen({ interactive: true, isTTY: Boolean(process.stdout.isTTY), env: process.env, noClear: options.noClear, demo: options.demo })) {
@@ -482,6 +530,12 @@ async function main(): Promise<number> {
   if (options.version) {
     process.stdout.write(`${VERSION}\n`);
     return 0;
+  }
+
+  if (options.doctor) {
+    const { lines, code } = await doctorReport(VERSION);
+    process.stdout.write(`${lines.join("\n")}\n`);
+    return code;
   }
 
   const runtime = createRuntime(options);

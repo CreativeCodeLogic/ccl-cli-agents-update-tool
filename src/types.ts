@@ -126,6 +126,8 @@ export interface ToolScan {
   binaryPath: string | null;
   installedVersion: string | null;
   latestVersion: string | null;
+  /** Set (ISO time) when the live lookup failed and latestVersion comes from an expired cache entry. */
+  latestStaleCachedAt: string | null;
   state: ToolState;
   /** A newer version is known (true for "outdated", and for "retired" tools that are behind). */
   updateAvailable: boolean;

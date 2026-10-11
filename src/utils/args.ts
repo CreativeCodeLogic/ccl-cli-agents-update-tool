@@ -4,6 +4,8 @@ export interface CliOptions {
   refresh: boolean;
   /** List every supported tool with its official install docs (never installs). */
   discover: boolean;
+  /** Check the network path to every version server, show proxy settings and file paths. */
+  doctor: boolean;
   noClear: boolean;
   resetSelection: boolean;
   /** Non-interactive: update what would be preselected, no prompts. */
@@ -23,6 +25,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     json: false,
     refresh: false,
     discover: false,
+    doctor: false,
     noClear: false,
     resetSelection: false,
     yes: false,
@@ -43,6 +46,9 @@ export function parseArgs(argv: readonly string[]): ParseResult {
         break;
       case "--discover":
         options.discover = true;
+        break;
+      case "--doctor":
+        options.doctor = true;
         break;
       case "--no-clear":
         options.noClear = true;
@@ -90,6 +96,8 @@ Options:
   --refresh      Ignore cached latest versions (cached for 1 hour) and look them up again.
   --discover     List every supported CLI with its official install docs.
                  (ccl-caut never installs tools.)
+  --doctor       Check the connection to every version server (DNS, HTTPS, timings),
+                 and show the proxy settings and cache/config paths in use.
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
                  Tools that are running right now are skipped and listed in the summary.
@@ -102,6 +110,7 @@ Options:
 
 Keys (interactive):
   ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
+  r retry the version lookups (offered when they failed)
   Before updating, ccl-caut shows which selected CLIs are running and which
   updates need administrator rights (needs admin). It never kills or elevates.
 
@@ -114,5 +123,7 @@ Exit codes:
 Environment:
   CCL_CAUT_DEBUG=1             Print diagnostics (failed lookups, cache problems) to stderr.
   CCL_CAUT_NO_UPDATE_CHECK=1   Don't check whether a newer ccl-caut is available.
+  HTTPS_PROXY, HTTP_PROXY, NO_PROXY
+                               Send version lookups through a proxy (like curl and npm).
 `;
 }

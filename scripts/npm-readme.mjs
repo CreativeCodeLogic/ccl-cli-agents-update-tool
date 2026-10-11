@@ -38,7 +38,7 @@ export function buildNpmReadme(readme, version) {
         text = text.replace("See [LICENSE](LICENSE).", "See the LICENSE file in the package.");
         text =
           `## Feedback\n\nFound a bug or have an idea? Email [${CONTACT}](mailto:${CONTACT}) with your ` +
-          "OS, terminal, `node --version`, `ccl-caut --version` and the `ccl-caut --json` output " +
+          "OS, terminal, `node --version`, `ccl-caut --version`, the `ccl-caut --json` output and, for network problems, `ccl-caut --doctor` " +
           "(redact your username in paths).\n\n" +
           text;
       }

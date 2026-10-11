@@ -8,7 +8,7 @@ import { kimi } from "../src/registry/kimi";
 import { exec } from "../src/utils/exec";
 import { fetchJson, stringField } from "../src/utils/http";
 import { fetchLatestNpmVersion, readPackageVersionNear } from "../src/utils/npm";
-import { instance } from "./helpers";
+import { instance, useFakeFetch } from "./helpers";
 
 const dirs: string[] = [];
 function tempDir(): string {
@@ -20,9 +20,11 @@ function writeJson(file: string, value: unknown): void {
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify(value));
 }
+const netRestores: (() => void)[] = [];
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   vi.unstubAllGlobals();
+  for (const r of netRestores.splice(0)) r();
 });
 
 describe("exec", () => {
@@ -69,7 +71,7 @@ describe("installed versions from disk", () => {
 describe("network lookups", () => {
   function stubFetch(handler: (url: string) => Response | Promise<Response>) {
     const fn = vi.fn(async (input: string | URL | Request) => handler(String(input)));
-    vi.stubGlobal("fetch", fn);
+    netRestores.push(useFakeFetch(fn));
     return fn;
   }
 

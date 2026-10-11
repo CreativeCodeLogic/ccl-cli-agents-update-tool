@@ -16,6 +16,7 @@ function scan(id: string, overrides: Partial<ToolScan> = {}): ToolScan {
     binaryPath: `/usr/local/bin/${id}`,
     installedVersion: "1.0.0",
     latestVersion: "2.0.0",
+    latestStaleCachedAt: null,
     state: "outdated",
     updateAvailable: true,
     needsAdmin: false,

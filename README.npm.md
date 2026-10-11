@@ -6,7 +6,7 @@ Twelve CLIs. Ten ways to install them. One checklist.
 
 CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed, compares what you run with what's released, and lets you pick what to update from a single checklist. It supports 12 tools: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini, Antigravity, Qwen Code, Kimi Code, Firebase, the Google Cloud CLI and npm.
 
-![CCL CAUT demo: scan, table, notes, remembered checklist and updates](https://cdn.jsdelivr.net/npm/ccl-caut@1.0.0/docs/demo.gif)
+![CCL CAUT demo: scan, table, notes, remembered checklist and updates](https://cdn.jsdelivr.net/npm/ccl-caut@1.0.1/docs/demo.gif)
 
 <sub>Recorded with `ccl-caut --demo` (fixture data, nothing real is updated).</sub>
 
@@ -96,6 +96,8 @@ ccl-caut [options]
   --refresh      Ignore cached latest versions (cached for 1 hour) and look them up again.
   --discover     List every supported CLI with its official install docs.
                  (ccl-caut never installs tools.)
+  --doctor       Check the connection to every version server (DNS, HTTPS, timings),
+                 and show the proxy settings and cache/config paths in use.
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
                  Tools that are running right now are skipped and listed in the summary.
@@ -108,6 +110,7 @@ ccl-caut [options]
 
 Keys (interactive):
   ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
+  r retry the version lookups (offered when they failed)
 ```
 
 The interactive checklist starts on a clean screen: earlier output is pushed up into your scrollback, never erased. Use `--no-clear` to keep it in view; `--check`, `--json`, `--yes` and CI runs never clear.
@@ -135,7 +138,43 @@ CCL CAUT only reads public version information. It contacts exactly these hosts,
 | `dl.google.com` | The Google Cloud SDK release feed |
 | `pypi.org` | Legacy `kimi-cli` installs only |
 
-Nothing about you or your machine is sent: no identifiers, no list of installed tools, no telemetry or analytics of any kind. Requests are plain GETs (with a `ccl-caut` user agent). Results are cached for an hour in your OS cache folder, and your remembered selections stay in your OS config folder (see above). Update commands you choose to run (for example `claude update` or `npm install -g …`) contact their own vendors, exactly as if you ran them yourself.
+Nothing about you or your machine is sent: no identifiers, no list of installed tools, no telemetry or analytics of any kind. Requests are plain GETs (with a `ccl-caut` user agent), plus one tiny warm-up request to `registry.npmjs.org/-/ping`; `--doctor` sends a HEAD request to each host. Results are cached for an hour in your OS cache folder, and your remembered selections stay in your OS config folder (see above). Update commands you choose to run (for example `claude update` or `npm install -g …`) contact their own vendors, exactly as if you ran them yourself.
+
+### Slow or offline networks, proxies
+
+A first run right after the machine wakes up can meet a cold network (DNS and TLS not ready yet). CCL CAUT handles that on its own:
+
+- One quick warm-up request goes first, then the lookups share a few keep-alive connections per host instead of opening a dozen at once. The first attempt gets 8 seconds on a cold start, there is one retry, and the whole check never takes more than about 15 seconds. After 5 seconds the spinner says *(slow connection)*.
+- If a lookup fails but an older answer is in the cache, that answer is used and marked, for example `0.162.1 cached 9h ago`. "unknown" only appears when there is nothing cached at all.
+- When most or all lookups fail, you get one line that says why, instead of a column of question marks: *Couldn't reach the version servers (timed out). Showing installed versions only.* The reason is one of timed out, DNS lookup failed, no network connection, the proxy refused the connection, a certificate problem, or HTTP errors. Press **r** to retry. When only one source is down, just that row shows "unknown"; `CCL_CAUT_DEBUG=1` prints the reason.
+
+Behind a corporate proxy, set `HTTPS_PROXY` (or `HTTP_PROXY`) and `NO_PROXY` as you would for curl or npm; CCL CAUT sends its lookups through it (credentials in the URL work, and are never printed).
+
+`ccl-caut --doctor` checks the path to every version server and prints what it finds, ready to paste into a bug report:
+
+```text
+ccl-caut 1.0.1 doctor · Node v22.22.3 · win32 x64
+
+Version servers
+  ✔ registry.npmjs.org  reachable · DNS 29ms · HTTPS 200 in 272ms  (npm packages, ccl-caut itself)
+  ✔ api.github.com      reachable · DNS 13ms · HTTPS 200 in 199ms  (Antigravity CLI)
+  ✖ dl.google.com       unreachable · DNS 20ms · timeout (timed out after 8.0s)  (Google Cloud CLI)
+  ✔ pypi.org            reachable · DNS 19ms · HTTPS 200 in 192ms  (legacy kimi-cli)
+
+Proxy
+  HTTPS_PROXY  (not set)
+  HTTP_PROXY   (not set)
+  NO_PROXY     (not set)
+  No proxy: lookups connect directly.
+
+Files
+  cache   C:\Users\you\AppData\Local\ccl-caut\latest-versions.json (12 entries, newest 8m ago)
+  config  C:\Users\you\AppData\Roaming\ccl-caut\config.json
+
+1 of 4 version servers unreachable: dl.google.com.
+```
+
+It exits with 0 when every server is reachable and 1 otherwise.
 
 ### Exit codes
 
@@ -160,7 +199,8 @@ ccl-caut --json
   "version": "1.0.0",
   "platform": "win32",
   "latestCachedAt": null,
-  "summary": { "total": 12, "upToDate": 2, "outdated": 4, "notInstalled": 5, "unknown": 0, "retired": 1, "selfUpdating": 0, "shadowed": 1 },
+  "network": { "attempted": 11, "failures": [], "problem": null },
+  "summary": { "total": 12, "upToDate": 2, "outdated": 4, "notInstalled": 5, "unknown": 0, "retired": 1, "selfUpdating": 0, "shadowed": 1, "stale": 0 },
   "tools": [
     {
       "id": "gemini",
@@ -172,6 +212,7 @@ ccl-caut --json
       "binaryPath": "C:\\Users\\you\\AppData\\Roaming\\npm\\gemini.cmd",
       "installedVersion": "0.63.0",
       "latestVersion": "0.63.0",
+      "latestStaleCachedAt": null,
       "state": "retired",
       "updateAvailable": false,
       "needsAdmin": false,
@@ -188,11 +229,11 @@ ccl-caut --json
 }
 ```
 
-`state` is one of `up-to-date`, `outdated`, `not-installed`, `unknown` (a version could not be determined; never reported as outdated), `retired` or `self-updating`. `updateAvailable` tells you whether a newer version exists, even for retired tools. `needsAdmin` is `true` when the update needs administrator rights (or `sudo`) that this run doesn't have. `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`).
+`state` is one of `up-to-date`, `outdated`, `not-installed`, `unknown` (a version could not be determined; never reported as outdated), `retired` or `self-updating`. `updateAvailable` tells you whether a newer version exists, even for retired tools. `latestStaleCachedAt` is set (the time it was cached) when the live lookup failed and `latestVersion` comes from an expired cache entry; `summary.stale` counts those. `network.failures` lists failed lookups (`url`, `kind`: timeout, dns, offline, proxy, tls, http or connection, and `detail`), and `network.problem` holds the one-line explanation when most or all of them failed. `needsAdmin` is `true` when the update needs administrator rights (or `sudo`) that this run doesn't have. `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`).
 
 ## Feedback
 
-Found a bug or have an idea? Email [admin@creativecodelogic.com](mailto:admin@creativecodelogic.com) with your OS, terminal, `node --version`, `ccl-caut --version` and the `ccl-caut --json` output (redact your username in paths).
+Found a bug or have an idea? Email [admin@creativecodelogic.com](mailto:admin@creativecodelogic.com) with your OS, terminal, `node --version`, `ccl-caut --version`, the `ccl-caut --json` output and, for network problems, `ccl-caut --doctor` (redact your username in paths).
 
 ## License
 

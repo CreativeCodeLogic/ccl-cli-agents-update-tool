@@ -9,7 +9,7 @@ import type { InstallMethod, ToolDescriptor } from "../src/types";
 import { setHost, type Host } from "../src/utils/host";
 import { classifyInstall } from "../src/utils/installMethod";
 import { primeNpmGlobalPaths } from "../src/utils/npm";
-import { fakeHost, instance, win } from "./helpers";
+import { fakeHost, instance, useFakeFetch, win } from "./helpers";
 
 const linux = fakeHost({ platform: "linux", homedir: "/home/jane" });
 const winHome = win("C:/Users/Jane");
@@ -29,9 +29,11 @@ beforeEach(() => {
   useHost(linux);
   primeNpmGlobalPaths(npmGlobal);
 });
+const netRestores: (() => void)[] = [];
 afterEach(() => {
   restore();
   vi.unstubAllGlobals();
+  for (const r of netRestores.splice(0)) r();
 });
 
 /** Generic classification + the tool's own refinement, as the scan does it. */
@@ -134,7 +136,7 @@ describe("latest versions and states", () => {
     const fetchMock = vi.fn(async (url: string | URL | Request) =>
       Response.json({ version: String(url).includes("%40opencode") || String(url).includes("@opencode/cli") ? "2.0.26" : "1.18.35" }),
     );
-    vi.stubGlobal("fetch", fetchMock);
+    netRestores.push(useFakeFetch(fetchMock));
     expect(opencode.latestChannel?.("npm", "1.18.0")).toBe("v1");
     expect(opencode.latestChannel?.("brew", "2.0.25")).toBe("v2");
     expect(await opencode.getLatestVersion("brew", "2.0.25")).toBe("2.0.26");
@@ -142,7 +144,7 @@ describe("latest versions and states", () => {
   });
 
   it("reads Antigravity's latest release tag", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ tag_name: "v1.3.3" })));
+    netRestores.push(useFakeFetch(vi.fn(async () => Response.json({ tag_name: "v1.3.3" }))));
     expect(await antigravity.getLatestVersion()).toBe("1.3.3");
   });
 

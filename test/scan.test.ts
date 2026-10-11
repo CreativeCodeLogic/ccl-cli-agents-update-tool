@@ -85,7 +85,7 @@ describe("detectAll + resolveLatest", () => {
 
   it("summarizes states and shadowed tools", async () => {
     const results = await resolveLatest(await detectAll([fakeTool(), fakeTool({ id: "x", binNames: ["nope"] })], host), new LatestResolver());
-    expect(summarize(results)).toEqual({ total: 2, upToDate: 0, outdated: 1, notInstalled: 1, unknown: 0, retired: 0, selfUpdating: 0, shadowed: 1 });
+    expect(summarize(results)).toEqual({ total: 2, upToDate: 0, outdated: 1, notInstalled: 1, unknown: 0, retired: 0, selfUpdating: 0, shadowed: 1, stale: 0 });
   });
 });
 

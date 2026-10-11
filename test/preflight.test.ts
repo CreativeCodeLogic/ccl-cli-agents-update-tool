@@ -4,7 +4,7 @@ import { gcloud } from "../src/registry/gcloud";
 import { countRunning, processSignatures, splitUnattended, type ProcessInfo } from "../src/processes";
 import { computeNeedsAdmin } from "../src/scan";
 import { fitToWidth, formatElapsed } from "../src/ui/live";
-import { CANCELLED, checklist, choose, QUIT } from "../src/ui/prompts";
+import { CANCELLED, checklist, choose, QUIT, RETRY } from "../src/ui/prompts";
 import { OutputTracker, withNpmProgress } from "../src/ui/update";
 import { setHost } from "../src/utils/host";
 import { fakeHost, instance, win } from "./helpers";
@@ -144,6 +144,13 @@ describe("prompts: quit and selection keys", () => {
     { value: "codex", label: "Codex CLI" },
     { value: "kimi", label: "Kimi Code" },
   ];
+
+  it("r retries only where Retry is offered", async () => {
+    expect(await checklist({ message: "Select", options, initialValues: ["codex"], retry: true, ...keys("r") })).toBe(RETRY);
+    expect(await choose({ message: "Next?", options, retry: true, ...keys("r") })).toBe(RETRY);
+    // Without Retry on offer, r does nothing and q still quits.
+    expect(await checklist({ message: "Select", options, initialValues: ["codex"], ...keys("r", "q") })).toBe(QUIT);
+  });
 
   it("q quits the checklist softly", async () => {
     expect(await checklist({ message: "Select", options, initialValues: ["codex"], ...keys("q") })).toBe(QUIT);

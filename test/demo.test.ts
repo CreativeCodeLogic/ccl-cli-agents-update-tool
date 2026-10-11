@@ -22,6 +22,7 @@ import { applyUpdates, type UpdateTarget } from "../src/ui/update";
 import { exec, execTee } from "../src/utils/exec";
 import { fetchJson } from "../src/utils/http";
 import { sideEffectsBlocked } from "../src/utils/sandbox";
+import { useFakeFetch } from "./helpers";
 
 const fetchSpy = vi.fn(async () => {
   throw new Error("fetch must never be called in demo mode");
@@ -30,6 +31,7 @@ const fetchSpy = vi.fn(async () => {
 let runtime: DemoRuntime;
 beforeAll(() => {
   vi.stubGlobal("fetch", fetchSpy);
+  useFakeFetch(fetchSpy);
   runtime = createDemoRuntime({ sleep: async () => {}, write: () => {} });
 });
 

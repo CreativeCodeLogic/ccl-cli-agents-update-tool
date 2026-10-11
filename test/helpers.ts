@@ -1,5 +1,6 @@
 import type { BinaryInstance, InstallMethod } from "../src/types";
 import type { FsProbe, Host } from "../src/utils/host";
+import { Network, setNetwork } from "../src/utils/http";
 import { isInside, normalizePath } from "../src/utils/paths";
 
 /** Windows path from a forward-slash fixture (keeps test sources free of backslash escapes). */
@@ -46,4 +47,12 @@ export function fakeHost(options: FakeHostOptions): Host {
 
 export function instance(path: string, installMethod: InstallMethod, realPath = path): BinaryInstance {
   return { path, realPath, installMethod };
+}
+
+/**
+ * Route lookups through `fetch` (a vi.fn) instead of the network, without the
+ * warm-up request. Call the returned restore() in afterEach.
+ */
+export function useFakeFetch(fetch: (url: string) => Promise<Response> | Response): () => void {
+  return setNetwork(new Network({ fetch: async (url) => fetch(url), dispatcher: () => undefined, warmUpUrl: null }));
 }

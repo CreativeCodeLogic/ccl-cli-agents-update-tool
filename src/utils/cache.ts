@@ -75,6 +75,11 @@ export class VersionCache {
     return age >= 0 && age < CACHE_TTL_MS ? entry : null;
   }
 
+  /** Entry for `key` whatever its age: the fallback when a live lookup fails. */
+  getStale(key: string): Entry | null {
+    return this.entries[key] ?? null;
+  }
+
   set(key: string, version: string): void {
     this.entries[key] = { version, fetchedAt: this.now() };
     this.dirty = true;
