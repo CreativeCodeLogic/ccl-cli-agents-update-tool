@@ -98,6 +98,8 @@ export interface ToolDescriptor {
   deprecation?: Deprecation;
   /** Vendor advice shown as info notes after the table (never changes state or preselection). */
   notes?: ToolNote[];
+  /** Notes that depend on the copy that runs (e.g. an old package name to migrate from). */
+  instanceNotes?(instance: BinaryInstance): ToolNote[];
   /**
    * The tool updates itself and has no public latest-version source: an unknown
    * latest version is shown as "updates itself" (not "unknown"), and its own
@@ -115,10 +117,13 @@ export interface ToolDescriptor {
    */
   runsThrough?(active: BinaryInstance, other: BinaryInstance): boolean | Promise<boolean>;
   /**
-   * For generic binary names (e.g. Cursor's `agent`): false = this file is some
-   * other program and is ignored. Path-based; never runs unknown binaries.
+   * For generic binary names (e.g. Cursor's `agent`, `amp`, `goose`, `vibe`):
+   * false = this file is some other program, shown as not installed. Decided by
+   * install location, symlink target or package metadata; a tool may confirm an
+   * ambiguous location with a harmless --version signature, but never runs a
+   * binary it hasn't located first.
    */
-  identify?(instance: Omit<BinaryInstance, "installMethod">): boolean;
+  identify?(instance: Omit<BinaryInstance, "installMethod">): boolean | Promise<boolean>;
   getInstalledVersion(instance: BinaryInstance): Promise<string | null>;
   /**
    * Latest release for an install channel (channels can differ, e.g. legacy pip

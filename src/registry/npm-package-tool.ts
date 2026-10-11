@@ -16,6 +16,8 @@ export interface NpmPackageToolConfig {
   docsUrl: string;
   deprecation?: ToolDescriptor["deprecation"];
   refineInstallMethod?: ToolDescriptor["refineInstallMethod"];
+  identify?: ToolDescriptor["identify"];
+  notes?: ToolDescriptor["notes"];
   /** Plans for installs npm doesn't manage (self-updaters, brew, ...); null = generic manual plan. */
   otherPlan?: (instance: BinaryInstance) => UpdatePlan | null;
 }
@@ -43,6 +45,8 @@ export function createNpmPackageTool(config: NpmPackageToolConfig): ToolDescript
     ...(config.shortName && { shortName: config.shortName }),
     ...(config.deprecation && { deprecation: config.deprecation }),
     ...(config.refineInstallMethod && { refineInstallMethod: config.refineInstallMethod }),
+    ...(config.identify && { identify: config.identify }),
+    ...(config.notes && { notes: config.notes }),
 
     // package.json is fast and exact; fall back to running the binary.
     async getInstalledVersion(instance) {

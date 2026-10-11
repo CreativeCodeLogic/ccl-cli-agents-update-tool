@@ -8,7 +8,7 @@ Twelve CLIs. Ten ways to install them. One checklist.
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](package.json)
 
-CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed, compares what you run with what's released, and lets you pick what to update from a single checklist. It supports 12 tools: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini, Antigravity, Qwen Code, Kimi Code, Firebase, the Google Cloud CLI and npm.
+CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed, compares what you run with what's released, and lets you pick what to update from a single checklist. It supports 23 tools. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini, Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro and Goose. Dev CLIs: Firebase, the Google Cloud CLI, npm, Wrangler, Vercel, Netlify, Supabase and the GitHub CLI.
 
 ![CCL CAUT demo: scan, table, notes, remembered checklist and updates](docs/demo.gif)
 
@@ -75,9 +75,20 @@ Before anything runs, a short **pre-flight** check shows which selected CLIs are
 | Antigravity CLI (`agy`) | install script, Homebrew, winget | script: **auto** (`agy update`) · Homebrew, winget: command |
 | Qwen Code | npm, standalone installer, Homebrew | npm: **auto** · standalone: **auto** (`qwen update`) · Homebrew: command |
 | Kimi Code | npm, native installer, legacy `kimi-cli` (uv, pipx, pip) | npm: **auto** · native: **auto** on macOS/Linux (`kimi upgrade`), installer command on Windows · legacy: command |
+| Aider | uv tool (`aider-install`, the install scripts), pipx, pip, Homebrew | uv: **auto** (`uv tool upgrade aider-chat`) · pipx: **auto** · pip, Homebrew: command |
+| Mistral Vibe (`vibe`) | uv tool (install script), pipx, pip, Homebrew | uv: **auto** (`uv tool upgrade mistral-vibe`) · pipx: **auto** · pip, Homebrew: command |
+| Cline CLI | npm | npm: **auto** · Homebrew: command |
+| Amp | install script (`~/.amp/bin`), Homebrew tap, npm `@ampcode/cli` (or the old `@sourcegraph/amp`) | script: **auto** (`amp update`) · npm: **auto** · old npm name: migration command · Homebrew: command |
+| Kiro CLI (`kiro-cli`) | install script, Windows 11 installer, Homebrew cask, dnf | installer: **auto** (`kiro-cli update`) · Homebrew, dnf: command |
+| Goose | install script, Homebrew `block-goose-cli` | script: **auto** (`goose update`) · Homebrew: command |
 | Firebase CLI | npm, standalone binary | npm: **auto** · standalone: command |
 | Google Cloud CLI | official installer, apt, snap, Homebrew | installer in a folder you can write to: **auto** (`gcloud components update`) · Program Files, read-only folders, apt, snap, Homebrew: command |
 | npm | bundled with Node.js, global npm, Homebrew's Node | always a command |
+| Wrangler | npm (Cloudflare recommends a per-project install) | npm: **auto** |
+| Vercel CLI | npm | npm: **auto** |
+| Netlify CLI | npm | npm: **auto** |
+| Supabase CLI | Homebrew, Scoop, Linux packages, install script (npm only per project) | always a command |
+| GitHub CLI (`gh`) | winget / MSI, Homebrew, apt, dnf, zypper, Scoop, Chocolatey, snap | always a command (`gh` has no self-update) |
 
 "npm" means the global prefix of the npm on your `PATH`. Copies installed under another Node version (nvm, fnm, Volta) are detected too, and you get the right command to run with that version active.
 
@@ -89,7 +100,7 @@ Google retired Gemini CLI for consumer accounts (Google AI Pro and Ultra, and fr
 
 - **We only run what we can run safely.** Automatic updates are limited to `npm install -g` into your active npm prefix, `uv tool upgrade` and `pipx upgrade` for tools in their own environments, and the tools' own documented self-updaters, run against the exact binary on your `PATH`. Everything else (pip, apt, snap, Homebrew, winget, Chocolatey, Scoop, admin-only folders, npm itself) gets the exact command and a one-line reason instead. Package-manager installs of the Google Cloud CLI never get `gcloud components update`.
 - **Shadowed installs are called out.** CCL CAUT finds every copy of a tool on your `PATH`, updates the one that actually runs, and warns about copies that are installed but never run.
-- **No false positives.** A generic binary name like Cursor's `agent` is only claimed inside Cursor's own install layout, and editor launcher shims (such as VS Code's Copilot Chat launcher) are ignored.
+- **No false positives.** A generic binary name like Cursor's `agent`, `amp`, `goose` or `vibe` is only claimed where that tool installs itself (the Amp text editor or the pressly/goose migration tool are left alone, and are never run), and editor launcher shims (such as VS Code's Copilot Chat launcher) are ignored.
 - **Every update is verified.** After an update, CCL CAUT asks the running binary for its version again. If it didn't change, you get a warning instead of a false success. Kimi Code's staged rollouts are reported as "held".
 - **Checks before it touches anything.** The pre-flight check lists selected CLIs that are running (matched by their exact install path, never by a bare program name) and never kills anything. Under `--yes`, running tools are skipped with a clear line each and counted in the summary.
 - **Admin rights up front.** CCL CAUT tests whether it can write where each update goes (the npm global folder, the Google Cloud SDK, a tool's own install folder) and tags updates that need more as **needs admin**: on Windows, run ccl-caut from a terminal opened with *Run as administrator*; on macOS and Linux, the command needs `sudo`. When ccl-caut already runs elevated there is no warning, and updates that were only blocked by permissions run automatically. It never elevates itself.
@@ -135,7 +146,7 @@ When a newer ccl-caut is published, a one-line notice under the banner tells you
 
 ### Discover supported tools
 
-CCL CAUT updates what you already have; it never installs anything. `ccl-caut --discover` lists all 12 supported CLIs with a one-line description, whether each is installed (and which version runs), and a link to its official install docs. `--json` includes the same `docsUrl` for every tool.
+CCL CAUT updates what you already have; it never installs anything. `ccl-caut --discover` lists all 23 supported CLIs with a one-line description, whether each is installed (and which version runs), and a link to its official install docs. `--json` includes the same `docsUrl` for every tool.
 
 ### Groups
 
@@ -167,10 +178,11 @@ CCL CAUT only reads public version information. It contacts exactly these hosts,
 
 | Host | What for |
 | --- | --- |
-| `registry.npmjs.org` | Latest versions of npm-distributed tools, and of ccl-caut itself |
-| `api.github.com` | Antigravity CLI's latest release |
+| `registry.npmjs.org` | Latest versions of npm-distributed tools (and Amp), and of ccl-caut itself |
+| `api.github.com` | Latest releases of Antigravity CLI, Supabase CLI, GitHub CLI and Goose (at most one request per tool per hour) |
 | `dl.google.com` | The Google Cloud SDK release feed |
-| `pypi.org` | Legacy `kimi-cli` installs only |
+| `pypi.org` | Aider, Mistral Vibe and legacy `kimi-cli` |
+| `prod.download.cli.kiro.dev` | Kiro CLI's release manifest |
 
 Nothing about you or your machine is sent: no identifiers, no list of installed tools, no telemetry or analytics of any kind. Requests are plain GETs (with a `ccl-caut` user agent), plus one tiny warm-up request to `registry.npmjs.org/-/ping`; `--doctor` sends a HEAD request to each host. Results are cached for an hour in your OS cache folder, and your remembered selections stay in your OS config folder (see above). Update commands you choose to run (for example `claude update` or `npm install -g …`) contact their own vendors, exactly as if you ran them yourself.
 

@@ -14,26 +14,43 @@ export function byGroup<T extends { group: ToolScan["group"] }>(items: readonly 
   return TOOL_GROUPS.flatMap((group) => items.filter((item) => item.group === group));
 }
 
+/** Short state labels for narrow terminals (colors are unchanged). */
+const SHORT_STATE: Partial<Record<ToolScan["state"], string>> = { outdated: "outdated", "self-updating": "self-updating" };
+
 /**
  * Render scan results as aligned columns: icon | tool | installed | latest | state | via,
  * under a dim heading per group (empty groups are left out).
  * Installed tools only; `--discover` lists the rest.
+ *
+ * With many tools a full-width table can outgrow the terminal, so it compacts
+ * step by step until it fits `columns`, keeping the information: (1) "cached 9h
+ * ago" becomes "*" with a legend, (2) shorter state labels, (3) "+1 hidden" ->
+ * "+1" and "needs admin" -> "admin", (4) short tool names.
  */
-export function renderTable(results: readonly ToolScan[]): string {
+export function renderTable(results: readonly ToolScan[], columns: number = Number.POSITIVE_INFINITY): string {
+  let table = tableAt(results, 0);
+  for (let level = 1; level <= 4 && table.width > columns; level++) table = tableAt(results, level);
+  return table.text;
+}
+
+function tableAt(results: readonly ToolScan[], level: number): { text: string; width: number } {
   const visible = byGroup(results.filter((r) => r.installed));
   const header = ["", "Tool", "Installed", "Latest", "State", "Via"].map((h) => pc.bold(h));
+  const stale = visible.filter((r) => r.latestStaleCachedAt);
   const rows = visible.map((r) => {
     const style = stateStyle[r.state];
     const retired = r.state === "retired";
+    const name = level >= 4 ? r.shortName : r.name;
+    const cached = r.latestStaleCachedAt ? (level >= 1 ? tone.muted("*") : ` ${tone.muted(`cached ${formatAgo(r.latestStaleCachedAt)} ago`)}`) : "";
+    const label = level >= 2 && SHORT_STATE[r.state] ? style.label.replace(stripVTControlCharacters(style.label), SHORT_STATE[r.state]!) : style.label;
+    const hidden = r.shadowed.length > 0 ? (level >= 3 ? ` +${r.shadowed.length}` : ` +${r.shadowed.length} hidden`) : "";
     return [
       style.icon,
-      !r.installed || retired ? pc.dim(r.name) : r.name,
+      !r.installed || retired ? pc.dim(name) : name,
       r.installedVersion ? displayVersion(r.installedVersion) : pc.dim(r.installed ? "?" : "—"),
-      (r.latestVersion ? displayVersion(r.latestVersion) : pc.dim("—")) +
-        (r.latestStaleCachedAt ? ` ${tone.muted(`cached ${formatAgo(r.latestStaleCachedAt)} ago`)}` : ""),
-      style.label,
-      tone.muted(`${r.installMethod ?? ""}${r.shadowed.length > 0 ? ` +${r.shadowed.length} hidden` : ""}`) +
-        (r.needsAdmin ? ` ${tone.action("needs admin")}` : ""),
+      (r.latestVersion ? displayVersion(r.latestVersion) : pc.dim("—")) + cached,
+      label,
+      tone.muted(`${r.installMethod ?? ""}${hidden}`) + (r.needsAdmin ? ` ${tone.action(level >= 3 ? "admin" : "needs admin")}` : ""),
     ];
   });
 
@@ -48,9 +65,13 @@ export function renderTable(results: readonly ToolScan[]): string {
     if (i === 0 || visible[i - 1]!.group !== r.group) body.push(`  ${tone.muted(GROUP_LABELS[r.group])}`);
     body.push(line(rows[i]!));
   });
-  return [line(header), rule, ...body].join("\n");
+  if (level >= 1 && stale.length > 0) {
+    const oldest = stale.map((r) => r.latestStaleCachedAt!).sort()[0]!;
+    body.push(`  ${tone.muted(`* cached result (couldn't check live; oldest ${formatAgo(oldest)} ago)`)}`);
+  }
+  const lines = [line(header), rule, ...body];
+  return { text: lines.join("\n"), width: Math.max(...lines.map(visibleLength)) };
 }
-
 function describe(method: InstallMethod | null, version: string | null): string {
   return `${method ?? "unknown"} ${version ?? "?"}`;
 }

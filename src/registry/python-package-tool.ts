@@ -16,6 +16,7 @@ export interface PythonPackageToolConfig {
   description: string;
   docsUrl: string;
   notes?: ToolDescriptor["notes"];
+  identify?: ToolDescriptor["identify"];
   deprecation?: ToolDescriptor["deprecation"];
   /** Plans for installs no Python package manager made (brew, a vendor installer, ...); null = generic manual plan. */
   otherPlan?: (instance: BinaryInstance) => UpdatePlan | null;
@@ -42,6 +43,7 @@ export function createPythonPackageTool(config: PythonPackageToolConfig): ToolDe
     docsUrl: config.docsUrl,
     ...(config.shortName && { shortName: config.shortName }),
     ...(config.notes && { notes: config.notes }),
+    ...(config.identify && { identify: config.identify }),
     ...(config.deprecation && { deprecation: config.deprecation }),
 
     // uv launchers on Windows and shims in ~/.local/bin look "native" or unknown by path alone.

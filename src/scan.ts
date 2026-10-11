@@ -115,14 +115,13 @@ export function prefetchLatest(tools: readonly ToolDescriptor[], latest: LatestR
 /** Phase 1: find every copy of every tool and read its version, in parallel. */
 export function detectAll(tools: readonly ToolDescriptor[], host: Host = getHost()): Promise<Detection[]> {
   return Promise.all(
-    tools.map(async (tool) => ({
-      tool,
-      instances: await Promise.all(
-        findAllExecutables(tool.binNames, host)
-          .filter((p) => !tool.identify || safeSync(() => tool.identify!({ path: p, realPath: host.fs.realpath(p) }), false))
-          .map((p) => detectInstance(tool, p, host)),
-      ),
-    })),
+    tools.map(async (tool) => {
+      const paths = findAllExecutables(tool.binNames, host);
+      const claimed = await Promise.all(
+        paths.map((p) => (tool.identify ? safe(() => tool.identify!({ path: p, realPath: host.fs.realpath(p) }), false) : true)),
+      );
+      return { tool, instances: await Promise.all(paths.filter((_, i) => claimed[i]).map((p) => detectInstance(tool, p, host))) };
+    }),
   );
 }
 
@@ -192,7 +191,11 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
       const npmRoot = (await getNpmGlobalPaths())?.root ?? null;
       const needsAdmin = computeNeedsAdmin(tool, active, plan, getHost(), npmRoot);
       const projectPin = projectPinFor(tool, project, getHost());
-      const notes = [...(tool.notes ?? []), ...(projectPin ? [projectPinNote(projectPin, tool.binNames[0] ?? tool.id)] : [])];
+      const notes = [
+        ...(tool.notes ?? []),
+        ...(active && tool.instanceNotes ? safeSync(() => tool.instanceNotes!(active), []) : []),
+        ...(projectPin ? [projectPinNote(projectPin, tool.binNames[0] ?? tool.id)] : []),
+      ];
       return {
         id: tool.id,
         name: tool.name,

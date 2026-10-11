@@ -278,7 +278,7 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
   const networkIssue = networkIssueLine(results);
   progress.stop(networkIssue ? "Latest versions could not be checked" : "Latest versions checked");
 
-  console.log(`${pc.gray("│")}\n${renderTable(results)}`);
+  console.log(`${pc.gray("│")}\n${renderTable(results, process.stdout.isTTY ? (process.stdout.columns ?? 80) : Number.POSITIVE_INFINITY)}`);
   printNotes(results, getHost().platform);
   const lateNotice = takeSelfNotice();
   if (lateNotice) log.message(pc.dim(lateNotice));

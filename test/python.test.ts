@@ -67,7 +67,7 @@ describe("detectPythonInstall", () => {
   it("uv on Windows: a copied launcher in %USERPROFILE%/.local/bin, environment under APPDATA/uv/data/tools", () => {
     const h = win("C:/Users/Jane");
     const venv = win(`${h}/AppData/Roaming/uv/data/tools/aider-chat`);
-    const host = fakeHost({ platform: "win32", homedir: h, env: { APPDATA: win(`${h}/AppData/Roaming`) }, texts: dist(win(`${venv}/Lib/site-packages`), "0.86.1", String.fromCharCode(92)) });
+    const host = fakeHost({ platform: "win32", homedir: h, env: { APPDATA: win(`${h}/AppData/Roaming`) }, files: [win(`${venv}/Scripts/aider.exe`)], texts: dist(win(`${venv}/Lib/site-packages`), "0.86.1", String.fromCharCode(92)) });
     const bin = win(`${h}/.local/bin/aider.exe`);
     expect(detectPythonInstall(bin, bin, "aider-chat", host)).toMatchObject({ kind: "uv", venv });
   });
@@ -91,7 +91,7 @@ describe("detectPythonInstall", () => {
     const h = win("C:/Users/Jane");
     const local = win(`${h}/AppData/Local`);
     for (const venv of [win(`${local}/pipx/pipx/venvs/aider-chat`), win(`${h}/pipx/venvs/aider-chat`)]) {
-      const host = fakeHost({ platform: "win32", homedir: h, env: { LOCALAPPDATA: local }, texts: dist(win(`${venv}/Lib/site-packages`), "0.86.1", String.fromCharCode(92)) });
+      const host = fakeHost({ platform: "win32", homedir: h, env: { LOCALAPPDATA: local }, files: [win(`${venv}/Scripts/aider.exe`)], texts: dist(win(`${venv}/Lib/site-packages`), "0.86.1", String.fromCharCode(92)) });
       const bin = win(`${h}/.local/bin/aider.exe`);
       expect(detectPythonInstall(bin, bin, "aider-chat", host)).toMatchObject({ kind: "pipx", venv });
     }

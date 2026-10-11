@@ -77,6 +77,22 @@ function unique(dirs: (string | undefined | null | false | "")[], host: Host): s
   return out;
 }
 
+/** Where uv and pipx put tool executables: UV_TOOL_BIN_DIR, XDG_BIN_HOME, PIPX_BIN_DIR, ~/.local/bin. */
+export function shimDirs(host: Host): string[] {
+  const path = pathFor(host.platform);
+  const xdgData = envVar(host, "XDG_DATA_HOME");
+  return unique(
+    [
+      envVar(host, "UV_TOOL_BIN_DIR"),
+      envVar(host, "XDG_BIN_HOME"),
+      xdgData && path.join(xdgData, "..", "bin"),
+      envVar(host, "PIPX_BIN_DIR"),
+      path.join(host.homedir, ".local", "bin"),
+    ],
+    host,
+  );
+}
+
 /** PyPI names compare after lowercasing and folding runs of - _ . (PEP 503); dist-info folders use "_". */
 export const normalizePypiName = (name: string) => name.toLowerCase().replace(/[-_.]+/g, "_");
 
@@ -161,11 +177,16 @@ export function detectPythonInstall(binPath: string, realPath: string, pypi: str
       }
     }
   }
-  // 2. A shim/launcher elsewhere (e.g. ~/.local/bin) whose tool environment exists.
-  for (const { kind, dir } of venvRoots) {
-    for (const name of names) {
-      const venv = path.join(dir, name);
-      if (host.fs.exists(venv)) {
+  // 2. A shim/launcher in a documented shim folder (e.g. ~/.local/bin; uv copies
+  //    launchers there on Windows) whose tool environment has the same executable.
+  //    Anywhere else, an unrelated binary with the same name must not be claimed.
+  if (shimDirs(host).some((dir) => isInside(binPath, dir, host.platform))) {
+    const exe = path.basename(binPath);
+    for (const { kind, dir } of venvRoots) {
+      for (const name of names) {
+        const venv = path.join(dir, name);
+        const venvExe = host.platform === "win32" ? path.join(venv, "Scripts", exe) : path.join(venv, "bin", exe);
+        if (!host.fs.exists(venvExe)) continue;
         const install = venvInstall(kind, venv, pypi, host);
         if (install) return install;
       }

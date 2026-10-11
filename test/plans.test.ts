@@ -124,7 +124,7 @@ describe("Kimi Code", () => {
     // Documented location (uv storage reference): APPDATA/uv/data/tools; older uv used APPDATA/uv/tools.
     for (const tools of [`${appData}/uv/data/tools`, `${appData}/uv/tools`]) {
       const dist = win(`${tools}/kimi-cli/Lib/site-packages/kimi_cli-1.52.0.dist-info/METADATA`);
-      useHost(fakeHost({ platform: "win32", homedir: home, env: { APPDATA: appData }, texts: { [dist]: "Name: kimi-cli" + String.fromCharCode(10) + "Version: 1.52.0" } }));
+      useHost(fakeHost({ platform: "win32", homedir: home, env: { APPDATA: appData }, files: [win(`${tools}/kimi-cli/Scripts/kimi.exe`)], texts: { [dist]: "Name: kimi-cli" + String.fromCharCode(10) + "Version: 1.52.0" } }));
       expect(kimi.refineInstallMethod?.("native", { path: bin, realPath: bin })).toBe("uv");
     }
     useHost(fakeHost({ platform: "win32", homedir: home, env: { APPDATA: appData } }));

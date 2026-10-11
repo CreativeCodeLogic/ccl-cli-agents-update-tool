@@ -17,10 +17,12 @@ const row = (id: string, group: ToolScan["group"], overrides: Partial<ToolScan> 
 });
 
 describe("tool groups", () => {
-  it("assigns Firebase, Google Cloud CLI and npm to Dev CLIs and the rest to AI agents", () => {
+  it("assigns the cloud, hosting and package-manager CLIs to Dev CLIs and the rest to AI agents", () => {
     const dev = registry.filter((t) => t.group === "dev").map((t) => t.id);
-    expect(dev).toEqual(["firebase", "gcloud", "npm"]);
-    expect(registry.filter((t) => t.group === "agents")).toHaveLength(registry.length - 3);
+    expect(dev).toEqual(["firebase", "gcloud", "npm", "wrangler", "vercel", "netlify", "supabase", "gh"]);
+    expect(registry.filter((t) => t.group === "agents").map((t) => t.id)).toEqual([
+      "claude", "codex", "copilot", "cursor", "opencode", "gemini", "antigravity", "qwen", "kimi", "aider", "vibe", "cline", "amp", "kiro", "goose",
+    ]);
   });
 
   it("puts a dim heading above each group, agents first, order kept inside a group", () => {

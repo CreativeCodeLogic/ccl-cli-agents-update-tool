@@ -7,11 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Toward 1.1.0 (Dev CLIs & more agents), Round A: foundations, no new tools yet.
+Toward 1.1.0 (Dev CLIs & more agents).
+
+### Added (Round B: 11 new tools, 23 in total)
+
+- Dev CLIs: Wrangler (with Cloudflare's per-project advice), Vercel CLI, Netlify CLI, Supabase CLI (all plans are commands; project copies via the `supabase` package) and GitHub CLI (winget/MSI, Homebrew, apt, dnf, zypper, Scoop, Chocolatey, snap; always a command).
+- AI agents: Aider and Mistral Vibe (uv/pipx/pip), Cline CLI (npm), Amp (install script, Homebrew tap, npm; a note to migrate from the old `@sourcegraph/amp` name), Kiro CLI (installer self-update, Homebrew cask, dnf; latest from Kiro's release manifest) and Goose (install script with `goose update`, Homebrew `block-goose-cli`; releases from aaif-goose/goose).
+- Generic binary names (`amp`, `goose`, `vibe`, `cline`) are identified by install location or package metadata before a row is shown; the Amp text editor and pressly/goose count as not installed and are never run.
+- Shared GitHub-releases lookup: one request per repository per run, cached for an hour, stale-cache fallback on a rate limit (reason under CCL_CAUT_DEBUG).
+- The table compacts step by step to fit the terminal width (80 columns with every tool installed).
+- `--doctor` also checks Kiro's release server.
+
+### Changed
+
+- The config file stays readable by 1.0.x: `schema: 1` with new settings as extra keys (`hiddenGroups`), so a downgrade keeps the remembered selections. Files written as schema 2 by development builds are rewritten on load.
+
+Round A: foundations.
 
 ### Added
 
-- Tool groups: the table and checklist are split into AI agents and Dev CLIs (Firebase, Google Cloud CLI, npm). `--only agents|dev` for one run; `--hide-group` / `--show-group` persist it (config schema 2, migrated from 1). `--discover` and `--json` always cover every group; `--json` adds `group` per tool and `hiddenGroups`.
+- Tool groups: the table and checklist are split into AI agents and Dev CLIs (Firebase, Google Cloud CLI, npm). `--only agents|dev` for one run; `--hide-group` / `--show-group` persist it in the config. `--discover` and `--json` always cover every group; `--json` adds `group` per tool and `hiddenGroups`.
 - Info notes on rows (dim cyan "i"), never changing state or preselection; `notes` in `--json`.
 - Project-copy check: inside a project whose package.json pins a supported CLI, a note says the global update won't affect it (with the version in node_modules); `projectPin` in `--json`. Read-only.
 - Python tool detection shared by all PyPI-distributed CLIs: uv and pipx install methods (documented locations, UV_TOOL_DIR, PIPX_HOME, legacy pipx homes) and pip, version from dist-info METADATA; uv/pipx update automatically, pip gets a command (PEP 668). Legacy kimi-cli now uses it.

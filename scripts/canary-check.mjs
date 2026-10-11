@@ -1,9 +1,9 @@
-// Canary assertions: every listed tool must be detected as an npm install with a
-// parsed installed version and a resolved latest version.
-// Usage: node scripts/canary-check.mjs scan.json claude codex ...
+// Canary assertions: every listed tool must be detected with the expected install
+// method (default npm), a parsed installed version and a resolved latest version.
+// Usage: node scripts/canary-check.mjs scan.json claude codex aider=uv vibe=pipx ...
 import { readFileSync } from "node:fs";
 
-const [file, ...ids] = process.argv.slice(2);
+const [file, ...specs] = process.argv.slice(2);
 let report;
 try {
   report = JSON.parse(readFileSync(file, "utf8"));
@@ -13,13 +13,14 @@ try {
 }
 
 const problems = [];
-for (const id of ids) {
+for (const spec of specs) {
+  const [id, expected = "npm"] = spec.split("=");
   const tool = report.tools?.find((t) => t.id === id);
   const issues = [];
   if (!tool) issues.push("not in the registry");
   else {
     if (!tool.installed) issues.push("not detected");
-    if (tool.installed && tool.installMethod !== "npm") issues.push(`install method ${tool.installMethod}, expected npm`);
+    if (tool.installed && tool.installMethod !== expected) issues.push(`install method ${tool.installMethod}, expected ${expected}`);
     if (tool.installed && !tool.installedVersion) issues.push("installed version not parsed");
     if (!tool.latestVersion) issues.push("latest version not resolved");
   }
@@ -32,8 +33,9 @@ for (const id of ids) {
   }
 }
 
+if (report.network?.failures?.length) console.log(`network failures: ${JSON.stringify(report.network.failures)}`);
 if (problems.length > 0) {
   for (const p of problems) console.error(`::error::${p}`);
   process.exit(1);
 }
-console.log(`All ${ids.length} tools detected via npm.`);
+console.log(`All ${specs.length} tools detected as expected.`);

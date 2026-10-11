@@ -6,7 +6,7 @@ import { renderDiscovery } from "../src/ui/discover";
 
 describe("discovery", () => {
   it("gives every supported tool a description and an https official-docs URL", () => {
-    expect(registry).toHaveLength(12);
+    expect(registry).toHaveLength(23);
     for (const tool of registry) {
       expect(tool.description.length, tool.id).toBeGreaterThan(10);
       expect(tool.docsUrl, tool.id).toMatch(/^https:[/][/][a-z0-9.-]+[.][a-z]+[/]/);
@@ -24,7 +24,7 @@ describe("discovery", () => {
       expect(text).toContain(tool.docsUrl);
     }
     expect(text).toContain("2.1.296");
-    expect(text.match(/not installed/g)).toHaveLength(11);
+    expect(text.match(/not installed/g)).toHaveLength(22);
     expect(text).not.toMatch(/npm (i|install) |brew install|winget install|curl .*[|] *(ba)?sh|irm .*iex/);
   });
 });

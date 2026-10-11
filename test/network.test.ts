@@ -254,7 +254,8 @@ describe("ccl-caut --doctor", () => {
     expect(text).toContain("HTTPS_PROXY  http://***@corp:3128");
     expect(text).not.toContain("pw@");
     expect(text).toMatch(/cache\s+/);
-    expect(text).toContain("2 of 4 version servers unreachable: api.github.com, pypi.org.");
+    expect(text).toContain("2 of 5 version servers unreachable: api.github.com, pypi.org.");
+    expect(text).toContain("✔ prod.download.cli.kiro.dev");
   });
 });
 

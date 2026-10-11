@@ -1,12 +1,12 @@
 import type { ToolDescriptor, UpdatePlan } from "../types";
-import { fetchJson, stringField } from "../utils/http";
+import { fetchLatestGithubRelease } from "../utils/github";
 import { versionFromCommand } from "./shared";
 
 // antigravity.google/docs/cli/install: install scripts put `agy` in ~/.local/bin
 // (POSIX) or %LOCALAPPDATA%/agy/bin (Windows); `agy update` updates it, and it
 // also self-updates in the background. Not on npm. Releases are published at
 // github.com/google-antigravity/antigravity-cli (tags without "v").
-const RELEASES_URL = "https://api.github.com/repos/google-antigravity/antigravity-cli/releases/latest";
+const RELEASES_REPO = "google-antigravity/antigravity-cli";
 
 export const antigravity: ToolDescriptor = {
   id: "antigravity",
@@ -18,10 +18,7 @@ export const antigravity: ToolDescriptor = {
   binNames: ["agy"],
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),
   getInstalledVersion: (instance) => versionFromCommand(instance.path),
-  async getLatestVersion() {
-    const tag = stringField(await fetchJson(RELEASES_URL), "tag_name");
-    return tag ? tag.replace(/^v/, "") : null;
-  },
+  getLatestVersion: () => fetchLatestGithubRelease(RELEASES_REPO),
   async getUpdatePlan(instance): Promise<UpdatePlan> {
     switch (instance.installMethod) {
       case "brew":

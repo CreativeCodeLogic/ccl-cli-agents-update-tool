@@ -1,8 +1,9 @@
 name: Canary
 
 # Catches upstream changes (package renames, new bin names, moved installs) by
-# installing the npm-distributed CLIs for real and checking that ccl-caut still
-# detects each one via npm with a parsed version and a resolved latest version.
+# installing the npm- and PyPI-distributed CLIs for real and checking that ccl-caut
+# still detects each one with the right install method (npm, uv, pipx), a parsed
+# version and a resolved latest version.
 on:
   workflow_dispatch:
   schedule:
@@ -17,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Copilot and Qwen Code need Node 22+.
+      # Copilot and Qwen Code need Node 22+; Wrangler and Netlify CLI need 22.13+.
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -29,7 +30,7 @@ jobs:
       - name: Install the npm-distributed CLIs
         run: |
           failed=()
-          for pkg in @anthropic-ai/claude-code @openai/codex @github/copilot opencode-ai @google/gemini-cli @qwen-code/qwen-code firebase-tools; do
+          for pkg in @anthropic-ai/claude-code @openai/codex @github/copilot opencode-ai @google/gemini-cli @qwen-code/qwen-code firebase-tools wrangler vercel netlify-cli cline @ampcode/cli; do
             echo "::group::npm install -g $pkg"
             npm install -g "$pkg" || failed+=("$pkg")
             echo "::endgroup::"
@@ -64,4 +65,51 @@ jobs:
       - name: Check detection
         run: |
           node dist/index.js --json --refresh > scan.json || true
-          node scripts/canary-check.mjs scan.json claude codex copilot opencode gemini qwen firebase
+          node scripts/canary-check.mjs scan.json claude codex copilot opencode gemini qwen firebase wrangler vercel netlify cline amp
+
+  # PyPI tools installed with uv (aider-install and the Vibe install script both use uv tool).
+  canary-uv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install uv, then Aider and Mistral Vibe as uv tools
+        run: |
+          pipx install uv
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          # Aider pins Python 3.12 the way aider-install does; Vibe needs 3.12+.
+          timeout 600 "$HOME/.local/bin/uv" tool install --python python3.12 aider-chat
+          timeout 600 "$HOME/.local/bin/uv" tool install mistral-vibe
+          "$HOME/.local/bin/uv" tool list
+      - name: Check detection
+        run: |
+          node dist/index.js --json --refresh > scan.json || true
+          node scripts/canary-check.mjs scan.json aider=uv vibe=uv
+
+  # The same kind of tool through pipx (separate job: uv and pipx would share ~/.local/bin).
+  canary-pipx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Mistral Vibe with pipx
+        run: |
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          timeout 600 pipx install --python python3.12 mistral-vibe
+          pipx list
+      - name: Check detection
+        run: |
+          node dist/index.js --json --refresh > scan.json || true
+          node scripts/canary-check.mjs scan.json vibe=pipx
