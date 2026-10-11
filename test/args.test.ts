@@ -5,7 +5,7 @@ describe("parseArgs", () => {
   it("defaults to the interactive flow", () => {
     expect(parseArgs([])).toEqual({
       ok: true,
-      options: { check: false, json: false, refresh: false, discover: false, doctor: false, noClear: false, resetSelection: false, yes: false, demo: false, help: false, version: false },
+      options: { only: null, hideGroup: null, showGroup: null, check: false, json: false, refresh: false, discover: false, doctor: false, noClear: false, resetSelection: false, yes: false, demo: false, help: false, version: false },
     });
   });
 
@@ -13,8 +13,17 @@ describe("parseArgs", () => {
     const parsed = parseArgs(["--check", "--json", "--refresh", "--discover", "--doctor", "--no-clear", "--reset-selection", "-y", "--demo", "--no-color", "-h", "-v"]);
     expect(parsed).toEqual({
       ok: true,
-      options: { check: true, json: true, refresh: true, discover: true, doctor: true, noClear: true, resetSelection: true, yes: true, demo: true, help: true, version: true },
+      options: { only: null, hideGroup: null, showGroup: null, check: true, json: true, refresh: true, discover: true, doctor: true, noClear: true, resetSelection: true, yes: true, demo: true, help: true, version: true },
     });
+  });
+
+  it("parses the group flags (space or =) and rejects other values", () => {
+    expect(parseArgs(["--only", "dev"])).toMatchObject({ ok: true, options: { only: "dev" } });
+    expect(parseArgs(["--only=agents"])).toMatchObject({ ok: true, options: { only: "agents" } });
+    expect(parseArgs(["--hide-group", "dev", "--show-group", "agents"])).toMatchObject({ ok: true, options: { hideGroup: "dev", showGroup: "agents" } });
+    expect(parseArgs(["--only"])).toEqual({ ok: false, error: "--only needs a group: agents or dev" });
+    expect(parseArgs(["--only", "games"])).toEqual({ ok: false, error: "--only needs a group: agents or dev" });
+    expect(parseArgs(["--hide-group", "dev", "--show-group", "dev"])).toEqual({ ok: false, error: "--hide-group and --show-group both name dev" });
   });
 
   it("rejects unknown options", () => {

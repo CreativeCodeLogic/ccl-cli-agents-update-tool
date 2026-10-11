@@ -10,6 +10,7 @@ const RELEASES_URL = "https://api.github.com/repos/google-antigravity/antigravit
 
 export const antigravity: ToolDescriptor = {
   id: "antigravity",
+  group: "agents",
   name: "Antigravity CLI",
   shortName: "Antigravity",
   description: "Google's Antigravity CLI (agy), Gemini CLI's successor",

@@ -57,6 +57,7 @@ function nativePlan(instance: BinaryInstance, host: Host): UpdatePlan {
 
 export const gcloud: ToolDescriptor = {
   id: "gcloud",
+  group: "dev",
   name: "Google Cloud CLI",
   shortName: "gcloud",
   description: "Manage Google Cloud resources (gcloud, bq, gsutil)",

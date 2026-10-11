@@ -1,4 +1,4 @@
-import type { ToolScan } from "./types";
+import type { ToolGroup, ToolScan } from "./types";
 
 /** Remembered per-tool choice from the last confirmed checklist. */
 export type ToolChoice = "update" | "skip";
@@ -9,6 +9,9 @@ export interface SelectionStore {
   readonly toolChoices: ToolChoices;
   saveChoices(choices: Record<string, ToolChoice>): void;
   reset(): void;
+  /** Groups hidden with --hide-group. */
+  readonly hiddenGroups: readonly ToolGroup[];
+  setGroupHidden(group: ToolGroup, hidden: boolean): void;
 }
 
 /**

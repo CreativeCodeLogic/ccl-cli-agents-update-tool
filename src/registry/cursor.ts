@@ -31,6 +31,7 @@ export function cursorVersionFromPath(instance: Pick<BinaryInstance, "realPath">
 
 export const cursor: ToolDescriptor = {
   id: "cursor",
+  group: "agents",
   name: "Cursor CLI",
   shortName: "Cursor",
   description: "Cursor's coding agent for the terminal (agent)",

@@ -9,6 +9,9 @@ export interface NpmPackageToolConfig {
   /** npm package that ships the CLI; also the source of "latest". */
   pkg: string;
   shortName?: string;
+  group: ToolDescriptor["group"];
+  /** npm packages a project would pin, when they differ from `pkg`. */
+  projectPackages?: string[];
   description: string;
   docsUrl: string;
   deprecation?: ToolDescriptor["deprecation"];
@@ -31,8 +34,10 @@ export function createNpmPackageTool(config: NpmPackageToolConfig): ToolDescript
   return {
     id: config.id,
     name: config.name,
+    group: config.group,
     binNames: config.binNames,
     npmPackage: pkg,
+    ...(config.projectPackages && { projectPackages: config.projectPackages }),
     description: config.description,
     docsUrl: config.docsUrl,
     ...(config.shortName && { shortName: config.shortName }),

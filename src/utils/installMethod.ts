@@ -13,7 +13,14 @@ export interface ClassifyContext {
 const NODE_BUNDLED = new Set(["npm", "npx", "corepack"]);
 /** Homebrew-managed packages live in Cellar (formulae) or Caskroom (casks); a bare Homebrew prefix is not enough. */
 const BREW_SEGMENTS = new Set(["cellar", "caskroom"]);
-const PIP_SEGMENTS = ["/site-packages/", "/pipx/", "/uv/tools/"];
+/** Python package managers, recognized by their environment folders (see python.ts for the documented roots). */
+const PYTHON_SEGMENTS: [string, InstallMethod][] = [
+  ["/uv/tools/", "uv"],
+  ["/uv/data/tools/", "uv"],
+  ["/pipx/venvs/", "pipx"],
+  ["/site-packages/", "pip"],
+  ["/dist-packages/", "pip"],
+];
 /** bin directories that only Homebrew populates (Intel /usr/local/bin is shared, so it needs the Cellar check). */
 const HOMEBREW_BIN_DIRS = new Set(["/opt/homebrew/bin", "/home/linuxbrew/.linuxbrew/bin"]);
 
@@ -109,7 +116,7 @@ export function classifyInstall(binPath: string, realPath: string, ctx: Classify
   // Volta shims resolve to Volta itself, not to node_modules.
   if (isVoltaPath(binPath, host)) return "npm";
 
-  if (any((p) => PIP_SEGMENTS.some((s) => p.includes(s)))) return "pip";
+  for (const [segment, method] of PYTHON_SEGMENTS) if (any((p) => p.includes(segment))) return method;
 
   if (isWindows) {
     const manager = windowsPackageManager(binPath, host) ?? windowsPackageManager(realPath, host);

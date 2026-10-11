@@ -104,15 +104,15 @@ describe("Kimi Code", () => {
   });
 
   it.each([
-    [`${linuxHome}/.local/share/uv/tools/kimi-cli/bin/kimi`, "uv tool upgrade kimi-cli"],
-    [`${linuxHome}/.local/share/pipx/venvs/kimi-cli/bin/kimi`, "pipx upgrade kimi-cli"],
-    ["/usr/lib/python3/site-packages/kimi/bin/kimi", "pip install -U kimi-cli"],
-  ])("prints the legacy kimi-cli upgrade for %s", async (realPath, command) => {
-    expect(await kimi.getUpdatePlan(instance(`${linuxHome}/.local/bin/kimi`, "pip", realPath))).toMatchObject({ kind: "manual", command });
+    [`${linuxHome}/.local/share/uv/tools/kimi-cli/bin/kimi`, "uv", "uv tool upgrade kimi-cli"],
+    [`${linuxHome}/.local/share/pipx/venvs/kimi-cli/bin/kimi`, "pipx", "pipx upgrade kimi-cli"],
+    ["/usr/lib/python3/site-packages/kimi/bin/kimi", "pip", "python -m pip install --upgrade kimi-cli"],
+  ] as const)("prints the legacy kimi-cli upgrade for %s (never runs it: the product is archived)", async (realPath, method, command) => {
+    expect(await kimi.getUpdatePlan(instance(`${linuxHome}/.local/bin/kimi`, method, realPath))).toMatchObject({ kind: "manual", command });
   });
 
   it("uses PyPI only for the legacy channel", () => {
-    expect(kimi.latestChannel?.("pip")).toBe("pypi");
+    for (const m of ["uv", "pipx", "pip"] as const) expect(kimi.latestChannel?.(m)).toBe("pypi");
     expect(kimi.latestChannel?.("native")).toBe("npm");
     expect(kimi.latestChannel?.()).toBe("npm");
   });
@@ -121,8 +121,12 @@ describe("Kimi Code", () => {
     const home = win("C:/Users/Jane");
     const appData = win(`${home}/AppData/Roaming`);
     const bin = win(`${home}/.local/bin/kimi.exe`);
-    useHost(fakeHost({ platform: "win32", homedir: home, env: { APPDATA: appData }, files: [win(`${appData}/uv/tools/kimi-cli/pyvenv.cfg`)] }));
-    expect(kimi.refineInstallMethod?.("native", { path: bin, realPath: bin })).toBe("pip");
+    // Documented location (uv storage reference): APPDATA/uv/data/tools; older uv used APPDATA/uv/tools.
+    for (const tools of [`${appData}/uv/data/tools`, `${appData}/uv/tools`]) {
+      const dist = win(`${tools}/kimi-cli/Lib/site-packages/kimi_cli-1.52.0.dist-info/METADATA`);
+      useHost(fakeHost({ platform: "win32", homedir: home, env: { APPDATA: appData }, texts: { [dist]: "Name: kimi-cli" + String.fromCharCode(10) + "Version: 1.52.0" } }));
+      expect(kimi.refineInstallMethod?.("native", { path: bin, realPath: bin })).toBe("uv");
+    }
     useHost(fakeHost({ platform: "win32", homedir: home, env: { APPDATA: appData } }));
     expect(kimi.refineInstallMethod?.("native", { path: bin, realPath: bin })).toBe("native");
   });

@@ -1,8 +1,10 @@
 import type { BinaryInstance, InstallMethod, ToolDescriptor, UpdatePlan } from "../types";
-import { envVar, getHost, pathFor, type Host } from "../utils/host";
-import { fetchJson, stringField } from "../utils/http";
+import { getHost, pathFor, type Host } from "../utils/host";
 import { fetchLatestNpmVersion, readPackageVersionNear } from "../utils/npm";
-import { isInside, normalizePath } from "../utils/paths";
+import { isInside } from "../utils/paths";
+import { fetchLatestPypiVersion } from "../utils/pypi";
+import { distInfoVersion, pythonUpdatePlan } from "../utils/python";
+import { pythonInstallOf } from "./python-package-tool";
 import { extractVersion } from "../utils/version";
 import { npmGlobalPlan, versionFromCommand } from "./shared";
 
@@ -18,23 +20,8 @@ const NPM_PKG = "@moonshot-ai/kimi-code";
 const LEGACY_PYPI_PKG = "kimi-cli";
 const WINDOWS_INSTALLER = "https://code.kimi.com/kimi-code/install.ps1";
 
-/** Directories where uv keeps tool environments. */
-export function uvToolDirs(host: Host): string[] {
-  const path = pathFor(host.platform);
-  const dirs = [envVar(host, "UV_TOOL_DIR")];
-  if (host.platform === "win32") {
-    const appData = envVar(host, "APPDATA");
-    dirs.push(appData && path.join(appData, "uv", "tools"));
-  }
-  dirs.push(path.join(envVar(host, "XDG_DATA_HOME") ?? path.join(host.homedir, ".local", "share"), "uv", "tools"));
-  return dirs.filter((d): d is string => Boolean(d));
-}
-
-/** uv on Windows copies launchers into ~/.local/bin, which looks "native" by path alone. */
-function isLegacyUvInstall(host: Host): boolean {
-  const path = pathFor(host.platform);
-  return uvToolDirs(host).some((dir) => host.fs.exists(path.join(dir, LEGACY_PYPI_PKG)));
-}
+const PYTHON_METHODS: readonly InstallMethod[] = ["uv", "pipx", "pip"];
+const isPython = (method: InstallMethod | undefined) => method !== undefined && PYTHON_METHODS.includes(method);
 
 /**
  * Installed version of a native Kimi Code install without spawning it (~1.2s):
@@ -61,22 +48,24 @@ export function nativeVersionFromUpdaterLog(instance: BinaryInstance, host: Host
   }
 }
 
-function legacyPlan(instance: BinaryInstance, host: Host): UpdatePlan {
-  const p = normalizePath(instance.realPath, host.platform);
-  const command = p.includes("/pipx/")
-    ? `pipx upgrade ${LEGACY_PYPI_PKG}`
-    : p.includes("/uv/") || isLegacyUvInstall(host)
-      ? `uv tool upgrade ${LEGACY_PYPI_PKG}`
-      : `pip install -U ${LEGACY_PYPI_PKG}`;
+/**
+ * The archived Python Kimi CLI stays a command to copy (nudging towards Kimi
+ * Code), with the upgrade command of the manager that installed it.
+ */
+function legacyPlan(instance: BinaryInstance): UpdatePlan {
+  const install = pythonInstallOf(instance, LEGACY_PYPI_PKG);
+  const kind = install?.kind ?? (instance.installMethod === "uv" || instance.installMethod === "pipx" ? instance.installMethod : "pip");
+  const plan = pythonUpdatePlan(install ?? { kind, sitePackages: "", venv: null, userSite: false }, LEGACY_PYPI_PKG, true);
   return {
     kind: "manual",
-    command,
+    command: plan.kind === "auto" ? plan.command.join(" ") : plan.command,
     reason: `Legacy Python Kimi CLI (archived). Consider Kimi Code: npm install -g ${NPM_PKG}, then kimi migrate.`,
   };
 }
 
 export const kimi: ToolDescriptor = {
   id: "kimi",
+  group: "agents",
   name: "Kimi Code",
   shortName: "Kimi",
   description: "Moonshot AI's Kimi Code agent for the terminal",
@@ -85,10 +74,12 @@ export const kimi: ToolDescriptor = {
   npmPackage: NPM_PKG,
 
   refineInstallMethod(method, instance) {
+    if (isPython(method)) return pythonInstallOf(instance, LEGACY_PYPI_PKG)?.kind ?? method;
+    // uv's Windows launchers (and pipx/uv shims) sit in ~/.local/bin, which looks native by path alone.
     const host = getHost();
     const userBin = pathFor(host.platform).join(host.homedir, ".local", "bin");
-    if (method === "native" && host.platform === "win32" && isInside(instance.path, userBin, host.platform)) {
-      return isLegacyUvInstall(host) ? "pip" : method;
+    if (method === "native" && isInside(instance.path, userBin, host.platform)) {
+      return pythonInstallOf(instance, LEGACY_PYPI_PKG)?.kind ?? method;
     }
     return method;
   },
@@ -102,17 +93,18 @@ export const kimi: ToolDescriptor = {
       const fromPkg = await readPackageVersionNear(instance.path, instance.realPath, NPM_PKG);
       if (fromPkg) return fromPkg;
     }
+    if (isPython(instance.installMethod)) {
+      const install = pythonInstallOf(instance, LEGACY_PYPI_PKG);
+      const fromMetadata = install && distInfoVersion(install.sitePackages, LEGACY_PYPI_PKG, getHost());
+      if (fromMetadata) return fromMetadata;
+    }
     return versionFromCommand(instance.path);
   },
 
-  latestChannel: (method) => (method === "pip" ? "pypi" : "npm"),
+  latestChannel: (method) => (isPython(method) ? "pypi" : "npm"),
 
   async getLatestVersion(method?: InstallMethod) {
-    if (method === "pip") {
-      const pypi = await fetchJson(`https://pypi.org/pypi/${LEGACY_PYPI_PKG}/json`);
-      return stringField((pypi as { info?: unknown } | null)?.info, "version");
-    }
-    return fetchLatestNpmVersion(NPM_PKG);
+    return isPython(method) ? fetchLatestPypiVersion(LEGACY_PYPI_PKG) : fetchLatestNpmVersion(NPM_PKG);
   },
 
   async getUpdatePlan(instance) {
@@ -131,8 +123,10 @@ export const kimi: ToolDescriptor = {
           };
         }
         return { kind: "auto", command: [instance.path, "upgrade"] }; // documented self-updater
+      case "uv":
+      case "pipx":
       case "pip":
-        return legacyPlan(instance, getHost());
+        return legacyPlan(instance);
       default:
         return {
           kind: "manual",

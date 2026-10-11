@@ -3,7 +3,7 @@ import { LatestResolver } from "../scan";
 import type { ProcessInfo } from "../processes";
 import type { InstallContext } from "../self";
 import type { SelectionStore, ToolChoice } from "../selection";
-import type { BinaryInstance, ToolDescriptor } from "../types";
+import type { BinaryInstance, ToolDescriptor, ToolGroup } from "../types";
 import type { UpdateExecutor } from "../ui/update";
 import type { FsProbe, Host } from "../utils/host";
 import { setHost } from "../utils/host";
@@ -96,6 +96,7 @@ function demoHost(): Host {
     isWritable: (p) => [HOME, "/usr/local"].some((root) => norm(p) === root || norm(p).startsWith(`${root}/`)),
     readText: () => null,
     mtimeMs: () => null,
+    list: () => [],
   };
   return {
     platform: "linux",
@@ -114,6 +115,8 @@ export interface DemoOptions {
 
 export interface DemoRuntime {
   tools: ToolDescriptor[];
+  /** No project-copy check in the demo (it never reads the current folder). */
+  cwd: null;
   host: Host;
   latest: LatestResolver;
   selections: SelectionStore;
@@ -129,9 +132,16 @@ export interface DemoRuntime {
 /** Remembered selections for the demo: in memory only, never the user's config file. */
 function memorySelections(initial: Record<string, ToolChoice>): SelectionStore {
   let choices = { ...initial };
+  let hidden: ToolGroup[] = [];
   return {
     get toolChoices() {
       return choices;
+    },
+    get hiddenGroups() {
+      return hidden;
+    },
+    setGroupHidden: (group, isHidden) => {
+      hidden = isHidden ? [...new Set([...hidden, group])] : hidden.filter((g) => g !== group);
     },
     saveChoices: (next) => {
       choices = { ...next };
@@ -183,6 +193,7 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
     freshLatest: () => new LatestResolver(null),
     elevated: Promise.resolve(false),
     listProcesses: async () => [{ pid: 4242, commandLine: "node /usr/local/lib/node_modules/@openai/codex/bin/codex.js" }],
+    cwd: null,
     selections: memorySelections(DEMO_CHOICES),
     executor,
     selfFixture: { latest: "1.0.1", context: "global" },

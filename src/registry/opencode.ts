@@ -19,6 +19,7 @@ function npmPackageOf(instance: BinaryInstance): string {
 
 export const opencode: ToolDescriptor = {
   id: "opencode",
+  group: "agents",
   name: "OpenCode",
   description: "Open-source AI coding agent for the terminal",
   docsUrl: "https://opencode.ai/docs",

@@ -9,6 +9,7 @@ function fakeTool(overrides: Partial<ToolDescriptor> = {}): ToolDescriptor {
   return {
     id: "tool",
     name: "Tool",
+    group: "agents",
     description: "A test tool",
     docsUrl: "https://example.test/install",
     binNames: ["tool"],

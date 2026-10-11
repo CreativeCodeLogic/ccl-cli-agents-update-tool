@@ -5,12 +5,43 @@ export type InstallMethod =
   | "node"
   | "brew"
   | "pip"
+  | "uv"
+  | "pipx"
   | "apt"
   | "snap"
   | "winget"
   | "choco"
   | "scoop"
   | "unknown";
+
+/** Table/checklist section: AI coding agents, or developer CLIs (cloud, hosting, package managers). */
+export type ToolGroup = "agents" | "dev";
+
+export const TOOL_GROUPS: readonly ToolGroup[] = ["agents", "dev"];
+
+/** Heading shown above each group. */
+export const GROUP_LABELS: Record<ToolGroup, string> = { agents: "AI agents", dev: "Dev CLIs" };
+
+/**
+ * Advice shown after the table (dim cyan "i"). It never changes a row's state
+ * or whether the tool is preselected.
+ */
+export interface ToolNote {
+  kind: "info";
+  message: string;
+  url?: string;
+}
+
+/** The current project pins its own copy of a tool (see project.ts). Read-only. */
+export interface ProjectPin {
+  /** package.json that declares it. */
+  packageJson: string;
+  pkg: string;
+  range: string;
+  field: "dependencies" | "devDependencies" | "optionalDependencies";
+  /** Version in the project's node_modules, when installed. */
+  installedVersion: string | null;
+}
 
 /** A tool that still works for some users but has been retired or replaced. */
 export interface Deprecation {
@@ -50,14 +81,23 @@ export interface ToolDescriptor {
   binNames: string[];
   /** Short name for compact lists (defaults to `name`). */
   shortName?: string;
+  /** Section in the table and checklist. */
+  group: ToolGroup;
   /** One line for --discover. */
   description: string;
   /** The tool's OFFICIAL install docs (ccl-caut never installs tools). */
   docsUrl: string;
-  /** npm package that ships this CLI, if any (used in messages). */
+  /** npm package that ships this CLI, if any (used in messages and the project-copy check). */
   npmPackage?: string;
+  /**
+   * npm packages a project would pin for this tool, when they differ from
+   * npmPackage (e.g. a CLI shipped natively whose project package is "supabase").
+   */
+  projectPackages?: string[];
   /** Retired/replaced: shown as "retired" and never preselected for updates. */
   deprecation?: Deprecation;
+  /** Vendor advice shown as info notes after the table (never changes state or preselection). */
+  notes?: ToolNote[];
   /**
    * The tool updates itself and has no public latest-version source: an unknown
    * latest version is shown as "updates itself" (not "unknown"), and its own
@@ -120,6 +160,7 @@ export interface ToolScan {
   id: string;
   name: string;
   shortName: string;
+  group: ToolGroup;
   docsUrl: string;
   installed: boolean;
   installMethod: InstallMethod | null;
@@ -136,4 +177,8 @@ export interface ToolScan {
   plan: UpdatePlan | null;
   shadowed: ShadowedInstall[];
   deprecation: Deprecation | null;
+  /** Info notes for this row (vendor advice, project pins); never affect state or preselection. */
+  notes: ToolNote[];
+  /** The project in the current directory pins its own copy of this tool. */
+  projectPin: ProjectPin | null;
 }

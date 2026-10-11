@@ -39,14 +39,29 @@ const UPGRADE_COMMAND: Record<InstallContext, string | null> = {
   source: null, // a checkout updates with git
 };
 
-/** "ccl-caut 1.0.1 is available · npm i -g ccl-caut", or null when there is nothing to say. */
-export function selfUpdateNotice(current: string, latest: string | null, context: InstallContext | null): string | null {
-  if (!latest || !context) return null;
-  const command = UPGRADE_COMMAND[context];
+/** The same commands for the beta channel (the "next" dist-tag). */
+const NEXT_COMMAND: Record<InstallContext, string | null> = {
+  npx: "npx ccl-caut@next",
+  global: "npm i -g ccl-caut@next",
+  project: "npm i ccl-caut@next",
+  source: null,
+};
+
+/**
+ * "ccl-caut 1.0.1 is available · npm i -g ccl-caut", or null when there is
+ * nothing to say. Beta users (a prerelease `current`) are compared against both
+ * dist-tags and pointed at the higher one; stable users only ever see `latest`.
+ * Never suggests a downgrade.
+ */
+export function selfUpdateNotice(current: string, latest: string | null, context: InstallContext | null, next: string | null = null): string | null {
+  if (!context) return null;
   const a = semver.valid(current);
-  const b = semver.valid(latest);
-  if (!command || !a || !b || !semver.gt(b, a)) return null;
-  return `ccl-caut ${latest} is available · ${command}`;
+  if (!a) return null;
+  const candidates: { version: string; command: string | null }[] = [];
+  if (latest && semver.valid(latest)) candidates.push({ version: latest, command: UPGRADE_COMMAND[context] });
+  if (next && semver.valid(next) && semver.prerelease(a)) candidates.push({ version: next, command: NEXT_COMMAND[context] });
+  const best = candidates.filter((c) => c.command && semver.gt(c.version, a)).sort((x, y) => semver.rcompare(x.version, y.version))[0];
+  return best ? `ccl-caut ${best.version} is available · ${best.command}` : null;
 }
 
 /** Off in CI and with CCL_CAUT_NO_UPDATE_CHECK=1. */
@@ -63,12 +78,13 @@ export function createNoticeSlot(
   current: string,
   context: InstallContext | null,
   latest: () => string | null,
+  next: () => string | null = () => null,
 ): { take(): string | null } {
   let shown = false;
   return {
     take() {
       if (shown) return null;
-      const notice = selfUpdateNotice(current, latest(), context);
+      const notice = selfUpdateNotice(current, latest(), context, next());
       if (notice) shown = true;
       return notice;
     },

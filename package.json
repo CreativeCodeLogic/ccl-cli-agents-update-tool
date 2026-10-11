@@ -38,7 +38,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "prepublishOnly": "node scripts/publish-guard.mjs && npm run typecheck && npm test && npm run build",
     "prepack": "node scripts/pack-readme.mjs swap",
     "postpack": "node scripts/pack-readme.mjs restore",
     "readme:npm": "node scripts/npm-readme.mjs"

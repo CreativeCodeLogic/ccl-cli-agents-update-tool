@@ -26,6 +26,8 @@ import { printNotes, renderTable } from "./ui/table";
 import { CANCELLED, checklist, choose, QUIT, RETRY } from "./ui/prompts";
 import { getNetwork, networkProblem } from "./utils/http";
 import { doctorReport } from "./doctor";
+import { findProjectManifest, type ProjectManifest } from "./project";
+import { GROUP_LABELS, TOOL_GROUPS, type ToolGroup } from "./types";
 import { tone } from "./ui/theme";
 import { applyUpdates, type UpdateExecutor, type UpdateOutcome, type UpdateTarget } from "./ui/update";
 import { helpText, parseArgs, type CliOptions } from "./utils/args";
@@ -33,7 +35,7 @@ import { VersionCache } from "./utils/cache";
 import { UserConfig } from "./utils/config";
 import { detectElevation } from "./utils/elevation";
 import { getHost, pathFor, setHost, type Host } from "./utils/host";
-import { fetchLatestNpmVersion } from "./utils/npm";
+import { fetchDistTags } from "./utils/npm";
 
 const VERSION = pkg.version;
 
@@ -58,6 +60,10 @@ function networkIssueLine(results: readonly ToolScan[]): string | null {
 /** What a run works against: the real machine, or the --demo fixture. */
 interface Runtime {
   tools: readonly ToolDescriptor[];
+  /** Folder whose package.json the project-copy check reads (null: no check, e.g. the demo). */
+  cwd: string | null;
+  /** "Dev CLIs hidden · --show-group dev" when a group is left out of this run. */
+  hiddenNote?: string | null;
   host: Host;
   /** Replaced on Rescan. */
   latest: LatestResolver;
@@ -83,8 +89,14 @@ interface SelfCheck {
   immediate: string | null;
   /** Latest version if the background lookup has finished by now; never awaited. */
   settled(): string | null;
+  /** The "next" (beta) dist-tag, looked up only when this copy is itself a prerelease. */
+  next(): string | null;
   context: InstallContext | null;
 }
+
+/** Cache key of ccl-caut's beta channel (dist-tag "next"). */
+const SELF_NEXT_KEY = "ccl-caut:self-next";
+const isPrerelease = (version: string) => /^\d+\.\d+\.\d+-/.test(version);
 
 /**
  * Look up ccl-caut's own latest version in the background. It is never awaited,
@@ -94,28 +106,36 @@ interface SelfCheck {
 function startSelfCheck(runtime: Runtime): SelfCheck {
   if (runtime.selfFixture) {
     const { latest, context } = runtime.selfFixture;
-    return { immediate: latest, settled: () => latest, context };
+    return { immediate: latest, settled: () => latest, next: () => null, context };
   }
-  if (!selfCheckEnabled(process.env)) return { immediate: null, settled: () => null, context: null };
+  if (!selfCheckEnabled(process.env)) return { immediate: null, settled: () => null, next: () => null, context: null };
 
   const { host } = runtime;
   const entryPath = host.fs.realpath(process.argv[1] ?? "");
   const parent = nodeModulesParent(entryPath, host.platform);
   const insideProject = parent !== null && host.fs.exists(pathFor(host.platform).join(parent, "package.json"));
   const context = detectInstallContext({ entryPath, env: process.env, insideProject, platform: host.platform });
-  if (context === "source") return { immediate: null, settled: () => null, context };
+  if (context === "source") return { immediate: null, settled: () => null, next: () => null, context };
 
+  // One dist-tags request answers both channels (fetchJson de-duplicates it).
   let latest: string | null = null;
-  void runtime.latest.getByKey(SELF_KEY, () => fetchLatestNpmVersion("ccl-caut"), false).then((v) => {
+  let next: string | null = isPrerelease(VERSION) ? runtime.latest.peek(SELF_NEXT_KEY) : null;
+  void runtime.latest.getByKey(SELF_KEY, async () => (await fetchDistTags("ccl-caut"))?.latest ?? null, false).then((v) => {
     latest = v;
   });
-  return { immediate: runtime.latest.peek(SELF_KEY), settled: () => latest, context };
+  if (isPrerelease(VERSION)) {
+    void runtime.latest.getByKey(SELF_NEXT_KEY, async () => (await fetchDistTags("ccl-caut"))?.next ?? null, false).then((v) => {
+      next = v ?? next;
+    });
+  }
+  return { immediate: runtime.latest.peek(SELF_KEY), settled: () => latest, next: () => next, context };
 }
 
 function createRuntime(options: CliOptions): Runtime {
   if (options.demo) return createDemoRuntime();
   return {
     tools: registry,
+    cwd: process.cwd(),
     host: getHost(),
     latest: new LatestResolver(VersionCache.load(), options.refresh),
     freshLatest: () => new LatestResolver(VersionCache.load()),
@@ -167,9 +187,28 @@ async function scan(runtime: Runtime): Promise<ScanResult> {
   prefetchLatest(tools, latest);
   const detections = await detectAll(tools, host);
   await applyElevation(runtime);
-  const results = await resolveLatest(detections, latest);
+  const results = await resolveLatest(detections, latest, project(runtime));
   latest.cache?.save();
   return { results, detections, networkIssue: networkIssueLine(results) };
+}
+
+/** The current folder's package.json for the project-copy check (read-only; a few ms). */
+function project(runtime: Runtime): ProjectManifest | null {
+  return runtime.cwd ? findProjectManifest(runtime.cwd, runtime.host) : null;
+}
+
+/**
+ * Groups this run shows: --only wins for one run, otherwise everything except
+ * the groups hidden with --hide-group. The note explains what is left out.
+ */
+function groupView(options: CliOptions, hidden: readonly ToolGroup[]): { groups: ToolGroup[]; note: string | null } {
+  if (options.only) {
+    const left = TOOL_GROUPS.filter((g) => g !== options.only);
+    return { groups: [options.only], note: `${left.map((g) => GROUP_LABELS[g]).join(", ")} hidden · --only ${options.only}` };
+  }
+  const groups = TOOL_GROUPS.filter((g) => !hidden.includes(g));
+  const off = TOOL_GROUPS.filter((g) => hidden.includes(g));
+  return { groups, note: off.length > 0 ? off.map((g) => `${GROUP_LABELS[g]} hidden · --show-group ${g}`).join(" · ") : null };
 }
 
 async function runJson(runtime: Runtime, check: boolean): Promise<number> {
@@ -180,7 +219,7 @@ async function runJson(runtime: Runtime, check: boolean): Promise<number> {
   const report = {
     tool: "ccl-caut",
     version: VERSION,
-    self: { version: VERSION, latest: self.settled() ?? self.immediate },
+    self: { version: VERSION, latest: self.settled() ?? self.immediate, next: self.next() },
     generatedAt: new Date().toISOString(),
     platform: process.platform,
     node: process.version,
@@ -188,6 +227,8 @@ async function runJson(runtime: Runtime, check: boolean): Promise<number> {
     latestCachedAt: latest.oldestCachedAt === null ? null : new Date(latest.oldestCachedAt).toISOString(),
     // How the latest-version lookups went; problem is set when most or all of them failed.
     network: { ...getNetwork().report(), problem: networkProblem(getNetwork().report()) },
+    // Groups hidden with --hide-group (--json still lists every tool, each with its "group").
+    hiddenGroups: runtime.selections.hiddenGroups,
     summary,
     tools: results,
   };
@@ -214,7 +255,7 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
   const { tools, host, latest } = runtime;
   const self = startSelfCheck(runtime);
   // Under the banner only what is known right now (cache or demo fixture).
-  selfNotice = createNoticeSlot(VERSION, self.context, () => self.settled() ?? self.immediate);
+  selfNotice = createNoticeSlot(VERSION, self.context, () => self.settled() ?? self.immediate, () => self.next());
   const bannerNotice = self.immediate ? selfNotice.take() : null;
   printBanner(VERSION, bannerNotice, center);
   intro(pc.inverse(" Scan "));
@@ -225,12 +266,13 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
   const detections = await detectAll(tools, host);
   const found = detections.filter((d) => d.instances.length > 0).length;
   const discoverHint = found < detections.length ? " · ccl-caut --discover to see all" : "";
-  progress.stop(`Found ${found} of ${detections.length} supported CLIs${discoverHint}`);
+  const hiddenHint = runtime.hiddenNote ? ` · ${runtime.hiddenNote}` : "";
+  progress.stop(`Found ${found} of ${detections.length} supported CLIs${discoverHint}${hiddenHint}`);
 
   progress.start("Checking latest versions...");
   const slow = setTimeout(() => progress.message("Checking latest versions… (slow connection)"), SLOW_LOOKUP_MS);
   await applyElevation(runtime);
-  const results = await resolveLatest(detections, latest);
+  const results = await resolveLatest(detections, latest, project(runtime));
   clearTimeout(slow);
   latest.cache?.save();
   const networkIssue = networkIssueLine(results);
@@ -260,7 +302,7 @@ async function runDiscover(runtime: Runtime): Promise<number> {
   const detections = await detectAll(runtime.tools, runtime.host);
   const found = detections.filter((d) => d.instances.length > 0).length;
   progress.stop(`${found} of ${detections.length} supported CLIs installed`);
-  console.log(`${pc.gray("│")}\n${renderDiscovery(detections)}`);
+  console.log(`${pc.gray("│")}\n${renderDiscovery(detections, runtime.selections.hiddenGroups)}`);
   outro(pc.dim("ccl-caut never installs tools. To add one, follow its official install docs above."));
   return 0;
 }
@@ -445,7 +487,7 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
       const answer = await checklist({
         message: "Select the CLIs to update",
         ...(initial.remembered && { hint: "Selection remembered from your last run · --reset-selection to clear" }),
-        options: offered.map((r) => ({ value: r.id, label: optionLabel(r), hint: optionHint(r) })),
+        options: offered.map((r) => ({ value: r.id, label: optionLabel(r), hint: optionHint(r), group: GROUP_LABELS[r.group] })),
         initialValues: picked,
         retry,
       });
@@ -540,8 +582,22 @@ async function main(): Promise<number> {
 
   const runtime = createRuntime(options);
   if (options.resetSelection) runtime.selections.reset();
+  for (const [group, hide] of [
+    [options.hideGroup, true],
+    [options.showGroup, false],
+  ] as const) {
+    if (!group) continue;
+    runtime.selections.setGroupHidden(group, hide);
+    if (!options.json) {
+      process.stdout.write(tone.muted(hide ? `${GROUP_LABELS[group]} hidden from now on · --show-group ${group} to show them again\n` : `${GROUP_LABELS[group]} shown again\n`));
+    }
+  }
+  // --json and --discover always cover every group.
   if (options.json) return runJson(runtime, options.check);
   if (options.discover) return runDiscover(runtime);
+  const view = groupView(options, runtime.selections.hiddenGroups);
+  runtime.tools = runtime.tools.filter((tool) => view.groups.includes(tool.group));
+  runtime.hiddenNote = view.note;
   if (options.check) return finish(await runCheck(runtime));
 
   const interactive = !options.yes;

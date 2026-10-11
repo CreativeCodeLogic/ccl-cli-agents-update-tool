@@ -61,6 +61,44 @@ ccl-caut is published to npm **before** the repository goes public. While it is 
 
 6. **Smoke test** from a fresh shell outside the repo: `npx ccl-caut@latest --version`, `--check` (exit 0 or 1 is fine), `--discover`. Users of a release candidate see "ccl-caut x.y.z is available · npm i -g ccl-caut" under the banner.
 
+### Publishing a beta
+
+Betas go to the `next` dist-tag, so `npm i -g ccl-caut` and `npx ccl-caut` keep installing the stable version; testers opt in with `ccl-caut@next`.
+
+1. Bump to a prerelease and update `CHANGELOG.md` (`## [X.Y.Z]` section, marked as beta), commit and push:
+
+   ```bash
+   npm version X.Y.Z-beta.N --no-git-tag-version
+   ```
+
+2. From a clean checkout of that commit:
+
+   ```bash
+   npm ci
+   npm publish --tag next --dry-run     # check the tag line: "with tag next"
+   npm publish --tag next
+   npm view ccl-caut dist-tags          # latest unchanged, next -> X.Y.Z-beta.N
+   ```
+
+   `prepublishOnly` (`scripts/publish-guard.mjs`) refuses a prerelease without `--tag next` ("Prerelease version: publish with `npm publish --tag next`") and a stable version with `--tag next`.
+
+3. Tag it; the workflow creates a GitHub pre-release with the CHANGELOG notes (npm is skipped while the repo is private):
+
+   ```bash
+   git tag -a vX.Y.Z-beta.N -m "Beta vX.Y.Z-beta.N"
+   git push origin vX.Y.Z-beta.N
+   ```
+
+Beta users see the next beta (or the stable release, whichever is higher) in the update notice, with `npm i -g ccl-caut@next`; stable users are never pointed at a beta.
+
+### Promoting to stable
+
+When the beta has met the bar in ROADMAP.md (full CI matrix, canary, real Windows/macOS/Linux checks, a week without wrong-command or false-success reports):
+
+1. `npm version X.Y.Z --no-git-tag-version`, finalize the `## [X.Y.Z]` CHANGELOG section (date, drop the beta marker), update ROADMAP.md, commit and push.
+2. Publish as in "Publishing a version by hand" (no `--tag`: it goes to `latest`; the guard refuses `--tag next` for a stable version).
+3. Tag `vX.Y.Z`. Optionally point `next` at the stable version too, so `ccl-caut@next` never lags behind it: `npm dist-tag add ccl-caut@X.Y.Z next`.
+
 ## Going public (one time)
 
 Do these in order. Claude never changes repository visibility or publishes to npm; these are manual steps.

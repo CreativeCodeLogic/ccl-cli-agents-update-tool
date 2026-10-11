@@ -18,6 +18,7 @@ async function hasPrefixNpm(): Promise<boolean> {
  */
 export const npm: ToolDescriptor = {
   id: "npm",
+  group: "dev",
   name: "npm",
   description: "The Node.js package manager",
   docsUrl: "https://docs.npmjs.com/downloading-and-installing-node-js-and-npm",

@@ -19,6 +19,7 @@ export function isCopilotCli(instance: Pick<BinaryInstance, "path" | "realPath">
 
 const tool = createNpmPackageTool({
   id: "copilot",
+  group: "agents",
   name: "GitHub Copilot CLI",
   shortName: "Copilot",
   description: "GitHub Copilot's coding agent for the terminal",

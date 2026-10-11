@@ -9,6 +9,7 @@ function standaloneCommand(): string {
 
 export const firebase = createNpmPackageTool({
   id: "firebase",
+  group: "dev",
   name: "Firebase CLI",
   shortName: "Firebase",
   description: "Deploy and manage Firebase projects",

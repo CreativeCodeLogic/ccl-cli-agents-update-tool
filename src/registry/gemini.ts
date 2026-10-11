@@ -3,6 +3,7 @@ import { brewPlan } from "./shared";
 
 export const gemini = createNpmPackageTool({
   id: "gemini",
+  group: "agents",
   name: "Gemini CLI",
   shortName: "Gemini",
   description: "Google's Gemini CLI (retired for consumer accounts)",

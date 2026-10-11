@@ -38,6 +38,12 @@ export function fakeHost(options: FakeHostOptions): Host {
     },
     isExecutable: (p) => files.has(norm(p)),
     realpath: (p) => links.get(norm(p)) ?? p,
+    list: (dir) => {
+      const prefix = `${norm(dir)}/`;
+      const names = new Set<string>();
+      for (const f of files) if (f.startsWith(prefix)) names.add(f.slice(prefix.length).split("/")[0]!);
+      return [...names];
+    },
     isWritable: (p) => (options.writable ?? []).some((dir) => isInside(p, dir, platform)),
     readText: (p) => texts.get(norm(p)) ?? null,
     mtimeMs: (p) => mtimes.get(norm(p)) ?? (files.has(norm(p)) ? 0 : null),

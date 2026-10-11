@@ -1,4 +1,11 @@
+import { TOOL_GROUPS, type ToolGroup } from "../types";
+
 export interface CliOptions {
+  /** --only agents|dev: show one group for this run. */
+  only: ToolGroup | null;
+  /** --hide-group / --show-group: persistent, saved in the config. */
+  hideGroup: ToolGroup | null;
+  showGroup: ToolGroup | null;
   check: boolean;
   json: boolean;
   refresh: boolean;
@@ -18,9 +25,14 @@ export interface CliOptions {
 
 export type ParseResult = { ok: true; options: CliOptions } | { ok: false; error: string };
 
-/** Minimal flag parser: the CLI only has boolean switches. */
+const GROUP_FLAGS = { "--only": "only", "--hide-group": "hideGroup", "--show-group": "showGroup" } as const;
+
+/** Minimal flag parser: boolean switches, plus the group flags that take agents|dev. */
 export function parseArgs(argv: readonly string[]): ParseResult {
   const options: CliOptions = {
+    only: null,
+    hideGroup: null,
+    showGroup: null,
     check: false,
     json: false,
     refresh: false,
@@ -33,7 +45,18 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     help: false,
     version: false,
   };
-  for (const arg of argv) {
+  for (let i = 0; i < argv.length; i++) {
+    const raw = argv[i]!;
+    const [flag = "", inline] = raw.startsWith("--") && raw.includes("=") ? [raw.slice(0, raw.indexOf("=")), raw.slice(raw.indexOf("=") + 1)] : [raw, undefined];
+    if (flag in GROUP_FLAGS) {
+      const value = inline ?? argv[++i];
+      if (!value || !(TOOL_GROUPS as readonly string[]).includes(value)) {
+        return { ok: false, error: `${flag} needs a group: ${TOOL_GROUPS.join(" or ")}` };
+      }
+      options[GROUP_FLAGS[flag as keyof typeof GROUP_FLAGS]] = value as ToolGroup;
+      continue;
+    }
+    const arg = raw;
     switch (arg) {
       case "--check":
         options.check = true;
@@ -77,6 +100,9 @@ export function parseArgs(argv: readonly string[]): ParseResult {
         return { ok: false, error: `Unknown option: ${arg}` };
     }
   }
+  if (options.hideGroup && options.hideGroup === options.showGroup) {
+    return { ok: false, error: `--hide-group and --show-group both name ${options.hideGroup}` };
+  }
   return { ok: true, options };
 }
 
@@ -98,6 +124,9 @@ Options:
                  (ccl-caut never installs tools.)
   --doctor       Check the connection to every version server (DNS, HTTPS, timings),
                  and show the proxy settings and cache/config paths in use.
+  --only <group> Show one group for this run: agents (AI agents) or dev (Dev CLIs).
+  --hide-group <group>, --show-group <group>
+                 Hide a group from now on, or show it again (saved in your config).
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
                  Tools that are running right now are skipped and listed in the summary.

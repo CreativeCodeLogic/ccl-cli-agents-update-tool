@@ -5,6 +5,7 @@ import { brewPlan } from "./shared";
 // (bin/claude.exe), so npm's "latest" is valid for both install types.
 export const claude = createNpmPackageTool({
   id: "claude",
+  group: "agents",
   name: "Claude Code",
   shortName: "Claude",
   description: "Anthropic's agentic coding assistant in your terminal",

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Toward 1.1.0 (Dev CLIs & more agents), Round A: foundations, no new tools yet.
+
+### Added
+
+- Tool groups: the table and checklist are split into AI agents and Dev CLIs (Firebase, Google Cloud CLI, npm). `--only agents|dev` for one run; `--hide-group` / `--show-group` persist it (config schema 2, migrated from 1). `--discover` and `--json` always cover every group; `--json` adds `group` per tool and `hiddenGroups`.
+- Info notes on rows (dim cyan "i"), never changing state or preselection; `notes` in `--json`.
+- Project-copy check: inside a project whose package.json pins a supported CLI, a note says the global update won't affect it (with the version in node_modules); `projectPin` in `--json`. Read-only.
+- Python tool detection shared by all PyPI-distributed CLIs: uv and pipx install methods (documented locations, UV_TOOL_DIR, PIPX_HOME, legacy pipx homes) and pip, version from dist-info METADATA; uv/pipx update automatically, pip gets a command (PEP 668). Legacy kimi-cli now uses it.
+- Beta channel safety: `prepublishOnly` refuses a prerelease without `--tag next` and a stable version with it; beta users get update notices for the higher of `latest` and `next` (`npm i -g ccl-caut@next`).
+
+### Fixed
+
+- uv tool environments on Windows are found at the documented %APPDATA%/uv/data/tools (the older %APPDATA%/uv/tools is still checked).
+
 ## [1.0.1] - 2026-10-11
 
 ### Fixed

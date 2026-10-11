@@ -7,6 +7,7 @@ import { brewPlan } from "./shared";
 // (`qwen update`). Latest from npm: GitHub's releases/latest is an SDK tag.
 export const qwen = createNpmPackageTool({
   id: "qwen",
+  group: "agents",
   name: "Qwen Code",
   shortName: "Qwen",
   description: "Alibaba's Qwen Code agent for the terminal",

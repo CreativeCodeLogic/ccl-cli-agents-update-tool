@@ -74,7 +74,7 @@ Google retired Gemini CLI for consumer accounts (Google AI Pro and Ultra, and fr
 
 ## Safe by design
 
-- **We only run what we can run safely.** Automatic updates are limited to `npm install -g` into your active npm prefix and the tools' own documented self-updaters, run against the exact binary on your `PATH`. Everything else (apt, snap, Homebrew, winget, Chocolatey, Scoop, admin-only folders, npm itself) gets the exact command and a one-line reason instead. Package-manager installs of the Google Cloud CLI never get `gcloud components update`.
+- **We only run what we can run safely.** Automatic updates are limited to `npm install -g` into your active npm prefix, `uv tool upgrade` and `pipx upgrade` for tools in their own environments, and the tools' own documented self-updaters, run against the exact binary on your `PATH`. Everything else (pip, apt, snap, Homebrew, winget, Chocolatey, Scoop, admin-only folders, npm itself) gets the exact command and a one-line reason instead. Package-manager installs of the Google Cloud CLI never get `gcloud components update`.
 - **Shadowed installs are called out.** CCL CAUT finds every copy of a tool on your `PATH`, updates the one that actually runs, and warns about copies that are installed but never run.
 - **No false positives.** A generic binary name like Cursor's `agent` is only claimed inside Cursor's own install layout, and editor launcher shims (such as VS Code's Copilot Chat launcher) are ignored.
 - **Every update is verified.** After an update, CCL CAUT asks the running binary for its version again. If it didn't change, you get a warning instead of a false success. Kimi Code's staged rollouts are reported as "held".
@@ -98,6 +98,9 @@ ccl-caut [options]
                  (ccl-caut never installs tools.)
   --doctor       Check the connection to every version server (DNS, HTTPS, timings),
                  and show the proxy settings and cache/config paths in use.
+  --only <group> Show one group for this run: agents (AI agents) or dev (Dev CLIs).
+  --hide-group <group>, --show-group <group>
+                 Hide a group from now on, or show it again (saved in your config).
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
                  Tools that are running right now are skipped and listed in the summary.
@@ -115,11 +118,29 @@ Keys (interactive):
 
 The interactive checklist starts on a clean screen: earlier output is pushed up into your scrollback, never erased. Use `--no-clear` to keep it in view; `--check`, `--json`, `--yes` and CI runs never clear.
 
-When a newer ccl-caut is published, a one-line notice under the banner tells you how to upgrade for the way you run it (`npx ccl-caut@latest` or `npm i -g ccl-caut`). The check runs in the background, never slows a run down, stays silent when offline, and is off in CI or with `CCL_CAUT_NO_UPDATE_CHECK=1`. `--json` reports it as `"self": { "version", "latest" }`.
+When a newer ccl-caut is published, a one-line notice under the banner tells you how to upgrade for the way you run it (`npx ccl-caut@latest` or `npm i -g ccl-caut`). The check runs in the background, never slows a run down, stays silent when offline, and is off in CI or with `CCL_CAUT_NO_UPDATE_CHECK=1`. If you run a beta (`ccl-caut@next`), the notice compares both channels and suggests the higher version, so you move on to the next beta or to the stable release, never backwards; stable users are never pointed at a beta. `--json` reports it as `"self": { "version", "latest", "next" }`.
 
 ### Discover supported tools
 
 CCL CAUT updates what you already have; it never installs anything. `ccl-caut --discover` lists all 12 supported CLIs with a one-line description, whether each is installed (and which version runs), and a link to its official install docs. `--json` includes the same `docsUrl` for every tool.
+
+### Groups
+
+The table and the checklist are split into **AI agents** and **Dev CLIs** (Firebase, the Google Cloud CLI and npm). `--only agents` or `--only dev` shows one group for a single run. `--hide-group dev` hides a group from now on and `--show-group dev` brings it back; the choice is saved with your remembered selections, and the scan line reminds you (*Dev CLIs hidden · --show-group dev*). `--discover` and `--json` always cover every group.
+
+### Inside a project
+
+Run CCL CAUT inside a project and it reads the nearest `package.json` (stopping at the repository root) to see whether the project pins its own copy of a supported CLI. If it does, a note says so, because updating the global copy won't change what the project runs:
+
+```text
+i  firebase: This project pins firebase-tools ^13.0.0 (devDependencies; 13.29.1 in node_modules). Updating the global copy won't affect it; use `npx firebase` here.
+```
+
+It only reads: `package.json`, the lockfile and `node_modules` are never changed. Notes like this (marked with **i**) are information only; they never change a tool's state or what is preselected.
+
+### Python tools
+
+For CLIs installed from PyPI, CCL CAUT recognizes [uv](https://docs.astral.sh/uv/reference/storage/) tool environments, [pipx](https://pipx.pypa.io/latest/reference/environment-variables/) environments (including `UV_TOOL_DIR`, `PIPX_HOME` and the older pipx locations) and plain pip installs, and reads the installed version from the package metadata. uv and pipx installs update automatically (`uv tool upgrade`, `pipx upgrade`); pip installs get the command to run yourself, because system and externally-managed Pythons (PEP 668) make an automatic `pip install --upgrade` unsafe.
 
 ### Remembered selections
 
@@ -199,6 +220,7 @@ ccl-caut --json
   "version": "1.0.0",
   "platform": "win32",
   "latestCachedAt": null,
+  "hiddenGroups": [],
   "network": { "attempted": 11, "failures": [], "problem": null },
   "summary": { "total": 12, "upToDate": 2, "outdated": 4, "notInstalled": 5, "unknown": 0, "retired": 1, "selfUpdating": 0, "shadowed": 1, "stale": 0 },
   "tools": [
@@ -206,6 +228,7 @@ ccl-caut --json
       "id": "gemini",
       "name": "Gemini CLI",
       "shortName": "Gemini",
+      "group": "agents",
       "docsUrl": "https://github.com/google-gemini/gemini-cli",
       "installed": true,
       "installMethod": "npm",
@@ -223,13 +246,15 @@ ccl-caut --json
         "successorId": "antigravity",
         "since": "2026-06-18",
         "url": "https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/"
-      }
+      },
+      "notes": [],
+      "projectPin": null
     }
   ]
 }
 ```
 
-`state` is one of `up-to-date`, `outdated`, `not-installed`, `unknown` (a version could not be determined; never reported as outdated), `retired` or `self-updating`. `updateAvailable` tells you whether a newer version exists, even for retired tools. `latestStaleCachedAt` is set (the time it was cached) when the live lookup failed and `latestVersion` comes from an expired cache entry; `summary.stale` counts those. `network.failures` lists failed lookups (`url`, `kind`: timeout, dns, offline, proxy, tls, http or connection, and `detail`), and `network.problem` holds the one-line explanation when most or all of them failed. `needsAdmin` is `true` when the update needs administrator rights (or `sudo`) that this run doesn't have. `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`).
+`state` is one of `up-to-date`, `outdated`, `not-installed`, `unknown` (a version could not be determined; never reported as outdated), `retired` or `self-updating`. `updateAvailable` tells you whether a newer version exists, even for retired tools. `latestStaleCachedAt` is set (the time it was cached) when the live lookup failed and `latestVersion` comes from an expired cache entry; `summary.stale` counts those. `network.failures` lists failed lookups (`url`, `kind`: timeout, dns, offline, proxy, tls, http or connection, and `detail`), and `network.problem` holds the one-line explanation when most or all of them failed. `needsAdmin` is `true` when the update needs administrator rights (or `sudo`) that this run doesn't have. `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`). `group` is `agents` or `dev`, and `hiddenGroups` lists the groups hidden with `--hide-group` (every tool is still included). `notes` holds info notes (`kind`, `message`, optional `url`); `projectPin` is set when the project in the current folder pins the tool (`packageJson`, `pkg`, `range`, `field`, `installedVersion`). `installMethod` can also be `uv` or `pipx`.
 
 ## Feedback
 

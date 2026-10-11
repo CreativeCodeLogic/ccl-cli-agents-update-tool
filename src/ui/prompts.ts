@@ -32,6 +32,8 @@ export interface ChecklistOption<T extends string> {
   value: T;
   label: string;
   hint?: string;
+  /** Dim heading shown above the first option of each group (not selectable). */
+  group?: string;
 }
 
 const bar = pc.gray(S_BAR);
@@ -92,6 +94,7 @@ export async function checklist<T extends string>(
         return closed(this.state, flag, opts.message, picked.length > 0 ? picked.join(", ") : "nothing selected");
       }
       opts.options.forEach((option, i) => {
+        if (option.group && option.group !== opts.options[i - 1]?.group) lines.push(`${bar}  ${tone.muted(option.group)}`);
         const selected = value.includes(option.value);
         const box = selected ? tone.action(S_CHECKBOX_SELECTED) : tone.muted(S_CHECKBOX_INACTIVE);
         const label = i === this.cursor ? tone.focus(option.label) : selected ? option.label : tone.muted(option.label);

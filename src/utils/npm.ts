@@ -87,3 +87,10 @@ export async function readPackageVersionNear(
 export async function fetchLatestNpmVersion(pkg: string): Promise<string | null> {
   return stringField(await fetchJson(`https://registry.npmjs.org/${pkg}/latest`), "version");
 }
+
+/** A package's dist-tags ({ latest, next, ... }) in one request, or null. */
+export async function fetchDistTags(pkg: string): Promise<Record<string, string> | null> {
+  const doc = await fetchJson(`https://registry.npmjs.org/-/package/${pkg.replace("/", "%2f")}/dist-tags`);
+  if (typeof doc !== "object" || doc === null) return null;
+  return Object.fromEntries(Object.entries(doc).filter((e): e is [string, string] => typeof e[1] === "string"));
+}

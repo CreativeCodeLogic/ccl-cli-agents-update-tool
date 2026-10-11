@@ -4,6 +4,7 @@ import { getHost, pathFor, type Host } from "./utils/host";
 import { classifyInstall } from "./utils/installMethod";
 import { getNpmGlobalPaths } from "./utils/npm";
 import { compareVersions } from "./utils/version";
+import { projectPinFor, projectPinNote, type ProjectManifest } from "./project";
 import { findAllExecutables } from "./utils/which";
 
 /** Descriptors promise never to reject; this enforces it anyway. */
@@ -160,15 +161,22 @@ export function computeNeedsAdmin(
     if (plan.needsAdmin !== undefined) return plan.needsAdmin;
     if (/^sudo\s/.test(plan.command)) return true;
     // A manual "npm install -g ..." still writes to the npm global root.
-    return /^npm\s+(install|i)\b.*\s-g\b/.test(plan.command) && npmRoot ? !host.fs.isWritable(npmRoot) : false;
+    if (/^npm\s+(install|i)\b.*\s-g\b/.test(plan.command)) return npmRoot ? !host.fs.isWritable(npmRoot) : false;
+    // Otherwise the folder the tool says its update writes to (e.g. a pip site-packages).
+    const target = tool.updateTargetDir?.(instance);
+    return target ? !host.fs.isWritable(target) : false;
   }
   const isNpm = pathFor(host.platform).parse(plan.command[0] ?? "").name.toLowerCase() === "npm";
   const dir = tool.updateTargetDir?.(instance) ?? (isNpm && npmRoot ? npmRoot : pathFor(host.platform).dirname(instance.realPath));
   return dir ? !host.fs.isWritable(dir) : false;
 }
 
-/** Phase 2: latest versions + state + update plan for the copy that runs. */
-export function resolveLatest(detections: readonly Detection[], latest: LatestResolver): Promise<ToolScan[]> {
+/**
+ * Phase 2: latest versions + state + update plan for the copy that runs, plus
+ * info notes (vendor advice, and pins in `project`, the package.json of the
+ * current directory if any).
+ */
+export function resolveLatest(detections: readonly Detection[], latest: LatestResolver, project: ProjectManifest | null = null): Promise<ToolScan[]> {
   return Promise.all(
     detections.map(async ({ tool, instances }): Promise<ToolScan> => {
       const [active, ...others] = instances;
@@ -183,10 +191,13 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
       const { state, updateAvailable } = deriveState(tool, active?.version, latestVersion, Boolean(active));
       const npmRoot = (await getNpmGlobalPaths())?.root ?? null;
       const needsAdmin = computeNeedsAdmin(tool, active, plan, getHost(), npmRoot);
+      const projectPin = projectPinFor(tool, project, getHost());
+      const notes = [...(tool.notes ?? []), ...(projectPin ? [projectPinNote(projectPin, tool.binNames[0] ?? tool.id)] : [])];
       return {
         id: tool.id,
         name: tool.name,
         shortName: tool.shortName ?? tool.name,
+        group: tool.group,
         docsUrl: tool.docsUrl,
         installed: Boolean(active),
         installMethod: active?.installMethod ?? null,
@@ -200,6 +211,8 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
         plan,
         shadowed: rest.map((i) => ({ path: i.path, installMethod: i.installMethod, version: i.version })),
         deprecation: tool.deprecation ?? null,
+        notes,
+        projectPin,
       };
     }),
   );

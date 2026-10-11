@@ -1,4 +1,4 @@
-import { accessSync, closeSync, constants, existsSync, openSync, readFileSync, realpathSync, statSync, unlinkSync } from "node:fs";
+import { accessSync, closeSync, constants, existsSync, openSync, readdirSync, readFileSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -14,6 +14,8 @@ export interface FsProbe {
   readText(p: string): string | null;
   /** Last modification time in ms, or null when the file does not exist. */
   mtimeMs(p: string): number | null;
+  /** Names of the entries in a directory ([] when it can't be read). */
+  list(dir: string): string[];
 }
 
 /** Everything platform-specific that detection depends on. */
@@ -69,6 +71,13 @@ export const nodeFs: FsProbe = {
       return readFileSync(p, "utf8");
     } catch {
       return null;
+    }
+  },
+  list(dir) {
+    try {
+      return readdirSync(dir);
+    } catch {
+      return [];
     }
   },
   mtimeMs(p) {

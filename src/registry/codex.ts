@@ -3,6 +3,7 @@ import { brewPlan } from "./shared";
 
 export const codex = createNpmPackageTool({
   id: "codex",
+  group: "agents",
   name: "Codex CLI",
   shortName: "Codex",
   description: "OpenAI's coding agent for the terminal",
