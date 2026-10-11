@@ -17,22 +17,19 @@
 
 **1.0.x patches** focus on confirming every automatic update path on real Windows, macOS and Linux machines, and on fixing what people report.
 
-## Next
+## Next: 1.1
 
-### 1.1: Dev CLIs
+Dev CLIs and more agents ship together in 1.1.
 
 - **Two groups in the table:** AI agents and Dev CLIs. Firebase, the Google Cloud CLI and npm move to Dev CLIs, and you can hide a group you don't need.
 - **New Dev CLIs:** Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI.
 - **Project-copy check:** when you run CCL CAUT inside a project that pins its own copy of a tool (for example `wrangler` in `devDependencies`), it tells you the global update won't affect that project.
 - **Per-project notes:** tools whose vendors recommend installing them per project say so on their row.
-- **Beta channel:** try upcoming versions early with `npx ccl-caut@next`.
-
-### 1.2: More agents
-
 - **Python tool detection** for tools installed with uv, pipx or pip.
 - **New agents:** Aider, Mistral Vibe, Cline, Amp, Kiro CLI and Goose.
+- **Beta channel:** try upcoming versions early with `npx ccl-caut@next`.
 
-### 1.3: Polish
+## Next after 1.1: Polish
 
 - A table that fills in live, row by row, as each check finishes.
 - Update CCL CAUT itself from the checklist.
