@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `--doctor` now uses the conhost fallback symbols.
+
 ## [1.1.0-beta.1] - 2026-10-11
 
 Beta of 1.1.0 (Dev CLIs & more agents): 23 CLIs in two groups. Install it with `npm i -g ccl-caut@next`; `npm i -g ccl-caut@latest` goes back to the stable release.
