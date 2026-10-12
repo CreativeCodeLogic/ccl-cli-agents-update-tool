@@ -12,6 +12,9 @@ export interface SelectionStore {
   /** Groups hidden with --hide-group. */
   readonly hiddenGroups: readonly ToolGroup[];
   setGroupHidden(group: ToolGroup, hidden: boolean): void;
+  /** Once per version: the last version that showed the "Star it on GitHub" line. */
+  readonly starShownVersion: string | null;
+  markStarShown(version: string): void;
 }
 
 /**

@@ -26,6 +26,7 @@ import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
 import { CANCELLED, checklist, choose, QUIT, RETRY } from "./ui/prompts";
 import { getNetwork, networkProblem } from "./utils/http";
 import { doctorReport } from "./doctor";
+import { reportBugLine, shouldShowStar, starLine, supportsHyperlinks } from "./ui/links";
 import { realReportDeps, reportPrompt, wantsReportPrompt, writeOutputFile } from "./report";
 import { githubRateLimitNotice } from "./utils/github";
 import { findProjectManifest, type ProjectManifest } from "./project";
@@ -608,7 +609,7 @@ async function main(): Promise<number> {
   if (options.help) {
     // In a terminal the shared header replaces the help's own title line.
     printHeader(header, VERSION);
-    process.stdout.write(helpText(VERSION, header === "none"));
+    process.stdout.write(helpText(VERSION, header === "none", supportsHyperlinks(process.env, Boolean(process.stdout.isTTY))));
     return 0;
   }
 
@@ -645,7 +646,25 @@ async function main(): Promise<number> {
 
   // Ctrl+C outside a prompt (e.g. during a scan) exits cleanly too.
   process.once("SIGINT", exitCancelled);
-  return finish(await runInteractive(runtime, options));
+  const code = finish(await runInteractive(runtime, options));
+  maybeShowStar(runtime, options);
+  return code;
+}
+
+/** Once per version, at the end of a normal interactive run: the dim "Star it on GitHub" line. */
+function maybeShowStar(runtime: Runtime, options: CliOptions): void {
+  const isTTY = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  const show = shouldShowStar({
+    version: VERSION,
+    lastShown: runtime.selections.starShownVersion,
+    interactive: !options.yes,
+    isTTY,
+    env: process.env,
+    demo: options.demo,
+  });
+  if (!show) return;
+  process.stdout.write(`${starLine(supportsHyperlinks(process.env, isTTY))}\n`);
+  runtime.selections.markStarShown(VERSION);
 }
 
 /**
@@ -669,6 +688,8 @@ main().then(
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${pc.red(`ccl-caut: ${message}`)}\n`);
     if (process.env.CCL_CAUT_DEBUG && error instanceof Error) process.stderr.write(`${error.stack ?? ""}\n`);
+    // An unexpected internal failure (normal "update failed" results never get here).
+    process.stderr.write(`${reportBugLine(supportsHyperlinks(process.env, Boolean(process.stderr.isTTY)))}\n`);
     exitWhenFlushed(1);
   },
 );

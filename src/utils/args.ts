@@ -1,4 +1,5 @@
 import { TOOL_GROUPS, type ToolGroup } from "../types";
+import { helpFooter } from "../ui/links";
 
 export interface CliOptions {
   /** --only agents|dev: show one group for this run. */
@@ -122,8 +123,11 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   return { ok: true, options };
 }
 
-/** --help. `title` = false when the shared header line is already printed above it. */
-export function helpText(version: string, title = true): string {
+/**
+ * --help. `title` = false when the shared header line is already printed above
+ * it; `hyperlinks` makes the footer URLs clickable (OSC 8) where supported.
+ */
+export function helpText(version: string, title = true, hyperlinks = false): string {
   return `${title ? `ccl-caut v${version} — CLI Agents Update Tool by Creative Code Logic\n\n` : ""}Checks which AI/dev CLIs are installed, compares them with the latest
 releases, and lets you pick which ones to update.
 
@@ -173,5 +177,7 @@ Environment:
   CCL_CAUT_NO_UPDATE_CHECK=1   Don't check whether a newer ccl-caut is available.
   HTTPS_PROXY, HTTP_PROXY, NO_PROXY
                                Send version lookups through a proxy (like curl and npm).
+
+${helpFooter(hyperlinks)}
 `;
 }

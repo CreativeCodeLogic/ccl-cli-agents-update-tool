@@ -15,6 +15,7 @@ Second beta of 1.1.0: `npm i -g ccl-caut@next`. The first release published from
 
 - `--json` in a terminal: after the JSON, **Copy to clipboard** (Windows Set-Clipboard, macOS pbcopy, Linux wl-copy/xclip/xsel), **Save to file** (prefilled `./ccl-caut-report-YYYY-MM-DD.json`, confirms before overwriting) or, where a native dialog works and not over SSH, **Browse…**. Pipes, CI and `--yes` get exactly the JSON as before. Simulated in `--demo`.
 - `--output <file>` (with `--json`): writes the JSON to a file without a prompt and prints the path to stderr; refuses to overwrite unless `--force`.
+- The GitHub link, used sparingly: a `--help` footer (docs & issues, and Creative Code Logic), a request to report unexpected internal errors with `ccl-caut --doctor` output, and once per version a dim "Star it on GitHub" line at the end of a normal interactive run (never with `--json`, `--check`, `--yes`, piped output, CI or the demo; remembered in the config as an extra key 1.0.x ignores). URLs are clickable (OSC 8) in terminals that support it and plain text elsewhere, including classic conhost.
 
 ### Changed
 

@@ -1,3 +1,4 @@
+import pkg from "../../package.json" with { type: "json" };
 import { registry } from "../registry";
 import { LatestResolver } from "../scan";
 import type { ProcessInfo } from "../processes";
@@ -166,7 +167,15 @@ export interface DemoRuntime {
 function memorySelections(initial: Record<string, ToolChoice>): SelectionStore {
   let choices = { ...initial };
   let hidden: ToolGroup[] = [];
+  // The demo starts as if the star line was already shown for this version (keeps the GIF's ending clean).
+  let starShown: string | null = pkg.version;
   return {
+    get starShownVersion() {
+      return starShown;
+    },
+    markStarShown: (version) => {
+      starShown = version;
+    },
     get toolChoices() {
       return choices;
     },
