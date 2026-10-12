@@ -49,15 +49,46 @@ export function bannerLines(version: string, options: { columns: number; center:
   if (art && artWidth <= columns) {
     return [...place(artLines).map((line) => brand(line)), ...place([pc.dim(`${TAGLINE}  v${version}`)])];
   }
-  // Longest variant that fits: title + tagline + version, then title + version.
-  const full = ` v${version} · ${TAGLINE}`;
-  const suffix = TITLE.length + full.length <= columns ? full : ` v${version}`;
-  return place([brand(TITLE) + pc.dim(suffix)]);
+  // Too narrow for the art: the same one-line header every option path uses.
+  return place([headerLine(version, brand)]);
 }
 
-export function printBanner(version: string, notice: string | null = null, center = false): void {
+/**
+ * The one compact header: "CCL CAUT v1.1.0 · CLI Agents Update Tool — by Creative Code Logic",
+ * the name in the brand color, left-aligned. Shared by every option path.
+ */
+export function headerLine(version: string, brand: (text: string) => string = BRAND): string {
+  return `${brand(TITLE)}${pc.dim(` v${version} · ${TAGLINE}`)}`;
+}
+
+/** banner: the big ASCII art; line: the compact header; none: nothing. */
+export type HeaderStyle = "banner" | "line" | "none";
+
+/**
+ * Which header a run gets. The big banner only on the default interactive run
+ * (no options besides cosmetic ones); every option path gets the compact line;
+ * --json, --version, piped output and CI get none.
+ */
+export function headerStyle(
+  options: {
+    json?: boolean; version?: boolean; check?: boolean; discover?: boolean; doctor?: boolean; help?: boolean;
+    only?: unknown; hideGroup?: unknown; showGroup?: unknown; resetSelection?: boolean; yes?: boolean;
+  },
+  isTTY: boolean,
+  env: Readonly<Record<string, string | undefined>>,
+): HeaderStyle {
+  if (!isTTY || env.CI || options.json || options.version) return "none";
+  const optionPath =
+    options.check || options.discover || options.doctor || options.help || options.only || options.hideGroup || options.showGroup || options.resetSelection || options.yes;
+  return optionPath ? "line" : "banner";
+}
+
+/** Print the header for `style` (with the newer-ccl-caut notice under it, if any). */
+export function printHeader(style: HeaderStyle, version: string, notice: string | null = null, center = false): void {
+  if (style === "none") return;
   console.log();
-  for (const line of bannerLines(version, { columns: process.stdout.columns ?? 80, center })) console.log(line);
+  const lines = style === "banner" ? bannerLines(version, { columns: process.stdout.columns ?? 80, center }) : [headerLine(version)];
+  for (const line of lines) console.log(line);
   if (notice) console.log(pc.dim(notice));
   console.log();
 }

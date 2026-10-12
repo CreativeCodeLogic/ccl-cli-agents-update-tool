@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `--json` in a terminal: after the JSON, **Copy to clipboard** (Windows Set-Clipboard, macOS pbcopy, Linux wl-copy/xclip/xsel), **Save to file** (prefilled `./ccl-caut-report-YYYY-MM-DD.json`, confirms before overwriting) or, where a native dialog works and not over SSH, **Browse…**. Pipes, CI and `--yes` get exactly the JSON as before. Simulated in `--demo`.
+- `--output <file>` (with `--json`): writes the JSON to a file without a prompt and prints the path to stderr; refuses to overwrite unless `--force`.
+
+### Changed
+
+- Header policy: the big banner only on the default interactive run; every option path (`--check`, `--discover`, `--doctor`, `--help`, `--only`, `--hide-group`, `--show-group`, `--reset-selection`, `--yes`) starts with one compact line, "CCL CAUT v<version> · CLI Agents Update Tool — by Creative Code Logic"; `--json`, `--version`, piped output and CI print no header.
+
 ### Fixed
 
 - `--doctor` now uses the conhost fallback symbols.

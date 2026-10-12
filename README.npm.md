@@ -125,6 +125,10 @@ ccl-caut [options]
   --check        Scan and print the table only. Exit code 1 if updates exist, else 0.
   --json         Print the scan result as JSON (no banner, no colors).
                  Combined with --check, the exit code follows --check.
+                 In a terminal you can then copy it or save it to a file.
+  --output <file>
+                 With --json: write the JSON to <file> (no prompt; prints the path
+                 to stderr). Won't overwrite an existing file unless --force.
   --refresh      Ignore cached latest versions (cached for 1 hour) and look them up again.
   --discover     List every supported CLI with its official install docs.
                  (ccl-caut never installs tools.)
@@ -147,6 +151,8 @@ Keys (interactive):
   ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
   r retry the version lookups (offered when they failed)
 ```
+
+The big CCL CAUT banner appears only on the default interactive run (`ccl-caut` with no options). Every option (`--check`, `--discover`, `--doctor`, `--help`, `--only`, `--hide-group`, `--show-group`, `--reset-selection`, `--yes`) starts with one compact line instead: *CCL CAUT v1.1.0 · CLI Agents Update Tool — by Creative Code Logic*. `--json`, `--version` (just the version number), piped output and CI runs print no header at all.
 
 The interactive checklist starts on a clean screen: earlier output is pushed up into your scrollback, never erased. Use `--no-clear` to keep it in view; `--check`, `--json`, `--yes` and CI runs never clear.
 
@@ -244,8 +250,12 @@ It exits with 0 when every server is reachable and 1 otherwise.
 ### JSON output
 
 ```bash
-ccl-caut --json
+ccl-caut --json                      # in a terminal: then Copy to clipboard / Save to file / Done
+ccl-caut --json > scan.json          # scripts and pipes get exactly the JSON, nothing else
+ccl-caut --json --output scan.json   # write the file, print its path to stderr (--force to overwrite)
 ```
+
+In a terminal, `--json` prints the JSON and then offers **Copy to clipboard** (PowerShell `Set-Clipboard` on Windows, `pbcopy` on macOS, `wl-copy`, `xclip` or `xsel` on Linux), **Save to file** (prefilled with `./ccl-caut-report-YYYY-MM-DD.json`; asks before replacing a file) and, where a native save dialog works, **Browse…** (Windows, macOS, and Linux desktops with zenity or kdialog; never over SSH). `q` or **Done** leaves. When stdout isn't a terminal, in CI, or with `--yes`, there is no prompt and stdout carries only the JSON. `--output <file>` works in every mode and refuses to replace an existing file unless you add `--force`.
 
 ```json
 {

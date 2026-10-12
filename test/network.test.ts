@@ -282,9 +282,8 @@ describe("centered banner", () => {
     expect(centered[centered.length - 1]).toBe(" ".repeat(Math.floor((140 - subtitle.length) / 2)) + subtitle);
   });
 
-  it("centers the compact banner on narrow terminals", () => {
-    const line = strip(bannerLines("1.0.1", { columns: 40, center: true, color: (s) => s })[0]!);
-    expect(line.trimStart()).toBe("CCL CAUT v1.0.1");
-    expect(line.length - line.trimStart().length).toBe(Math.floor((40 - "CCL CAUT v1.0.1".length) / 2));
+  it("falls back to the shared one-line header when the art doesn't fit", () => {
+    const lines = bannerLines("1.0.1", { columns: 60, center: false, color: (s) => s }).map(strip);
+    expect(lines).toEqual(["CCL CAUT v1.0.1 · CLI Agents Update Tool — by Creative Code Logic"]);
   });
 });

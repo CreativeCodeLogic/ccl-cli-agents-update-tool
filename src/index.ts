@@ -16,7 +16,7 @@ import {
 import { createNoticeSlot, detectInstallContext, nodeModulesParent, selfCheckEnabled, type InstallContext } from "./self";
 import { initialSelection, isOffered, recordSelection, type SelectionStore } from "./selection";
 import type { ToolDescriptor, ToolScan } from "./types";
-import { printBanner } from "./ui/banner";
+import { headerStyle, printHeader, type HeaderStyle } from "./ui/banner";
 import { CANCEL_EXIT_CODE, CANCEL_MESSAGE, createProgress } from "./ui/progress";
 import { displayVersion } from "./ui/format";
 import { icons } from "./ui/symbols";
@@ -26,6 +26,7 @@ import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
 import { CANCELLED, checklist, choose, QUIT, RETRY } from "./ui/prompts";
 import { getNetwork, networkProblem } from "./utils/http";
 import { doctorReport } from "./doctor";
+import { realReportDeps, reportPrompt, wantsReportPrompt, writeOutputFile } from "./report";
 import { githubRateLimitNotice } from "./utils/github";
 import { findProjectManifest, type ProjectManifest } from "./project";
 import { GROUP_LABELS, TOOL_GROUPS, type ToolGroup } from "./types";
@@ -67,6 +68,10 @@ interface Runtime {
   projectFixture?: ProjectManifest;
   /** "Dev CLIs hidden · --show-group dev" when a group is left out of this run. */
   hiddenNote?: string | null;
+  /** Big banner (default run), compact header line (option paths) or none (piped, CI). */
+  header?: HeaderStyle;
+  /** Lines shown right under the header (e.g. "Dev CLIs hidden from now on"). */
+  headerNotes?: string[];
   host: Host;
   /** Replaced on Rescan. */
   latest: LatestResolver;
@@ -215,7 +220,8 @@ function groupView(options: CliOptions, hidden: readonly ToolGroup[]): { groups:
   return { groups, note: off.length > 0 ? off.map((g) => `${GROUP_LABELS[g]} hidden · --show-group ${g}`).join(" · ") : null };
 }
 
-async function runJson(runtime: Runtime, check: boolean): Promise<number> {
+async function runJson(runtime: Runtime, options: CliOptions): Promise<number> {
+  const { check } = options;
   const self = startSelfCheck(runtime);
   const { results } = await scan(runtime);
   const summary = summarize(results);
@@ -236,8 +242,24 @@ async function runJson(runtime: Runtime, check: boolean): Promise<number> {
     summary,
     tools: results,
   };
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  return check ? checkExitCode(summary) : 0;
+  const json = `${JSON.stringify(report, null, 2)}\n`;
+  const code = check ? checkExitCode(summary) : 0;
+  if (options.output) {
+    // The file only; the path goes to stderr so stdout stays clean.
+    const written = writeOutputFile(options.output, json, options.force, undefined, options.demo);
+    if (!written.ok) {
+      process.stderr.write(`ccl-caut: ${written.error}\n`);
+      return 2;
+    }
+    process.stderr.write(`${written.path}${written.simulated ? " (demo: nothing was written)" : ""}\n`);
+    return code;
+  }
+  process.stdout.write(json);
+  // Scripts, CI and --yes get exactly the JSON; a person at a terminal can copy or save it.
+  if (wantsReportPrompt(Boolean(process.stdout.isTTY && process.stdin.isTTY), process.env, options.yes)) {
+    await reportPrompt(json, realReportDeps(options.demo));
+  }
+  return code;
 }
 
 /** Banner + two progress phases + table + notes. Shared by --check and the interactive flow. */
@@ -254,6 +276,11 @@ function printLateSelfNotice(): void {
   if (notice) console.log(pc.dim(notice));
 }
 
+/** Notes for under the header, shown once. */
+function printHeaderNotes(runtime: Runtime): void {
+  for (const note of runtime.headerNotes?.splice(0) ?? []) process.stdout.write(`${tone.muted(note)}\n`);
+}
+
 /** Center the banner only for a person at a terminal: --check, --json and piped output stay left-aligned. */
 async function scanWithProgress(runtime: Runtime, center: boolean): Promise<ScanResult> {
   const { tools, host, latest } = runtime;
@@ -261,7 +288,8 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
   // Under the banner only what is known right now (cache or demo fixture).
   selfNotice = createNoticeSlot(VERSION, self.context, () => self.settled() ?? self.immediate, () => self.next());
   const bannerNotice = self.immediate ? selfNotice.take() : null;
-  printBanner(VERSION, bannerNotice, center);
+  printHeader(runtime.header ?? "banner", VERSION, bannerNotice, center);
+  printHeaderNotes(runtime);
   intro(pc.inverse(" Scan "));
   prefetchLatest(tools, latest);
 
@@ -301,7 +329,8 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
 
 /** --discover: every supported tool, installed or not, with its official install docs. */
 async function runDiscover(runtime: Runtime): Promise<number> {
-  printBanner(VERSION, null, Boolean(process.stdout.isTTY));
+  printHeader(runtime.header ?? "line", VERSION);
+  printHeaderNotes(runtime);
   intro(pc.inverse(" Discover "));
   const progress = createProgress();
   progress.start("Scanning for installed CLIs...");
@@ -570,23 +599,29 @@ async function main(): Promise<number> {
     return 2;
   }
   const { options } = parsed;
+  const header = headerStyle(options, Boolean(process.stdout.isTTY), process.env);
 
-  if (options.help) {
-    process.stdout.write(helpText(VERSION));
-    return 0;
-  }
   if (options.version) {
     process.stdout.write(`${VERSION}\n`);
     return 0;
   }
+  if (options.help) {
+    // In a terminal the shared header replaces the help's own title line.
+    printHeader(header, VERSION);
+    process.stdout.write(helpText(VERSION, header === "none"));
+    return 0;
+  }
 
   if (options.doctor) {
+    printHeader(header, VERSION);
     const { lines, code } = await doctorReport(VERSION);
     process.stdout.write(`${lines.join("\n")}\n`);
     return code;
   }
 
   const runtime = createRuntime(options);
+  runtime.header = header;
+  runtime.headerNotes = [];
   if (options.resetSelection) runtime.selections.reset();
   for (const [group, hide] of [
     [options.hideGroup, true],
@@ -594,12 +629,10 @@ async function main(): Promise<number> {
   ] as const) {
     if (!group) continue;
     runtime.selections.setGroupHidden(group, hide);
-    if (!options.json) {
-      process.stdout.write(tone.muted(hide ? `${GROUP_LABELS[group]} hidden from now on · --show-group ${group} to show them again\n` : `${GROUP_LABELS[group]} shown again\n`));
-    }
+    runtime.headerNotes.push(hide ? `${GROUP_LABELS[group]} hidden from now on · --show-group ${group} to show them again` : `${GROUP_LABELS[group]} shown again`);
   }
   // --json and --discover always cover every group.
-  if (options.json) return runJson(runtime, options.check);
+  if (options.json) return runJson(runtime, options);
   if (options.discover) return runDiscover(runtime);
   const view = groupView(options, runtime.selections.hiddenGroups);
   runtime.tools = runtime.tools.filter((tool) => view.groups.includes(tool.group));

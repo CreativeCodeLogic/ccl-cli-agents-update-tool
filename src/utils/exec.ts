@@ -15,8 +15,9 @@ const FAILED: ExecResult = { ok: false, code: null, stdout: "", stderr: "" };
  * Run a command and capture its output. Never throws: spawn errors,
  * non-zero exits and timeouts all resolve with ok=false.
  * cross-spawn handles Windows .cmd/.bat shims without shell:true.
+ * `input`, when given, is written to the command's stdin (UTF-8), e.g. for pbcopy.
  */
-export function exec(command: string, args: string[], timeoutMs = 10_000): Promise<ExecResult> {
+export function exec(command: string, args: string[], timeoutMs = 10_000, input?: string): Promise<ExecResult> {
   const blocked = sideEffectsBlocked();
   if (blocked) {
     debug(`not running ${command}: ${blocked}`);
@@ -34,7 +35,7 @@ export function exec(command: string, args: string[], timeoutMs = 10_000): Promi
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(command, args, {
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
         windowsHide: true,
         env: { ...process.env, NO_COLOR: "1", FORCE_COLOR: "0", CI: "1" },
       });
@@ -43,6 +44,10 @@ export function exec(command: string, args: string[], timeoutMs = 10_000): Promi
       return;
     }
 
+    if (input !== undefined) {
+      child.stdin?.on("error", () => {}); // the command may exit before reading everything
+      child.stdin?.end(input, "utf8");
+    }
     let stdout = "";
     let stderr = "";
     child.stdout?.setEncoding("utf8").on("data", (chunk: string) => (stdout += chunk));

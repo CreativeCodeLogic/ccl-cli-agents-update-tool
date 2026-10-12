@@ -6,6 +6,10 @@ export interface CliOptions {
   /** --hide-group / --show-group: persistent, saved in the config. */
   hideGroup: ToolGroup | null;
   showGroup: ToolGroup | null;
+  /** --output <file> (with --json): write the JSON there instead of showing it. */
+  output: string | null;
+  /** --force: let --output overwrite an existing file. */
+  force: boolean;
   check: boolean;
   json: boolean;
   refresh: boolean;
@@ -33,6 +37,8 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     only: null,
     hideGroup: null,
     showGroup: null,
+    output: null,
+    force: false,
     check: false,
     json: false,
     refresh: false,
@@ -56,8 +62,17 @@ export function parseArgs(argv: readonly string[]): ParseResult {
       options[GROUP_FLAGS[flag as keyof typeof GROUP_FLAGS]] = value as ToolGroup;
       continue;
     }
+    if (flag === "--output") {
+      const value = inline ?? argv[++i];
+      if (!value || value.startsWith("--")) return { ok: false, error: "--output needs a file name" };
+      options.output = value;
+      continue;
+    }
     const arg = raw;
     switch (arg) {
+      case "--force":
+        options.force = true;
+        break;
       case "--check":
         options.check = true;
         break;
@@ -100,16 +115,16 @@ export function parseArgs(argv: readonly string[]): ParseResult {
         return { ok: false, error: `Unknown option: ${arg}` };
     }
   }
+  if (options.output && !options.json) return { ok: false, error: "--output works with --json" };
   if (options.hideGroup && options.hideGroup === options.showGroup) {
     return { ok: false, error: `--hide-group and --show-group both name ${options.hideGroup}` };
   }
   return { ok: true, options };
 }
 
-export function helpText(version: string): string {
-  return `ccl-caut v${version} — CLI Agents Update Tool by Creative Code Logic
-
-Checks which AI/dev CLIs are installed, compares them with the latest
+/** --help. `title` = false when the shared header line is already printed above it. */
+export function helpText(version: string, title = true): string {
+  return `${title ? `ccl-caut v${version} — CLI Agents Update Tool by Creative Code Logic\n\n` : ""}Checks which AI/dev CLIs are installed, compares them with the latest
 releases, and lets you pick which ones to update.
 
 Usage:
@@ -119,6 +134,10 @@ Options:
   --check        Scan and print the table only. Exit code 1 if updates exist, else 0.
   --json         Print the scan result as JSON (no banner, no colors).
                  Combined with --check, the exit code follows --check.
+                 In a terminal you can then copy it or save it to a file.
+  --output <file>
+                 With --json: write the JSON to <file> (no prompt; prints the path
+                 to stderr). Won't overwrite an existing file unless --force.
   --refresh      Ignore cached latest versions (cached for 1 hour) and look them up again.
   --discover     List every supported CLI with its official install docs.
                  (ccl-caut never installs tools.)

@@ -1,4 +1,4 @@
-import { isCancel, MultiSelectPrompt, SelectPrompt } from "@clack/core";
+import { isCancel, MultiSelectPrompt, SelectPrompt, TextPrompt } from "@clack/core";
 import { S_BAR, S_BAR_END, S_CHECKBOX_INACTIVE, S_CHECKBOX_SELECTED, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_SUBMIT } from "@clack/prompts";
 import pc from "picocolors";
 import { tone } from "./theme";
@@ -147,4 +147,29 @@ export async function choose<T extends string>(
   if (flag.retry) return RETRY;
   if (isCancel(result)) return CANCELLED;
   return result as T;
+}
+
+const ASK_KEYS = "type to edit · enter confirm · esc back";
+
+/** One line of text, prefilled and editable (e.g. a file path). Esc/Ctrl+C resolve CANCELLED. */
+export async function ask(opts: { message: string; initialValue?: string; validate?: (value: string) => string | undefined } & PromptIO): Promise<string | typeof CANCELLED> {
+  const prompt = new TextPrompt({
+    ...(opts.initialValue !== undefined && { initialUserInput: opts.initialValue }),
+    ...(opts.validate && { validate: (value: string | undefined) => opts.validate!(value ?? "") }),
+    ...(opts.input && { input: opts.input as never }),
+    ...(opts.output && { output: opts.output as never }),
+    render() {
+      const lines = header(this.state === "error" ? "active" : this.state, opts.message);
+      if (this.state === "submit" || this.state === "cancel") {
+        if (this.state === "submit") lines.push(`${bar}  ${tone.muted(this.value ?? "")}`);
+        return lines.join("\n");
+      }
+      lines.push(`${bar}  ${this.userInputWithCursor}`);
+      if (this.state === "error") lines.push(`${bar}  ${tone.action(this.error)}`);
+      lines.push(bar, `${bar}  ${tone.muted(ASK_KEYS)}`, pc.gray(S_BAR_END));
+      return lines.join("\n");
+    },
+  });
+  const result = await prompt.prompt();
+  return isCancel(result) ? CANCELLED : String(result ?? "");
 }
