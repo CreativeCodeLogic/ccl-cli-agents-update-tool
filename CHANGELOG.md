@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0-beta.2] - 2026-10-12
+
+Second beta of 1.1.0: `npm i -g ccl-caut@next`. The first release published from GitHub Actions with npm provenance.
+
 ### Added
 
 - `--json` in a terminal: after the JSON, **Copy to clipboard** (Windows Set-Clipboard, macOS pbcopy, Linux wl-copy/xclip/xsel), **Save to file** (prefilled `./ccl-caut-report-YYYY-MM-DD.json`, confirms before overwriting) or, where a native dialog works and not over SSH, **Browse…**. Pipes, CI and `--yes` get exactly the JSON as before. Simulated in `--demo`.
@@ -15,10 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Header policy: the big banner only on the default interactive run; every option path (`--check`, `--discover`, `--doctor`, `--help`, `--only`, `--hide-group`, `--show-group`, `--reset-selection`, `--yes`) starts with one compact line, "CCL CAUT v<version> · CLI Agents Update Tool — by Creative Code Logic"; `--json`, `--version`, piped output and CI print no header.
+- The npm package is much smaller (about 58 kB instead of 1.3 MB): it no longer ships the demo GIF, and its README is the repository README (the GIF loads from GitHub).
 
 ### Fixed
 
 - `--doctor` now uses the conhost fallback symbols.
+- Large output piped from ccl-caut (for example `ccl-caut --json | jq` on macOS) was cut off at 8 KB; ccl-caut now waits for its output to be written before exiting.
 
 ## [1.1.0-beta.1] - 2026-10-11
 
@@ -92,7 +98,8 @@ First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. 
 - Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
-[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0-beta.1...HEAD
+[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0-beta.2...HEAD
+[1.1.0-beta.2]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0-beta.1...v1.1.0-beta.2
 [1.1.0-beta.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.1...v1.1.0-beta.1
 [1.0.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/releases/tag/v1.0.0

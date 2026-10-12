@@ -1,152 +1,87 @@
 # Releasing
 
-## Release candidates (internal testing, repo private)
+Releases are published **by pushing a tag**. The Release workflow (`.github/workflows/release.yml`) runs typecheck, tests and build, then, depending on the tag (`scripts/release-channel.mjs`):
 
-Release candidates are GitHub pre-releases with the npm tarball attached. **They are never published to npm**; testers install the tarball (see [docs/TESTING.md](docs/TESTING.md)).
+| Tag | npm | GitHub |
+| --- | --- | --- |
+| `vX.Y.Z` | publish to `latest`, with provenance | Release |
+| `vX.Y.Z-beta.N` (any prerelease except rc) | publish to `next`, with provenance | pre-release |
+| `vX.Y.Z-rc.N` | never | pre-release with the `.tgz` attached |
 
-```bash
-npm version 1.0.0-rc.N --no-git-tag-version   # package.json + lock
-git commit -am "Release candidate v1.0.0-rc.N"
-git push
-git tag -a v1.0.0-rc.N -m "Release candidate v1.0.0-rc.N"
-git push origin v1.0.0-rc.N
-```
+A version that is already on npm is skipped cleanly (`npm view` first); the GitHub Release is still created. Release notes come from the `## [X.Y.Z…]` section of `CHANGELOG.md`.
 
-**Actions → Release** classifies the tag (`scripts/release-channel.mjs`: `vX.Y.Z-rc.N` → rc), runs typecheck, tests and build, packs `ccl-caut-X.Y.Z-rc.N.tgz` and creates a GitHub **pre-release** with it attached. Notes come from the `## [X.Y.Z]` section of `CHANGELOG.md` (or `## [Unreleased]`). Stable tags (`vX.Y.Z`) fail before publishing while the repository is private.
+**Tags are permanent.** The "Protect release tags" ruleset forbids moving or deleting `v*` tags, so check the commit (CI green, version in `package.json`, CHANGELOG section) before you push a tag.
 
-The stable launch sets the version to the stable number (`npm version 1.0.0 --no-git-tag-version`, commit); 1.0.0 is published by hand while the repo is private (next section).
+## One-time setup: npm trusted publishing
 
-## npm while the repository is private (now)
+The workflow publishes through npm's trusted publishing (OIDC), so no npm token is stored in GitHub. On npmjs.com, open **ccl-caut → Settings → Trusted Publisher → GitHub Actions** and enter:
 
-ccl-caut is published to npm **before** the repository goes public. While it is private:
+| Field | Value |
+| --- | --- |
+| Organization or user | `CreativeCodeLogic` |
+| Repository | `ccl-cli-agents-update-tool` |
+| Workflow filename | `release.yml` |
+| Environment name | *(leave empty)* |
 
-- **Publishes are manual.** The release workflow never publishes to npm from a private repository: a stable or beta tag still creates the GitHub Release (notes from `CHANGELOG.md`) and ends green with the notice "npm publish skipped: repo is private; publish manually". Release candidates are unchanged.
-- **The npm README has no repo links.** `README.npm.md` is generated from `README.md` by `scripts/npm-readme.mjs` (a unit test keeps it in sync; `npm run readme:npm` rewrites it). `prepack` swaps it in as `README.md` for the tarball and `postpack` restores the repo README; if a pack fails, the next `npm pack` or `npm test` restores it (`node scripts/pack-readme.mjs restore` does it by hand). The demo GIF ships in the package and is shown from jsDelivr, pinned to the version.
-- **package.json** has no `repository` or `bugs` (they would 404); `homepage` is https://creativecodelogic.com. Bugs and feedback go to admin@creativecodelogic.com.
-- **No provenance.** npm provenance needs a public repository and the workflow, so manual publishes have none.
+Then, under **Settings → Publishing access**, choose **Require two-factor authentication and disallow tokens**: the workflow keeps publishing through OIDC, and nobody can publish with a stolen token.
 
-### Publishing a version by hand
+The workflow already has what trusted publishing needs: `id-token: write` on the release job only, Node 24 and the latest npm.
 
-1. Bump, update `CHANGELOG.md`, commit and push (`npm version x.y.z --no-git-tag-version`). For 1.0.0 this is done.
-2. From a clean checkout of `main` at that commit:
+## Publishing a beta
 
-   ```bash
-   git clone git@github.com:CreativeCodeLogic/ccl-cli-agents-update-tool.git ccl-caut-release
-   cd ccl-caut-release
-   git log -1 --oneline                 # confirm it is the release commit
-   npm ci
-   npm pack --dry-run                   # check the file list: dist/, docs/demo.gif, README.md, LICENSE, package.json
-   npm login                            # the npm account that is a member of the creativecodelogic org (2FA)
-   npm publish --access public          # prepublishOnly: typecheck + tests + build; prepack swaps the npm README in
-   npm view ccl-caut version            # -> x.y.z
-   git status --short                   # empty: README.md was restored
-   ```
+Betas go to the `next` dist-tag, so `npm i -g ccl-caut` keeps installing the stable version and testers opt in with `ccl-caut@next`.
 
-3. Check https://www.npmjs.com/package/ccl-caut: README renders, the demo GIF loads (jsDelivr may take a few minutes after the first publish), no links into GitHub.
-4. **First publish only: give the org access to the package.** `ccl-caut` is unscoped, so it belongs to the account that published it; grant the org's team access and add co-maintainers:
-
-   ```bash
-   npm team ls creativecodelogic                                   # e.g. creativecodelogic:developers
-   npm access grant read-write creativecodelogic:developers ccl-caut
-   npm owner ls ccl-caut
-   ```
-
-   Then on npmjs.com → **ccl-caut → Settings → Publishing access**, choose **Require two-factor authentication and disallow tokens**.
-5. **Tag it** so the workflow creates the GitHub Release (it skips npm while private):
-
-   ```bash
-   git tag -a vx.y.z -m "Release vx.y.z"
-   git push origin vx.y.z
-   ```
-
-6. **Smoke test** from a fresh shell outside the repo: `npx ccl-caut@latest --version`, `--check` (exit 0 or 1 is fine), `--discover`. Users of a release candidate see "ccl-caut x.y.z is available · npm i -g ccl-caut" under the banner.
-
-### Publishing a beta
-
-Betas go to the `next` dist-tag, so `npm i -g ccl-caut` and `npx ccl-caut` keep installing the stable version; testers opt in with `ccl-caut@next`.
-
-1. Bump to a prerelease and update `CHANGELOG.md` (`## [X.Y.Z]` section, marked as beta), commit and push:
+1. Bump and describe it, commit, push, and wait for CI:
 
    ```bash
    npm version X.Y.Z-beta.N --no-git-tag-version
+   # CHANGELOG.md: a "## [X.Y.Z-beta.N] - YYYY-MM-DD" section
+   git commit -am "Release vX.Y.Z-beta.N"
+   git push
    ```
 
-2. From a clean checkout of that commit:
+2. Tag that exact commit:
 
    ```bash
-   npm ci
-   npm publish --tag next --dry-run     # check the tag line: "with tag next"
-   npm publish --tag next
-   npm view ccl-caut dist-tags          # latest unchanged, next -> X.Y.Z-beta.N
-   ```
-
-   `prepublishOnly` (`scripts/publish-guard.mjs`) refuses a prerelease without `--tag next` ("Prerelease version: publish with `npm publish --tag next`") and a stable version with `--tag next`.
-
-3. Tag it; the workflow creates a GitHub pre-release with the CHANGELOG notes (npm is skipped while the repo is private):
-
-   ```bash
-   git tag -a vX.Y.Z-beta.N -m "Beta vX.Y.Z-beta.N"
+   git tag -a vX.Y.Z-beta.N -m "Release vX.Y.Z-beta.N"
    git push origin vX.Y.Z-beta.N
    ```
 
-Beta users see the next beta (or the stable release, whichever is higher) in the update notice, with `npm i -g ccl-caut@next`; stable users are never pointed at a beta.
-
-### Promoting to stable
-
-When the beta has met the bar in ROADMAP.md (full CI matrix, canary, real Windows/macOS/Linux checks, a week without wrong-command or false-success reports):
-
-1. `npm version X.Y.Z --no-git-tag-version`, finalize the `## [X.Y.Z]` CHANGELOG section (date, drop the beta marker), update ROADMAP.md, commit and push.
-2. Publish as in "Publishing a version by hand" (no `--tag`: it goes to `latest`; the guard refuses `--tag next` for a stable version).
-3. Tag `vX.Y.Z`. Optionally point `next` at the stable version too, so `ccl-caut@next` never lags behind it: `npm dist-tag add ccl-caut@X.Y.Z next`.
-
-## Going public (one time)
-
-Do these in order. Claude never changes repository visibility or publishes to npm; these are manual steps.
-
-1. **Social preview.** Upload `docs/social-preview-b.png`: GitHub → repository **Settings → General → Social preview → Edit → Upload an image**. There is no API for this.
-
-2. **Make the repository public.** GitHub → **Settings → General → Danger Zone → Change repository visibility → Make public**. Then:
-   - enable the full CI matrix on push/PR: in `.github/workflows/ci.yml`, replace the `node:` expression with `[20, 22, 24]` and drop the "while the repo is private" comment;
-   - enable private vulnerability reporting (used by `SECURITY.md`; GitHub only allows it on public repositories):
+3. Watch **Actions → Release**, then check:
 
    ```bash
-   gh api -X PUT repos/CreativeCodeLogic/ccl-cli-agents-update-tool/private-vulnerability-reporting
+   npm view ccl-caut dist-tags        # next -> X.Y.Z-beta.N, latest unchanged
    ```
 
-   (or **Settings → Code security → Private vulnerability reporting → Enable**).
+   The npm page shows the provenance badge for the version.
 
-3. **Undo the private-npm setup** in one commit:
-   - `package.json`: restore `"repository": { "type": "git", "url": "git+https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool.git" }` and `"bugs": { "url": "https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/issues" }`; set `homepage` to `https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool#readme`.
-   - Drop `README.npm.md`, `scripts/npm-readme.mjs`, `scripts/pack-readme.mjs` (and their `.d.mts`), the `prepack`/`postpack`/`pretest`/`readme:npm` scripts, `test/npm-readme.test.ts`, `.README.repo.md` in `.gitignore`, and `docs/demo.gif` from `files` (the repo README's GIF works on npmjs.com once the repo is public). Remove the "npm while the repository is private" section above.
-   - Re-enable provenance: with the repo public, `scripts/release-channel.mjs` lets stable/beta tags publish again, and the workflow publishes with `--provenance` through trusted publishing (next step).
-   - Release it as the next patch version (README and metadata changes only).
+Beta users are told about the next beta or the stable release, whichever is newer; stable users are never pointed at a beta.
 
-4. **Configure npm trusted publishing** on npmjs.com → **ccl-caut → Settings → Trusted Publisher → GitHub Actions**:
+## Promoting to stable
 
-   | Field | Value |
-   | --- | --- |
-   | Organization or user | `CreativeCodeLogic` |
-   | Repository | `ccl-cli-agents-update-tool` |
-   | Workflow filename | `release.yml` |
-   | Environment name | *(leave empty)* |
+When the beta meets the bar in ROADMAP.md (full CI matrix, canary, real Windows/macOS/Linux checks, a week with no wrong-command or false-success reports):
 
-   npm doesn't validate this on save, and a configuration that isn't used for a publish within 2 days expires; set it up right before the next release if needed. No `NPM_TOKEN` secret is needed.
+1. `npm version X.Y.Z --no-git-tag-version`, finalize the `## [X.Y.Z]` CHANGELOG section, update ROADMAP.md (and the README why-line counts if tools or install methods changed), close the milestone, commit, push, wait for CI.
+2. Tag `vX.Y.Z` and push the tag: the workflow publishes to `latest` with provenance and creates the GitHub Release.
+3. Optionally point `next` at the stable version too, so `ccl-caut@next` never lags behind it: `npm dist-tag add ccl-caut@X.Y.Z next`.
 
-## Cutting a release (after going public)
+## Release candidates
 
-1. Move the entries under `## [Unreleased]` in `CHANGELOG.md` to a new `## [x.y.z] - YYYY-MM-DD` section and update the compare links at the bottom.
-2. Update `ROADMAP.md` (move shipped items to "Now", adjust "Next") and close the matching GitHub milestone. If tools or install methods changed, update the counts in the README why line ("Twelve CLIs. Ten ways to install them.").
-3. Bump, tag and push:
+`vX.Y.Z-rc.N` tags never publish to npm: they create a GitHub pre-release with the packed `.tgz` attached, for testing a build before it reaches npm (see [docs/TESTING.md](docs/TESTING.md)).
 
-   ```bash
-   npm version x.y.z -m "Release v%s"   # updates package.json + lock, commits, tags vx.y.z
-   git push --follow-tags
-   ```
+## Fallback: publishing by hand
 
-4. **Actions → Release** runs typecheck, tests and build, publishes to npm (only once the repo is public; until then it skips npm and you publish by hand, see above) through trusted publishing (OIDC, with provenance) and creates the GitHub Release. Pre-release versions (`x.y.z-beta.1`) go to the `next` dist-tag and are marked as pre-releases.
+Only if the workflow can't publish (for example while trusted publishing is being set up). Manual publishes have no provenance.
 
-Published npm versions are immutable: if something is wrong, fix it and release a new patch version.
+```bash
+git clone https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool.git ccl-caut-release
+cd ccl-caut-release && git checkout vX.Y.Z      # the tagged commit
+npm ci
+npm publish --dry-run --tag next                 # betas: --tag next; stable: no --tag
+npm publish --tag next
+```
 
-### Fallback: publishing with a token
+`prepublishOnly` runs typecheck, tests and build, and `scripts/publish-guard.mjs` refuses a prerelease without `--tag next` and a stable version with it. Tag the commit as usual: the workflow then sees the version on npm, skips publishing and creates the GitHub Release.
+### Last resort: a token in the workflow
 
-If trusted publishing is unavailable, create a short-lived granular access token on npmjs.com (read/write for `ccl-caut`), add it as the repository secret `NPM_TOKEN`, push the tag, then delete the secret and revoke the token. The workflow uses OIDC when configured and the token only as a fallback.
+If trusted publishing is unavailable and publishing by hand is not an option: temporarily allow tokens under **Publishing access**, create a short-lived granular access token (read/write for `ccl-caut`), add it as the repository secret `NPM_TOKEN`, push the tag, then delete the secret, revoke the token and switch back to **Require two-factor authentication and disallow tokens**. The workflow uses OIDC when it is configured and the token only as a fallback.

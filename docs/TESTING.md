@@ -1,6 +1,6 @@
 # Testing CCL CAUT
 
-Thanks for helping test CCL CAUT. It is on npm now (the GitHub repository is still private), so testers install it like any user.
+Thanks for helping test CCL CAUT. It is on npm, so testers install it like any user; the source and issues are on [GitHub](https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool).
 
 ## Install
 

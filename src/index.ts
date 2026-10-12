@@ -648,12 +648,27 @@ async function main(): Promise<number> {
   return finish(await runInteractive(runtime, options));
 }
 
+/**
+ * Exit only after stdout and stderr are flushed. Pipes are asynchronous on
+ * macOS, and process.exit() right after a large write (--json | jq) would cut
+ * the output off at 8 KB. An empty write's callback runs once everything
+ * written before it has been flushed.
+ */
+function exitWhenFlushed(code: number): void {
+  let pending = 2;
+  const done = () => {
+    if (--pending === 0) process.exit(code);
+  };
+  process.stdout.write("", done);
+  process.stderr.write("", done);
+}
+
 main().then(
-  (code) => process.exit(code),
+  (code) => exitWhenFlushed(code),
   (error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${pc.red(`ccl-caut: ${message}`)}\n`);
     if (process.env.CCL_CAUT_DEBUG && error instanceof Error) process.stderr.write(`${error.stack ?? ""}\n`);
-    process.exit(1);
+    exitWhenFlushed(1);
   },
 );
