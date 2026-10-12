@@ -4,16 +4,16 @@ name: Release
 #   vX.Y.Z-rc.N     -> GitHub pre-release with the npm tarball attached. NEVER publishes to npm.
 #   vX.Y.Z          -> npm publish (latest) + GitHub Release.
 #   vX.Y.Z-<other>  -> npm publish (next) + GitHub pre-release.
-# While the repo is private, stable and beta tags NEVER publish to npm (publishes are manual,
-# see RELEASING.md); they still create the GitHub Release and the job ends green with a notice.
-# Setup (npm trusted publisher, first publish): see RELEASING.md.
+# A version that is already on npm is skipped (the GitHub Release is still created).
+# If the repository were ever private again, stable and beta tags would skip npm too.
+# Setup (npm trusted publisher): see RELEASING.md.
 on:
   push:
     tags: ["v*.*.*"]
 
+# Least privilege: nothing by default; only the release job may write.
 permissions:
-  contents: write # create the GitHub Release
-  id-token: write # npm trusted publishing (OIDC) and provenance
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -22,6 +22,9 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub Release
+      id-token: write # npm trusted publishing (OIDC) and provenance
     steps:
       - uses: actions/checkout@v7
 

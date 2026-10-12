@@ -20,7 +20,8 @@ import { getHost, type Host } from "../src/utils/host";
 import { getNetwork, rateLimitOf } from "../src/utils/http";
 import { useFakeFetch } from "./helpers";
 
-const TOKEN = "ghp_SECRETtokenVALUE1234567890";
+// Obviously fake, and shaped like no provider's token (secret scanning is on for this repo).
+const TOKEN = "test-token-not-a-real-secret";
 const restores: (() => void)[] = [];
 beforeEach(() => resetGithubState());
 afterEach(() => {
@@ -120,7 +121,7 @@ describe("GitHub token", () => {
     expect(report).toContain("token  set (GITHUB_TOKEN)");
     for (const text of [output, report, JSON.stringify(getNetwork().report()), githubRateLimitNotice() ?? ""]) {
       expect(text).not.toContain(TOKEN);
-      expect(text).not.toContain("SECRET");
+      expect(text).not.toContain("not-a-real-secret");
     }
   });
 });
