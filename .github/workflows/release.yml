@@ -1,9 +1,11 @@
 name: Release
 
 # One workflow for every version tag; scripts/release-channel.mjs decides what it may do:
-#   vX.Y.Z-rc.N     -> GitHub pre-release with the npm tarball attached. NEVER publishes to npm.
-#   vX.Y.Z          -> npm publish (latest) + GitHub Release.
-#   vX.Y.Z-<other>  -> npm publish (next) + GitHub pre-release.
+#   vX.Y.Z-rc.N     -> GitHub pre-release with the npm tarball attached. NEVER goes to npm.
+#   vX.Y.Z          -> npm STAGED publish (latest) + GitHub Release.
+#   vX.Y.Z-<other>  -> npm STAGED publish (next) + GitHub pre-release.
+# Staged publishing (`npm stage publish`, through trusted publishing/OIDC, with provenance):
+# the version waits on npmjs.com until a maintainer approves it with 2FA (RELEASING.md).
 # A version that is already on npm is skipped (the GitHub Release is still created).
 # If the repository were ever private again, stable and beta tags would skip npm too.
 # Setup (npm trusted publisher): see RELEASING.md.
@@ -77,27 +79,48 @@ jobs:
       - run: npm install -g npm@latest && npm --version
         if: steps.channel.outputs.publish_to_npm == 'true'
 
-      # Trusted publishing (OIDC) is used when configured on npmjs.com; NPM_TOKEN is
-      # only a fallback (see RELEASING.md). Skipped when the version is already on npm.
-      - name: Publish to npm
+      # Staged publish through trusted publishing (OIDC): no npm token anywhere; the
+      # trusted publisher on npmjs.com allows only `npm stage publish`. The dist-tag is
+      # fixed at staging (beta -> next, stable -> latest). Skipped when the version is
+      # already published.
+      - name: Stage the npm release
+        id: stage
         if: steps.channel.outputs.publish_to_npm == 'true' && steps.channel.outputs.channel != 'rc'
         run: |
+          set -o pipefail # a failed stage must fail the job, even though its output goes through tee
           version="${{ steps.channel.outputs.version }}"
           name="$(node -p "require('./package.json').name")"
           if npm view "$name@$version" version >/dev/null 2>&1; then
-            echo "$name@$version is already on npm; skipping publish"
+            echo "$name@$version is already on npm; skipping"
+            echo "staged=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ "${{ steps.channel.outputs.channel }}" = "stable" ]; then dist_tag=latest; else dist_tag=next; fi
-          npm publish --access public --provenance --tag "$dist_tag"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          npm stage publish --provenance --tag "$dist_tag" 2>&1 | tee stage-output.txt
+          echo "staged=true" >> "$GITHUB_OUTPUT"
+          echo "dist_tag=$dist_tag" >> "$GITHUB_OUTPUT"
+          {
+            echo "### npm: $name@$version staged (dist-tag \`$dist_tag\`)"
+            echo ""
+            echo "A maintainer must approve it with 2FA before it is published:"
+            echo "npmjs.com -> $name -> **Staged Packages** tab -> **Approve** (or \`npm stage approve <stage-id>\`)."
+            echo ""
+            echo '```'
+            cat stage-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create the GitHub Release
         if: steps.channel.outputs.channel != 'rc'
         run: |
           prerelease=""
           if [ "${{ steps.channel.outputs.channel }}" != "stable" ]; then prerelease="--prerelease"; fi
-          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file release-notes.md $prerelease
+          if [ "${{ steps.stage.outputs.staged }}" = "true" ]; then
+            # Staged, not yet live on npm: say so until a maintainer approves (RELEASING.md).
+            { echo "> **npm:** this version is staged and awaits maintainer approval; it becomes installable (\`ccl-caut@${{ steps.stage.outputs.dist_tag }}\`) once approved."; echo; cat release-notes.md; } > release-body.md
+          else
+            cp release-notes.md release-body.md
+          fi
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file release-body.md $prerelease
         env:
           GH_TOKEN: ${{ github.token }}

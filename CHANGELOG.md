@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.0-beta.2] - 2026-10-12
 
-Second beta of 1.1.0: `npm i -g ccl-caut@next`. The first release published from GitHub Actions with npm provenance.
+Second beta of 1.1.0: `npm i -g ccl-caut@next`. The first release staged from GitHub Actions (npm staged publishing, with provenance) and approved by a maintainer.
 
 ### Added
 
