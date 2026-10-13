@@ -11,15 +11,11 @@
 5. **Honest results.** Every update is re-checked. You see "updates itself", "retired" or "held" instead of a guess.
 6. **No telemetry.**
 
-## Now: 1.0
+## Now: 1.1 (released)
 
-12 tools: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini (retired), Antigravity, Qwen Code, Kimi Code, Firebase, Google Cloud CLI and npm.
+23 tools in two groups. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini (retired), Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro CLI and Goose. Dev CLIs: Firebase, Google Cloud CLI, npm, Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI. Run it with `npx ccl-caut` or `npm i -g ccl-caut`.
 
-**1.0.x patches** focus on confirming every automatic update path on real Windows, macOS and Linux machines, and on fixing what people report.
-
-## In beta: 1.1
-
-Dev CLIs and more agents ship together in 1.1, now in beta as 1.1.0-beta.1: `npm i -g ccl-caut@next` (back to stable: `npm i -g ccl-caut@latest`). It becomes stable once it meets the bar under "Release channels" below.
+Dev CLIs and more agents shipped together in 1.1 (the agents planned for 1.2 came early):
 
 - **Two groups in the table:** AI agents and Dev CLIs. Firebase, the Google Cloud CLI and npm move to Dev CLIs, and you can hide a group you don't need.
 - **New Dev CLIs:** Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI.
@@ -29,7 +25,9 @@ Dev CLIs and more agents ship together in 1.1, now in beta as 1.1.0-beta.1: `npm
 - **New agents:** Aider, Mistral Vibe, Cline, Amp, Kiro CLI and Goose.
 - **Beta channel:** try upcoming versions early with `npx ccl-caut@next`.
 
-## Next after 1.1: Polish
+**1.1.x patches** focus on confirming every automatic update path on real Windows, macOS and Linux machines, and on fixing what people report.
+
+## Next: 1.3 — Polish
 
 - A table that fills in live, row by row, as each check finishes.
 - Update CCL CAUT itself from the checklist.
@@ -59,7 +57,7 @@ These are deliberate choices, not gaps:
 | Channel | How to run it | What it is |
 | --- | --- | --- |
 | Stable | `npx ccl-caut` | Released versions |
-| Beta (from 1.1) | `npx ccl-caut@next` | Upcoming versions, before they become stable |
+| Beta | `npx ccl-caut@next` | Upcoming versions, before they become stable |
 | Source | clone `main`, then `npm ci && npm run build` | Latest development work |
 
 A beta becomes stable once it passes the full CI matrix and the canary run, has been tested on real Windows, macOS and Linux machines, and has spent at least a week in beta with no reports of a wrong command or a false success.

@@ -28,17 +28,17 @@ npm uninstall -g ccl-caut
 
 ## Testing a beta
 
-Betas are published to npm under the `next` tag; a normal install keeps getting the stable version.
+Future betas are published to npm under the `next` tag; a normal install keeps getting the stable version. When no beta is in progress, `next` points to the latest stable release.
 
 ```bash
-npm install -g ccl-caut@next      # e.g. 1.1.0-beta.1
+npm install -g ccl-caut@next      # the current beta, e.g. 1.3.0-beta.1
 ccl-caut --version
 npm install -g ccl-caut@latest    # back to the stable release
 ```
 
 `npx ccl-caut@next` runs a beta once without installing it. Your remembered selections stay compatible both ways. While you are on a beta, the notice under the banner points you to the next beta or to the stable release, whichever is newer.
 
-For 1.1 in particular, please check:
+Features added in 1.1 that deserve a check on your machine:
 
 - **Groups:** `ccl-caut --only dev`, `--hide-group dev` / `--show-group dev` (the scan line should say what is hidden).
 - **New tools** you have installed (Wrangler, Vercel, Netlify, Supabase, GitHub CLI, Aider, Mistral Vibe, Cline, Amp, Kiro, Goose): right install method, version and update command? Anything with the same name that is *not* that tool (for example the Amp text editor or pressly/goose) must show as not installed.
@@ -48,7 +48,7 @@ For 1.1 in particular, please check:
 
 ## What to test
 
-First, note what you have: which of the 12 CLIs are installed and how (npm, Homebrew, winget, an install script, apt, ...). `ccl-caut --discover` lists them all.
+First, note what you have: which of the 23 CLIs are installed and how (npm, Homebrew, winget, an install script, apt, ...). `ccl-caut --discover` lists them all.
 
 - **Interactive run:** `ccl-caut`. Banner, table, notes, checklist, updates and the summary. Does the screen clear without losing your scrollback?
 - **`ccl-caut --check`** and **`ccl-caut --json`**: is every installed tool detected with the right version, install method ("Via") and latest version?

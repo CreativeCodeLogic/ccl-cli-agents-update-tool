@@ -26,11 +26,7 @@ npm install -g ccl-caut  # or keep it around
 ccl-caut
 ```
 
-Try the beta (1.1: 23 CLIs, groups, Python tools):
-
-```bash
-npm install -g ccl-caut@next   # back to stable: npm install -g ccl-caut@latest
-```
+Try upcoming versions (betas, when there is one): `npm i -g ccl-caut@next`. Back to stable: `npm i -g ccl-caut@latest`.
 
 From source:
 

@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-13
+
+CCL CAUT 1.1 (Dev CLIs & more agents): 23 CLIs in two groups, Python tool detection and notes for tools that live in your projects. Update with `npm i -g ccl-caut` or run `npx ccl-caut`. This release is identical to 1.1.0-beta.2; the [CHANGELOG](https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/blob/main/CHANGELOG.md) sections for 1.1.0-beta.1 and 1.1.0-beta.2 list every change in detail. Published from GitHub Actions with npm provenance and approved by a maintainer.
+
+### Added
+
+- **11 more CLIs, 23 in total.** Dev CLIs: Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI. AI agents: Aider, Mistral Vibe, Cline CLI, Amp, Kiro CLI and Goose. Install methods and update commands are checked against each vendor's docs, and generic binary names (`amp`, `goose`, `vibe`, `cline`) are only claimed where that tool installs itself (the Amp text editor and pressly/goose are left alone and never run).
+- **Two groups, AI agents and Dev CLIs.** `--only agents|dev` shows one group for a run; `--hide-group` / `--show-group` keep a group hidden. `--discover` and `--json` always cover everything.
+- **Python tools:** CLIs installed with uv tool, pipx or pip are detected; uv and pipx installs update automatically, pip installs get the command to run.
+- **Project-copy check and info notes:** inside a project that pins a supported CLI in `package.json`, a note says the global update won't affect it; vendor advice (such as installing Wrangler per project) appears as a dim note on the row. Read-only, and never changes what is selected.
+- **`--json` in a terminal** offers Copy to clipboard, Save to file or Browse… after the JSON; `--output <file>` (with `--force` to overwrite) writes it without a prompt. Pipes, CI and `--yes` get exactly the JSON as before.
+- **`GITHUB_TOKEN` / `GH_TOKEN`** raise GitHub's API limit for tools whose latest version comes from GitHub releases (sent only to api.github.com, never printed). Those versions are cached for 6 hours, and on a rate limit the cached version is used with one notice.
+- `--doctor` checks Kiro's release server and shows whether a GitHub token is set.
+- The table compacts step by step to fit narrow terminals.
+- A link to the GitHub repository in the `--help` footer and in unexpected-error reports, and once per version a dim "Star it on GitHub" line at the end of an interactive run (never with `--json`, `--check`, `--yes`, piped output or CI).
+
+### Changed
+
+- The big banner shows only on the default interactive run; option paths start with one compact line, and `--json`, `--version`, piped output and CI print no header.
+- Your config stays readable by 1.0.x, so going back keeps your remembered selections.
+- The update notice for beta users points to the higher of the next beta and the stable release; stable users are never pointed at a beta.
+- The npm package is about 58 kB instead of 1.3 MB, and releases now carry npm provenance.
+
+### Fixed
+
+- Large output piped from ccl-caut (for example `ccl-caut --json | jq` on macOS) was cut off at 8 KB.
+- uv tool environments on Windows are found at the documented location.
+- `--doctor` uses the fallback symbols in classic Windows consoles.
+
 ## [1.1.0-beta.2] - 2026-10-12
 
 Second beta of 1.1.0: `npm i -g ccl-caut@next`. The first release staged from GitHub Actions (npm staged publishing, with provenance) and approved by a maintainer.
@@ -99,7 +128,8 @@ First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. 
 - Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
-[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0-beta.2...HEAD
+[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.1...v1.1.0
 [1.1.0-beta.2]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0-beta.1...v1.1.0-beta.2
 [1.1.0-beta.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.1...v1.1.0-beta.1
 [1.0.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.0...v1.0.1
