@@ -1,0 +1,53 @@
+name: winget probe (temporary)
+
+on:
+  push:
+    branches: [winget-probe]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg:
+          - { id: GitHub.Copilot, bin: copilot }
+          - { id: SST.opencode, bin: opencode }
+          - { id: Google.AntigravityCLI, bin: agy }
+          - { id: GitHub.cli, bin: gh }
+    steps:
+      - name: Upgrade from the previous version (user scope)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          $id = "${{ matrix.pkg.id }}"; $bin = "${{ matrix.pkg.bin }}"
+          winget --version
+          if ($id -eq "GitHub.cli") {
+            "runner-preinstalled gh: $((Get-Command gh -ErrorAction SilentlyContinue).Source)"
+            winget uninstall --id GitHub.cli --exact --silent --accept-source-agreements --disable-interactivity
+            "uninstall exit code: $LASTEXITCODE"
+            choco uninstall gh -y 2>$null | Select-Object -Last 2
+          }
+          $out = winget show --id $id --exact --source winget --versions --accept-source-agreements --disable-interactivity | Out-String
+          $versions = [regex]::Matches($out, '(?m)^\s*(v?\d+(?:\.\d+)+\S*)\s*$') | ForEach-Object { $_.Groups[1].Value }
+          "newest versions: $(($versions | Select-Object -First 5) -join ', ')"
+          $older = $versions[1]
+          winget install --id $id --exact --source winget --version $older --scope user --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+          "install $older exit code: $LASTEXITCODE (0x{0:X8})" -f $LASTEXITCODE
+          $links = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Links\$bin.exe"
+          "user-scope binary: $links (exists: $(Test-Path $links))"
+          $before = & $links --version 2>&1 | Select-Object -First 1
+          "before: $before"
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          winget upgrade --id $id --exact --source winget --scope user --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+          $code = $LASTEXITCODE
+          "UPGRADE exit code: $code (0x{0:X8}) after {1:n1}s" -f $code, $sw.Elapsed.TotalSeconds
+          $after = & $links --version 2>&1 | Select-Object -First 1
+          "after: $after"
+          winget upgrade --id $id --exact --source winget --scope user --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+          "AGAIN exit code: $LASTEXITCODE (0x{0:X8})" -f $LASTEXITCODE
+          if ($code -ne 0 -or $before -eq $after) { "RESULT: FAIL"; exit 1 } else { "RESULT: OK $before -> $after" }
