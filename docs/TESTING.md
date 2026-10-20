@@ -31,7 +31,7 @@ npm uninstall -g ccl-caut
 Future betas are published to npm under the `next` tag; a normal install keeps getting the stable version. When no beta is in progress, `next` points to the latest stable release.
 
 ```bash
-npm install -g ccl-caut@next      # the current beta, e.g. 1.3.0-beta.1
+npm install -g ccl-caut@next      # the current beta, e.g. 1.2.0-beta.1
 ccl-caut --version
 npm install -g ccl-caut@latest    # back to the stable release
 ```

@@ -162,7 +162,7 @@ Keys (interactive):
   r retry the version lookups (offered when they failed)
 ```
 
-The big CCL CAUT banner appears only on the default interactive run (`ccl-caut` with no options). Every option (`--check`, `--discover`, `--doctor`, `--help`, `--only`, `--hide-group`, `--show-group`, `--reset-selection`, `--yes`) starts with one compact line instead: *CCL CAUT v1.1.0 · CLI Agents Update Tool — by Creative Code Logic*. `--json`, `--version` (just the version number), piped output and CI runs print no header at all.
+The big CCL CAUT banner appears only on the default interactive run (`ccl-caut` with no options). Every option (`--check`, `--discover`, `--doctor`, `--help`, `--only`, `--hide-group`, `--show-group`, `--reset-selection`, `--yes`) starts with one compact line instead: *CCL CAUT v1.1.0 · CLI Agents Update Tool — by Creative Code Logic*. `--json`, `--version` (just the version number), piped output and CI runs print no header at all. Output that doesn't go to a terminal has no colors, on every OS (`FORCE_COLOR=1` keeps them).
 
 The interactive checklist starts on a clean screen: earlier output is pushed up into your scrollback, never erased. Use `--no-clear` to keep it in view; `--check`, `--json`, `--yes` and CI runs never clear.
 
@@ -170,7 +170,7 @@ When a newer ccl-caut is published, a one-line notice under the banner tells you
 
 ### Discover supported tools
 
-CCL CAUT updates what you already have; it never installs anything. `ccl-caut --discover` lists all 23 supported CLIs with a one-line description, whether each is installed (and which version runs), and a link to its official install docs. `--json` includes the same `docsUrl` for every tool.
+CCL CAUT updates what you already have; it never installs anything. `ccl-caut --discover` lists all 23 supported CLIs with a one-line description, whether each is installed (and which version runs), and a link to its official install docs. `--json` includes the same `docsUrl` for every tool. While some supported CLIs aren't installed, the scan line suggests `ccl-caut --discover`, until you have run it once.
 
 ### Groups
 
@@ -192,9 +192,13 @@ For CLIs installed from PyPI, CCL CAUT recognizes [uv](https://docs.astral.sh/uv
 
 ### Remembered selections
 
-When you confirm the checklist, CCL CAUT remembers your choice per tool: ticked tools are preselected next time, unticked ones start unticked ("Selection remembered from your last run" appears under the prompt). Tools you've never decided on follow the defaults: preselected if outdated, unticked if retired or self-updating. `--yes` applies the same selection without asking, which makes it handy for a scheduled task. `--reset-selection` forgets everything.
+When you confirm the checklist, CCL CAUT remembers your choice per tool: ticked tools are preselected next time, unticked ones start unticked ("Selection remembered from your last run" appears under the prompt). Tools you've never decided on follow the defaults: preselected if outdated, unticked if retired or self-updating. `--yes` applies the same selection without asking, which makes it handy for a scheduled task. `--reset-selection` forgets every tool selection (hidden groups and other settings stay).
 
 Choices are stored in your OS config folder: `%APPDATA%\ccl-caut\config.json` on Windows, and `$XDG_CONFIG_HOME/ccl-caut/config.json` or `~/.config/ccl-caut/config.json` on macOS and Linux (like other developer CLIs). Latest versions are cached for an hour in your OS cache folder (`%LOCALAPPDATA%\ccl-caut`, `~/Library/Caches/ccl-caut` or `$XDG_CACHE_HOME/ccl-caut`). Set `CCL_CAUT_DEBUG=1` to see failed lookups and config or cache problems on stderr.
+
+### Scheduled runs
+
+Run `ccl-caut --check` (notify only, recommended) or `ccl-caut --yes` (update) weekly from cron, launchd or Task Scheduler, as your normal user. Without a terminal nothing waits for input: `--yes` skips tools that are running or need admin rights and says why, and the log is plain text. Tested recipes for Linux, macOS and Windows, with logging and exit codes: [docs/scheduling.md](docs/scheduling.md).
 
 ### Privacy & network
 
@@ -251,7 +255,7 @@ It exits with 0 when every server is reachable and 1 otherwise.
 | Code | Meaning |
 | --- | --- |
 | 0 | Success, everything is up-to-date, or you quit with `q` |
-| 1 | Updates available (`--check`), or an update failed or did not apply |
+| 1 | Updates available (`--check`), or an update failed, did not apply, or was skipped (`--yes`: running, needs admin rights) |
 | 2 | Invalid arguments |
 | 130 | Cancelled (Ctrl+C or Esc) |
 

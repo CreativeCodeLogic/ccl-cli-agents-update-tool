@@ -104,3 +104,33 @@ jobs:
               for (const s of t.shadowed) console.log(`  hidden: ${s.path} (${s.installMethod} ${s.version ?? "?"})`);
             }
           '
+
+      # docs/scheduling.md, run as documented against the packed install.
+      # cron: the documented job line with cron's empty environment (PATH=/usr/bin:/bin),
+      # then with the documented PATH line.
+      - name: Scheduling recipe (cron, minimal environment)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "$HOME/.local/state/ccl-caut"
+          cmd="$(node scripts/scheduling-recipe.mjs cron-command)"
+          echo "$cmd"
+          cd "$HOME"
+          env -i HOME="$HOME" PATH=/usr/bin:/bin sh -c "$cmd"
+          env -i HOME="$HOME" PATH="$(node "$GITHUB_WORKSPACE/scripts/scheduling-recipe.mjs" cron-path)" sh -c "$cmd"
+          cat "$HOME/.local/state/ccl-caut/ccl-caut.log"
+          node "$GITHUB_WORKSPACE/scripts/scheduling-recipe.mjs" check-log "$HOME/.local/state/ccl-caut/ccl-caut.log" 2
+
+      # launchd: lint the documented plist, then run its command the way launchd does
+      # (its PATH only, in the WorkingDirectory, output appended to the log).
+      - name: Scheduling recipe (launchd plist)
+        if: runner.os == 'macOS'
+        run: |
+          node scripts/scheduling-recipe.mjs plist > ccl-caut.plist
+          plutil -lint ccl-caut.plist
+          mkdir -p "$HOME/Library/Logs"
+          cmd="$(node scripts/scheduling-recipe.mjs plist-command)"
+          path_value="$(node scripts/scheduling-recipe.mjs plist-path)"
+          echo "$cmd"
+          (cd "$HOME" && env -i HOME="$HOME" PATH="$path_value" /bin/sh -c "$cmd" >> "$HOME/Library/Logs/ccl-caut.log" 2>&1)
+          cat "$HOME/Library/Logs/ccl-caut.log"
+          node scripts/scheduling-recipe.mjs check-log "$HOME/Library/Logs/ccl-caut.log" 1

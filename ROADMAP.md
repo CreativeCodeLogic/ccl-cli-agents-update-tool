@@ -15,7 +15,7 @@
 
 23 tools in two groups. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini (retired), Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro CLI and Goose. Dev CLIs: Firebase, Google Cloud CLI, npm, Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI. Run it with `npx ccl-caut` or `npm i -g ccl-caut`.
 
-Dev CLIs and more agents shipped together in 1.1 (the agents planned for 1.2 came early):
+Dev CLIs and more agents shipped together in 1.1 (the agents planned for 1.2 shipped early, in 1.1; Polish is now 1.2):
 
 - **Two groups in the table:** AI agents and Dev CLIs. Firebase, the Google Cloud CLI and npm move to Dev CLIs, and you can hide a group you don't need.
 - **New Dev CLIs:** Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI.
@@ -27,11 +27,11 @@ Dev CLIs and more agents shipped together in 1.1 (the agents planned for 1.2 cam
 
 **1.1.x patches** focus on confirming every automatic update path on real Windows, macOS and Linux machines, and on fixing what people report.
 
-## Next: 1.3 — Polish
+## Next: 1.2 — Polish
 
 - A table that fills in live, row by row, as each check finishes.
 - Update CCL CAUT itself from the checklist.
-- Ready-made recipes for scheduled runs (cron, launchd, Task Scheduler) using `--yes`.
+- Ready-made recipes for scheduled runs (cron, launchd, Task Scheduler) with `--check` or `--yes`.
 - winget updates run automatically where a vendor's unattended upgrade has been shown to work reliably.
 - The canary run also on macOS and Windows.
 
