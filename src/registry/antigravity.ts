@@ -16,6 +16,8 @@ export const antigravity: ToolDescriptor = {
   description: "Google's Antigravity CLI (agy), Gemini CLI's successor",
   docsUrl: "https://antigravity.google/docs/cli/install",
   binNames: ["agy"],
+  // winget allowlist: per-user upgrade 1.3.6 -> 1.4.0 passed silently (Windows runner, winget 1.11).
+  winget: { id: "Google.AntigravityCLI", auto: true },
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),
   getInstalledVersion: (instance) => versionFromCommand(instance.path),
   getLatestVersion: () => fetchLatestGithubRelease(RELEASES_REPO),
@@ -27,12 +29,6 @@ export const antigravity: ToolDescriptor = {
           kind: "manual",
           command: "brew upgrade --cask --greedy antigravity-cli",
           reason: "Installed with Homebrew (the cask auto-updates, so brew needs --greedy).",
-        };
-      case "winget":
-        return {
-          kind: "manual",
-          command: "winget upgrade --id Google.AntigravityCLI",
-          reason: "Installed with winget; let winget manage the upgrade.",
         };
       case "native":
         return { kind: "auto", command: [instance.path, "update"] };

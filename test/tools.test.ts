@@ -109,14 +109,11 @@ describe("update plans of the new tools", () => {
 
   it.each([
     [copilot, "brew", "brew upgrade --cask copilot-cli"],
-    [copilot, "winget", "winget upgrade --id GitHub.Copilot"],
     [cursor, "brew", "brew upgrade --cask cursor-cli"],
     [opencode, "brew", "brew upgrade opencode"],
     [opencode, "choco", "choco upgrade opencode -y"],
     [opencode, "scoop", "scoop update opencode"],
-    [opencode, "winget", "winget upgrade --id SST.opencode"],
     [antigravity, "brew", "brew upgrade --cask --greedy antigravity-cli"],
-    [antigravity, "winget", "winget upgrade --id Google.AntigravityCLI"],
     [qwen, "brew", "brew upgrade qwen-code"],
   ] as const)("only prints the package-manager command (%#)", async (tool, method, command) => {
     expect(await tool.getUpdatePlan(instance("/x/bin/tool", method))).toMatchObject({ kind: "manual", command });

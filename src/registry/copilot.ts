@@ -34,16 +34,12 @@ const tool = createNpmPackageTool({
         return { kind: "auto", command: [instance.path, "update"] };
       case "brew":
         return brewPlan("copilot-cli", true);
-      case "winget":
-        return {
-          kind: "manual",
-          command: "winget upgrade --id GitHub.Copilot",
-          reason: "Installed with winget; let winget manage the upgrade.",
-        };
       default:
         return null;
     }
   },
 });
 
-export const copilot = { ...tool, identify: isCopilotCli };
+// winget: not on the allowlist. A real upgrade (v1.0.97 -> v1.0.98, per-user, winget 1.11)
+// failed with 0x8A150014 "No installed package found": winget can't match its own install.
+export const copilot = { ...tool, identify: isCopilotCli, winget: { id: "GitHub.Copilot", auto: false } };

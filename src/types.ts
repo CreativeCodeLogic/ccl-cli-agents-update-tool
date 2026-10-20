@@ -76,6 +76,8 @@ export interface Compatibility {
   plan: UpdatePlan;
 }
 
+import type { WingetPackage } from "./utils/winget";
+
 /** One copy of a tool's executable found on PATH. */
 export interface BinaryInstance {
   /** Path as found on PATH (e.g. a Windows .cmd shim or a POSIX symlink). */
@@ -160,6 +162,11 @@ export interface ToolDescriptor {
    * over this copy (e.g. its Python version). null = fine, or unknown.
    */
   checkCompatibility?(instance: BinaryInstance, latestVersion: string, lookup: KeyedLookup): Promise<Compatibility | null>;
+  /**
+   * Its winget package. Plans for winget installs come from here (utils/winget):
+   * `auto: true` is the allowlist, set only after a real silent upgrade passed.
+   */
+  winget?: WingetPackage;
 }
 
 export type ToolState =

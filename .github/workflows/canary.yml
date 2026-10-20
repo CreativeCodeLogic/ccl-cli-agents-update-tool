@@ -7,6 +7,11 @@ name: Canary
 # Read-only: it never commits, tags or publishes anything.
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Run one job group only (npm, uv, pipx, python-compat, winget); empty = all"
+        required: false
+        default: ""
   schedule:
     - cron: "17 6 * * 1" # Mondays 06:17 UTC
 
@@ -19,6 +24,7 @@ defaults:
 
 jobs:
   canary:
+    if: ${{ !inputs.only || inputs.only == 'npm' }}
     name: npm CLIs (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -83,6 +89,7 @@ jobs:
 
   # PyPI tools installed with uv (aider-install and the Vibe install script both use uv tool).
   canary-uv:
+    if: ${{ !inputs.only || inputs.only == 'uv' }}
     name: uv tools (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -119,6 +126,7 @@ jobs:
 
   # The same kind of tool through pipx (separate job: uv and pipx would share ~/.local/bin).
   canary-pipx:
+    if: ${{ !inputs.only || inputs.only == 'pipx' }}
     name: pipx tools (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -155,6 +163,7 @@ jobs:
   # reinstall with the documented command, and running that command must bring it
   # up to date.
   canary-python-compat:
+    if: ${{ !inputs.only || inputs.only == 'python-compat' }}
     name: Python compatibility (${{ matrix.manager }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -200,3 +209,68 @@ jobs:
           eval "$cmd"
           node dist/index.js --json --refresh > after.json || true
           node scripts/canary-compat.mjs after.json vibe up-to-date
+
+  # winget (Windows): a per-user install of the previous version must get the
+  # right plan: automatic for allowlisted tools when winget has the latest
+  # version (then `ccl-caut --yes` must upgrade it, verified by a rescan),
+  # "waiting for winget" when winget is behind the vendor (then --yes must not
+  # try), a command to copy for tools not on the allowlist.
+  canary-winget:
+    if: ${{ !inputs.only || inputs.only == 'winget' }}
+    name: winget ${{ matrix.pkg.tool }} (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg:
+          - { id: SST.opencode, tool: opencode, bin: opencode, expect: "auto waiting" }
+          - { id: Google.AntigravityCLI, tool: antigravity, bin: agy, expect: "auto waiting" }
+          - { id: GitHub.cli, tool: gh, bin: gh, expect: "auto waiting" }
+          - { id: GitHub.Copilot, tool: copilot, bin: copilot, expect: "manual" }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install the previous winget version per-user
+        run: |
+          id="${{ matrix.pkg.id }}"
+          winget --version
+          # The image's machine-wide GitHub CLI would shadow the per-user copy.
+          if [ "$id" = "GitHub.cli" ]; then winget uninstall --id GitHub.cli --exact --silent --accept-source-agreements --disable-interactivity || true; fi
+          older="$(winget show --id "$id" --exact --source winget --versions --accept-source-agreements --disable-interactivity | tr -d '\r' | grep -E '^\s*v?[0-9]+(\.[0-9]+)+\S*\s*$' | sed -n 2p | tr -d ' ')"
+          echo "installing $id $older"
+          winget install --id "$id" --exact --source winget --version "$older" --scope user --silent --accept-source-agreements --accept-package-agreements --disable-interactivity
+          # GITHUB_PATH takes Windows paths on Windows runners.
+          cygpath -w "$LOCALAPPDATA/Microsoft/WinGet/Links" >> "$GITHUB_PATH"
+      - name: ccl-caut plans it, and --yes does what the plan says
+        env:
+          CI: ""
+          # GitHub CLI's latest version and the winget repository listing come from the
+          # GitHub API; the runner's shared IP hits the unauthenticated limit.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tool="${{ matrix.pkg.tool }}"
+          node dist/index.js --json --refresh > before.json || true
+          kind="$(node scripts/canary-winget.mjs before.json "$tool" plan)"
+          echo "plan: $kind (allowed: ${{ matrix.pkg.expect }})"
+          case " ${{ matrix.pkg.expect }} " in *" $kind "*) ;; *) echo "::error::unexpected plan $kind"; exit 1 ;; esac
+          before="$(node -p 'require("./before.json").tools.find((t) => t.id === process.argv[1]).installedVersion' "$tool")"
+          # Only this tool may be updated: every other one is "skip" in a temporary config.
+          export npm_config_prefix="$(npm prefix -g)"
+          export APPDATA="$(cygpath -w "$RUNNER_TEMP/cfg")"
+          mkdir -p "$RUNNER_TEMP/cfg/ccl-caut"
+          node -e 'const s=require("./before.json");const tools={};for(const t of s.tools)if(t.id!==process.argv[2])tools[t.id]="skip";require("fs").writeFileSync(process.argv[1],JSON.stringify({schema:1,tools}))' "$RUNNER_TEMP/cfg/ccl-caut/config.json" "$tool"
+          set +e; node dist/index.js --yes > yes.log 2>&1; code=$?; set -e
+          cat yes.log; echo "--yes exit code: $code"
+          node dist/index.js --json --refresh > after.json || true
+          if [ "$kind" = auto ]; then
+            node scripts/canary-winget.mjs after.json "$tool" upgraded "$before"
+          else
+            if grep -q "Updating " yes.log; then echo "::error::--yes tried to update a $kind plan"; exit 1; fi
+            echo "--yes left it alone ($kind), as it should"
+          fi

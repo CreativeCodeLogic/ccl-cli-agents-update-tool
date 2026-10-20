@@ -11,6 +11,7 @@ import { sameVersion } from "../utils/version";
 import { LiveStatus } from "./live";
 import { CANCEL_EXIT_CODE } from "./progress";
 import { SELF_ID, selfUpdateFailureHint } from "../selfupdate";
+import { isWingetCommand, wingetExitKind } from "../utils/winget";
 import { icons } from "./symbols";
 import { tone } from "./theme";
 
@@ -186,13 +187,26 @@ export async function applyUpdates(
       live.stop();
       if (process.env.CCL_CAUT_DEBUG) debug(`${scan.name} output:\n${result.output}`);
 
+      // winget: "no applicable update" means its repository doesn't have the version yet.
+      const wingetKind = result.code !== 0 && isWingetCommand(plan.command) ? wingetExitKind(result.code) : null;
+      if (wingetKind === "not-applicable") {
+        outcome.held++;
+        log.warn(tone.action(`${scan.name}: waiting for winget. It doesn't offer ${scan.latestVersion ?? "the new version"} yet; nothing was changed. Try again later.`));
+        continue;
+      }
       if (result.code !== 0) {
         outcome.failed++;
         log.error(tone.bad(`${scan.name} update failed${result.code === null ? "" : ` (exit code ${result.code})`} after ${elapsed}`));
         const tail = tracker.tail(20);
         if (tail.length > 0) log.message(tone.muted(tail.join("\n")));
         const selfHint = scan.id === SELF_ID && scan.latestVersion ? selfUpdateFailureHint(result.output, scan.latestVersion) : null;
-        const hint = selfHint ?? (await diagnose(result.output, scan.name, plan.command));
+        const wingetHint =
+          wingetKind === "in-use"
+            ? `${scan.name} is running. Close it and run ccl-caut again.`
+            : wingetKind === "needs-admin"
+              ? "winget needs administrator rights for this package; run the command from an elevated terminal."
+              : null;
+        const hint = selfHint ?? wingetHint ?? (await diagnose(result.output, scan.name, plan.command));
         if (hint) log.info(tone.action(hint));
         if (scan.id === SELF_ID) printManualCommand(scan.name, plan.command.join(" "), "Or update it yourself:");
         continue;

@@ -25,6 +25,9 @@ export const gh: ToolDescriptor = {
   description: "GitHub's official CLI (gh)",
   docsUrl: "https://github.com/cli/cli#installation",
   binNames: ["gh"],
+  // winget allowlist (per-user installs only): upgrade 2.101.0 -> 2.102.0 passed silently
+  // (Windows runner, winget 1.11). The MSI in Program Files stays a command (it is "native").
+  winget: { id: "GitHub.cli", auto: true },
 
   getInstalledVersion: (instance) => versionFromCommand(instance.path),
   getLatestVersion: () => fetchLatestGithubRelease("cli/cli"),
@@ -34,8 +37,6 @@ export const gh: ToolDescriptor = {
     switch (instance.installMethod) {
       case "brew":
         return brewPlan("gh");
-      case "winget":
-        return WINGET;
       case "scoop":
         return { kind: "manual", command: "scoop update gh", reason: "Installed with Scoop (community package); let Scoop manage the upgrade." };
       case "choco":

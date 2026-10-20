@@ -24,6 +24,8 @@ export const opencode: ToolDescriptor = {
   description: "Open-source AI coding agent for the terminal",
   docsUrl: "https://opencode.ai/docs",
   binNames: ["opencode"],
+  // winget allowlist: per-user upgrade 1.19.0 -> 1.19.1 passed silently (Windows runner, winget 1.11).
+  winget: { id: "SST.opencode", auto: true },
   npmPackage: V1_PKG,
 
   async getInstalledVersion(instance) {
@@ -57,12 +59,6 @@ export const opencode: ToolDescriptor = {
         };
       case "scoop":
         return { kind: "manual", command: "scoop update opencode", reason: "Installed with Scoop; let Scoop manage the upgrade." };
-      case "winget":
-        return {
-          kind: "manual",
-          command: "winget upgrade --id SST.opencode",
-          reason: "Installed with winget (community package); let winget manage the upgrade.",
-        };
       default:
         return {
           kind: "manual",

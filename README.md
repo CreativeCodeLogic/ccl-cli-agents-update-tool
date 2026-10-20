@@ -83,9 +83,9 @@ Before anything runs, a short **pre-flight** check shows which selected CLIs are
 | Codex CLI | npm, Homebrew, standalone binary | npm: **auto** · others: command |
 | GitHub Copilot CLI | npm, install script, Homebrew, winget | npm: **auto** · script: **auto** (`copilot update`) · Homebrew, winget: command |
 | Cursor CLI (`agent`) | installer, Homebrew | installer: **updates itself** (`agent update` offered) · Homebrew: command |
-| OpenCode | npm (v1 and v2), install script, Homebrew, Chocolatey, Scoop, winget | npm: **auto** · script: **auto** (`opencode upgrade`) · others: command |
+| OpenCode | npm (v1 and v2), install script, Homebrew, Chocolatey, Scoop, winget | npm: **auto** · script: **auto** (`opencode upgrade`) · winget: **auto** (per-user installs) · others: command |
 | Gemini CLI | npm, Homebrew | **retired** for consumer accounts (see below) · npm: **auto** if you tick it · Homebrew: command |
-| Antigravity CLI (`agy`) | install script, Homebrew, winget | script: **auto** (`agy update`) · Homebrew, winget: command |
+| Antigravity CLI (`agy`) | install script, Homebrew, winget | script: **auto** (`agy update`) · winget: **auto** (per-user installs) · Homebrew: command |
 | Qwen Code | npm, standalone installer, Homebrew | npm: **auto** · standalone: **auto** (`qwen update`) · Homebrew: command |
 | Kimi Code | npm, native installer, legacy `kimi-cli` (uv, pipx, pip) | npm: **auto** · native: **auto** on macOS/Linux (`kimi upgrade`), installer command on Windows · legacy: command |
 | Aider | uv tool (`aider-install`, the install scripts), pipx, pip, Homebrew | uv: **auto** (`uv tool upgrade aider-chat`) · pipx: **auto** · pip, Homebrew: command |
@@ -106,7 +106,7 @@ Before anything runs, a short **pre-flight** check shows which selected CLIs are
 | Vercel CLI | npm | npm: **auto** |
 | Netlify CLI | npm | npm: **auto** |
 | Supabase CLI | Homebrew, Scoop, Linux packages, install script (npm only per project) | always a command |
-| GitHub CLI (`gh`) | winget / MSI, Homebrew, apt, dnf, zypper, Scoop, Chocolatey, snap | always a command (`gh` has no self-update) |
+| GitHub CLI (`gh`) | winget / MSI, Homebrew, apt, dnf, zypper, Scoop, Chocolatey, snap | winget: **auto** (per-user installs) · MSI and everything else: command (`gh` has no self-update) |
 
 Install methods CCL CAUT recognizes (12): npm (any global prefix, including nvm, fnm and Volta), npm bundled with Node.js, vendor installers and install scripts ("native"), Homebrew, pip, uv, pipx, apt and other Linux package repositories, snap, winget, Chocolatey and Scoop.
 
@@ -118,7 +118,7 @@ Google retired Gemini CLI for consumer accounts (Google AI Pro and Ultra, and fr
 
 ## Safe by design
 
-- **We only run what we can run safely.** Automatic updates are limited to `npm install -g` into your active npm prefix, `uv tool upgrade` and `pipx upgrade` for tools in their own environments, and the tools' own documented self-updaters, run against the exact binary on your `PATH`. Everything else (pip, apt, snap, Homebrew, winget, Chocolatey, Scoop, admin-only folders, npm itself) gets the exact command and a one-line reason instead. Package-manager installs of the Google Cloud CLI never get `gcloud components update`.
+- **We only run what we can run safely.** Automatic updates are limited to `npm install -g` into your active npm prefix, `uv tool upgrade` and `pipx upgrade` for tools in their own environments, and the tools' own documented self-updaters, run against the exact binary on your `PATH`. winget runs automatically only for the tools on an allowlist (OpenCode, Antigravity CLI, GitHub CLI), each verified with a real silent upgrade from an older version, only for per-user installs (machine-wide ones need elevation), and only once winget has the version the vendor released: winget often lags behind, so until then the row says *waiting for winget*, and winget's own "no applicable update" answer counts as waiting, not as a failure. The command is `winget upgrade --id <Id> --exact --source winget --scope user --silent --accept-source-agreements --accept-package-agreements --disable-interactivity` ([flags](https://learn.microsoft.com/en-us/windows/package-manager/winget/upgrade)). Everything else (pip, apt, snap, Homebrew, other winget installs, Chocolatey, Scoop, admin-only folders, npm itself) gets the exact command and a one-line reason instead. Package-manager installs of the Google Cloud CLI never get `gcloud components update`.
 - **Shadowed installs are called out.** CCL CAUT finds every copy of a tool on your `PATH`, updates the one that actually runs, and warns about copies that are installed but never run.
 - **No false positives.** A generic binary name like Cursor's `agent`, `amp`, `goose` or `vibe` is only claimed where that tool installs itself (the Amp text editor or the pressly/goose migration tool are left alone, and are never run), and editor launcher shims (such as VS Code's Copilot Chat launcher) are ignored.
 - **Every update is verified.** After an update, CCL CAUT asks the running binary for its version again. If it didn't change, you get a warning instead of a false success. Kimi Code's staged rollouts are reported as "held".

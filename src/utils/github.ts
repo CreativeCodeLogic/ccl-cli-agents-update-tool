@@ -55,6 +55,18 @@ export function resetGithubState(): void {
   notified = false;
 }
 
+/** GET a GitHub API URL with the optional token; null on any failure (a rate limit is noted like for releases). */
+export async function authorizedGithubGet(url: string): Promise<unknown> {
+  if (sideEffectsBlocked()) return null;
+  const result = await getNetwork().get(url, { accept: "application/vnd.github+json", ...authHeaders() });
+  if (!result.ok) {
+    if (result.failure.rateLimit) rateLimited ??= result.failure.rateLimit;
+    debug(`GitHub API ${url}: ${result.failure.detail}`);
+    return null;
+  }
+  return result.value;
+}
+
 export async function fetchLatestGithubRelease(repo: string, tagToVersion: (tag: string) => string | null = defaultTagVersion): Promise<string | null> {
   if (sideEffectsBlocked()) return null;
   const url = `https://api.github.com/repos/${repo}/releases/latest`;

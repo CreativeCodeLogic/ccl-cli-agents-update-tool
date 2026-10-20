@@ -6,6 +6,7 @@ import { getNpmGlobalPaths } from "./utils/npm";
 import { compareVersions } from "./utils/version";
 import { projectPinFor, projectPinNote, type ProjectManifest } from "./project";
 import { findAllExecutables } from "./utils/which";
+import { wingetAvailability, wingetPlan } from "./utils/winget";
 
 /** Descriptors promise never to reject; this enforces it anyway. */
 async function safe<T>(fn: () => T | Promise<T>, fallback: T): Promise<T> {
@@ -231,13 +232,20 @@ async function resolveOne({ tool, instances }: Detection, latest: LatestResolver
   const latestVersion = await latest.get(tool, active?.installMethod, active?.version);
   const staleAt = latest.stale.get(LatestResolver.key(tool, active?.installMethod, active?.version));
   let plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
+  // winget installs: the allowlist and the install scope decide (utils/winget).
+  if (active?.installMethod === "winget" && tool.winget) plan = wingetPlan(active, tool.winget, getHost());
   const { state, updateAvailable } = deriveState(tool, active?.version, latestVersion, Boolean(active));
   // The latest release may not install over this copy as it is (e.g. it needs a newer Python).
   const lookup = (key: string, fetch: () => Promise<string | null>) => latest.getByKey(key, fetch, false);
-  const compatibility =
+  let compatibility =
     active && latestVersion && updateAvailable && tool.checkCompatibility
       ? await safe(() => tool.checkCompatibility!(active, latestVersion, lookup), null)
       : null;
+  // An automatic winget update only when winget already has the latest version.
+  if (!compatibility && plan?.kind === "auto" && active?.installMethod === "winget" && tool.winget && latestVersion && updateAvailable) {
+    const pkg = tool.winget;
+    compatibility = await safe(() => wingetAvailability(pkg, tool.name, latestVersion, lookup), null);
+  }
   if (compatibility) plan = compatibility.plan;
   const npmRoot = (await getNpmGlobalPaths())?.root ?? null;
   const needsAdmin = computeNeedsAdmin(tool, active, plan, getHost(), npmRoot);
