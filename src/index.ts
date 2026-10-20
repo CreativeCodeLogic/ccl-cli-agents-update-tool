@@ -1,5 +1,5 @@
 import { cancel, intro, log, outro } from "@clack/prompts";
-import pc from "picocolors";
+import pc from "./ui/colors";
 import pkg from "../package.json" with { type: "json" };
 import { createDemoRuntime } from "./demo/runtime";
 import { countRunning, listProcesses, processSignatures, splitUnattended, type ProcessInfo } from "./processes";
@@ -21,7 +21,7 @@ import { CANCEL_EXIT_CODE, CANCEL_MESSAGE, createProgress } from "./ui/progress"
 import { displayVersion } from "./ui/format";
 import { icons } from "./ui/symbols";
 import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
-import { renderDiscovery } from "./ui/discover";
+import { discoverHint, renderDiscovery } from "./ui/discover";
 import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
 import { CANCELLED, checklist, choose, QUIT, RETRY } from "./ui/prompts";
 import { getNetwork, networkProblem } from "./utils/http";
@@ -32,7 +32,7 @@ import { githubRateLimitNotice } from "./utils/github";
 import { findProjectManifest, type ProjectManifest } from "./project";
 import { GROUP_LABELS, TOOL_GROUPS, type ToolGroup } from "./types";
 import { tone } from "./ui/theme";
-import { applyUpdates, type UpdateExecutor, type UpdateOutcome, type UpdateTarget } from "./ui/update";
+import { applyUpdates, updateExitCode, type UpdateExecutor, type UpdateOutcome, type UpdateTarget } from "./ui/update";
 import { helpText, parseArgs, type CliOptions } from "./utils/args";
 import { VersionCache } from "./utils/cache";
 import { UserConfig } from "./utils/config";
@@ -298,9 +298,8 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
   progress.start("Scanning for installed CLIs...");
   const detections = await detectAll(tools, host);
   const found = detections.filter((d) => d.instances.length > 0).length;
-  const discoverHint = found < detections.length ? " · ccl-caut --discover to see all" : "";
   const hiddenHint = runtime.hiddenNote ? ` · ${runtime.hiddenNote}` : "";
-  progress.stop(`Found ${found} of ${detections.length} supported CLIs${discoverHint}${hiddenHint}`);
+  progress.stop(`Found ${found} of ${detections.length} supported CLIs${discoverHint(found, detections.length, runtime.selections.discoverUsed)}${hiddenHint}`);
 
   progress.start("Checking latest versions...");
   const slow = setTimeout(() => progress.message("Checking latest versions… (slow connection)"), SLOW_LOOKUP_MS);
@@ -311,7 +310,7 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
   const networkIssue = networkIssueLine(results);
   progress.stop(networkIssue ? "Latest versions could not be checked" : "Latest versions checked");
 
-  console.log(`${pc.gray("│")}\n${renderTable(results, process.stdout.isTTY ? (process.stdout.columns ?? 80) : Number.POSITIVE_INFINITY)}`);
+  console.log(`${pc.gray(icons.bar)}\n${renderTable(results, process.stdout.isTTY ? (process.stdout.columns ?? 80) : Number.POSITIVE_INFINITY)}`);
   printNotes(results, getHost().platform);
   const lateNotice = takeSelfNotice();
   if (lateNotice) log.message(pc.dim(lateNotice));
@@ -338,8 +337,10 @@ async function runDiscover(runtime: Runtime): Promise<number> {
   const detections = await detectAll(runtime.tools, runtime.host);
   const found = detections.filter((d) => d.instances.length > 0).length;
   progress.stop(`${found} of ${detections.length} supported CLIs installed`);
-  console.log(`${pc.gray("│")}\n${renderDiscovery(detections, runtime.selections.hiddenGroups)}`);
+  console.log(`${pc.gray(icons.bar)}\n${renderDiscovery(detections, runtime.selections.hiddenGroups)}`);
   outro(pc.dim("ccl-caut never installs tools. To add one, follow its official install docs above."));
+  // From now on the scan line no longer suggests --discover.
+  if (!runtime.selections.discoverUsed) runtime.selections.markDiscoverUsed();
   return 0;
 }
 
@@ -428,10 +429,14 @@ async function preflight(runtime: Runtime, targets: UpdateTarget[]): Promise<{ a
   }
 }
 
-/** --yes: no prompt. Running tools are skipped (and Claude Code inside a Claude Code session). */
+/**
+ * --yes: no prompt. Skipped with a reason: running tools, Claude Code inside a
+ * Claude Code session, and automatic updates that need admin rights (they would
+ * fail; ccl-caut never elevates itself).
+ */
 async function preflightUnattended(runtime: Runtime, targets: UpdateTarget[]): Promise<{ targets: UpdateTarget[]; skipped: number }> {
   const running = await findRunning(runtime, targets);
-  const tagged = targets.map((t) => ({ id: t.scan.id, claudeAuto: isClaudeAuto(t), t }));
+  const tagged = targets.map((t) => ({ id: t.scan.id, claudeAuto: isClaudeAuto(t), needsAdmin: t.scan.needsAdmin && t.scan.plan?.kind !== "manual", t }));
   const { keep, skipped } = splitUnattended(tagged, running, insideClaudeCode());
   for (const skip of skipped) {
     const name = skip.target.t.scan.name;
@@ -439,7 +444,9 @@ async function preflightUnattended(runtime: Runtime, targets: UpdateTarget[]): P
       tone.action(
         skip.reason === "running"
           ? `Skipping ${name}: it is running (${plural2(skip.processes, "process")}). Close it and run ccl-caut again.`
-          : `Skipping Claude Code: ccl-caut is running inside a Claude Code session (${CLAUDE_RISK}). Run it from another terminal.`,
+          : skip.reason === "needs-admin"
+            ? `Skipping ${name}: needs admin rights (${adminExplanation(getHost().platform)}). --yes never elevates; update it by hand.`
+            : `Skipping Claude Code: ccl-caut is running inside a Claude Code session (${CLAUDE_RISK}). Run it from another terminal.`,
       ),
     );
   }
@@ -459,7 +466,7 @@ interface RoundResult {
 function summaryLine(outcome: UpdateOutcome, upToDate: number, skipped: number): string {
   const parts = [tone.done(`${outcome.updated} updated`), tone.action(`${outcome.manual} manual`), tone.done(`${upToDate} up-to-date`)];
   if (outcome.current > 0) parts.push(tone.done(`${outcome.current} already current`));
-  if (skipped > 0) parts.push(tone.action(`${skipped} skipped (running)`));
+  if (skipped > 0) parts.push(tone.action(`${skipped} skipped`));
   if (outcome.held > 0) parts.push(tone.action(`${outcome.held} held`));
   if (outcome.unchanged > 0) parts.push(tone.action(`${outcome.unchanged} unchanged`));
   if (outcome.failed > 0) parts.push(tone.bad(`${outcome.failed} failed`));
@@ -545,15 +552,16 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
     }
   }
   if (targets.length === 0) {
-    outro(tone.muted(`Nothing to update: nothing was changed.${skipped > 0 ? ` ${skipped} skipped (running).` : ""}`));
-    return { code: 0, next: "done" };
+    outro(tone.muted(`Nothing to update: nothing was changed.${skipped > 0 ? ` ${skipped} skipped.` : ""}`));
+    // Skipped updates did not apply: exit 1, so a scheduled run shows up in its log.
+    return { code: skipped > 0 ? 1 : 0, next: "done" };
   }
 
   process.off("SIGINT", exitCancelled); // applyUpdates handles Ctrl+C from here on
   const outcome = await applyUpdates(targets, runtime.latest.cache, runtime.executor);
   process.once("SIGINT", exitCancelled);
 
-  const code = outcome.interrupted ? CANCEL_EXIT_CODE : outcome.failed > 0 || outcome.unchanged > 0 ? 1 : 0;
+  const code = updateExitCode(outcome, skipped);
   const line = summaryLine(outcome, summary.upToDate, skipped);
   if (!interactive || outcome.interrupted) {
     outro(line);

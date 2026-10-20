@@ -83,6 +83,7 @@ describe("UserConfig on disk", () => {
     const config = UserConfig.load(host);
     config.saveChoices({ codex: "update", gcloud: "skip" }, host);
     config.setGroupHidden("dev", true, host);
+    config.markDiscoverUsed(host);
     // src/utils/config.ts UserConfig.load at 1.0.1 (commit f03ae31):
     const isChoice = (value: unknown) => value === "update" || value === "skip";
     const load101 = (text: string) => {
@@ -120,6 +121,41 @@ describe("UserConfig on disk", () => {
     expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: {}, hiddenGroups: ["dev"] });
   });
 
+  it("remembers that --discover was run, as an extra key on schema 1", () => {
+    const { host, file } = tempHost();
+    expect(UserConfig.load(host).discoverUsed).toBe(false);
+    UserConfig.load(host).markDiscoverUsed(host);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: {}, discoverUsed: true });
+    expect(UserConfig.load(host).discoverUsed).toBe(true);
+  });
+
+  it("--reset-selection forgets the selections but keeps discoverUsed", () => {
+    const { host, file } = tempHost();
+    const config = UserConfig.load(host);
+    config.saveChoices({ codex: "skip" }, host);
+    config.markDiscoverUsed(host);
+    config.reset(host);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: {}, discoverUsed: true });
+    expect(UserConfig.load(host).discoverUsed).toBe(true);
+  });
+
+  it("a 1.1 file without discoverUsed reads as not run; only true counts", () => {
+    const { host, file } = tempHost();
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify({ schema: 1, tools: { codex: "update" }, starShownVersion: "1.1.0" }));
+    expect(UserConfig.load(host).discoverUsed).toBe(false);
+    writeFileSync(file, JSON.stringify({ schema: 1, tools: {}, discoverUsed: "yes" }));
+    expect(UserConfig.load(host).discoverUsed).toBe(false);
+  });
+
+  it("an unreadable config (a folder where the file should be) doesn't crash; the hint just stays", () => {
+    const { host, file } = tempHost();
+    mkdirSync(file, { recursive: true });
+    const config = UserConfig.load(host);
+    expect(config.discoverUsed).toBe(false);
+    expect(() => config.markDiscoverUsed(host)).not.toThrow();
+    expect(config.discoverUsed).toBe(true);
+  });
   it("drops invalid choice values but keeps valid ones", () => {
     const { host, file } = tempHost();
     mkdirSync(path.dirname(file), { recursive: true });

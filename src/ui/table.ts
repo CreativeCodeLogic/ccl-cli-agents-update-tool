@@ -1,6 +1,6 @@
 import { log } from "@clack/prompts";
 import { stripVTControlCharacters } from "node:util";
-import pc from "picocolors";
+import pc from "./colors";
 import { GROUP_LABELS, TOOL_GROUPS, type InstallMethod, type ToolNote, type ToolScan } from "../types";
 import { displayVersion, formatAgo } from "./format";
 import { icons, stateStyle } from "./symbols";

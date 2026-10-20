@@ -169,7 +169,15 @@ function memorySelections(initial: Record<string, ToolChoice>): SelectionStore {
   let hidden: ToolGroup[] = [];
   // The demo starts as if the star line was already shown for this version (keeps the GIF's ending clean).
   let starShown: string | null = pkg.version;
+  // In memory only: every demo run starts with the --discover hint.
+  let discoverUsed = false;
   return {
+    get discoverUsed() {
+      return discoverUsed;
+    },
+    markDiscoverUsed: () => {
+      discoverUsed = true;
+    },
     get starShownVersion() {
       return starShown;
     },

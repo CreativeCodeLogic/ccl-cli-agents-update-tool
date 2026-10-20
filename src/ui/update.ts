@@ -9,6 +9,7 @@ import { getNpmGlobalPaths } from "../utils/npm";
 import { isUnderProgramFiles } from "../utils/paths";
 import { sameVersion } from "../utils/version";
 import { LiveStatus } from "./live";
+import { CANCEL_EXIT_CODE } from "./progress";
 import { icons } from "./symbols";
 import { tone } from "./theme";
 
@@ -91,6 +92,16 @@ export interface UpdateOutcome {
   manual: number;
   /** Ctrl+C was pressed during an update; remaining tools were skipped. */
   interrupted: boolean;
+}
+
+/**
+ * Exit code after updates: 130 when interrupted, 1 when an update failed, did
+ * not apply, or was skipped (--yes: running, needs admin, Claude Code session),
+ * else 0.
+ */
+export function updateExitCode(outcome: Pick<UpdateOutcome, "interrupted" | "failed" | "unchanged">, skipped: number): number {
+  if (outcome.interrupted) return CANCEL_EXIT_CODE;
+  return outcome.failed > 0 || outcome.unchanged > 0 || skipped > 0 ? 1 : 0;
 }
 
 /** Readable form of an auto command: absolute executable paths shown by name. */

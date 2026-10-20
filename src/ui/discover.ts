@@ -1,10 +1,15 @@
 import { stripVTControlCharacters } from "node:util";
-import pc from "picocolors";
+import pc from "./colors";
 import type { Detection } from "../scan";
 import { GROUP_LABELS, TOOL_GROUPS, type ToolGroup } from "../types";
 import { tone } from "./theme";
 import { displayVersion } from "./format";
 import { icons } from "./symbols";
+
+/** The scan line's pointer to --discover, until it has been run once. */
+export function discoverHint(found: number, total: number, discoverUsed: boolean): string {
+  return found < total && !discoverUsed ? " · ccl-caut --discover to see all" : "";
+}
 
 const visibleLength = (s: string) => stripVTControlCharacters(s).length;
 const pad = (s: string, width: number) => s + " ".repeat(Math.max(0, width - visibleLength(s)));

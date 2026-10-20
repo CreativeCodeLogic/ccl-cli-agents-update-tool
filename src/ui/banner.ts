@@ -1,6 +1,6 @@
 import figlet from "figlet";
 import { stripVTControlCharacters } from "node:util";
-import pc from "picocolors";
+import pc from "./colors";
 
 /**
  * Brand color #53d2ff: 24-bit where supported, else the closest 256-color shade

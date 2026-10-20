@@ -1,6 +1,7 @@
 import spawn from "cross-spawn";
 import { debug } from "./debug";
 import { sideEffectsBlocked } from "./sandbox";
+import { childStdin } from "./unattended";
 
 export interface ExecResult {
   ok: boolean;
@@ -73,7 +74,7 @@ const TEE_LIMIT = 64 * 1024;
 
 /**
  * Run a command, streaming its output live to our stdout/stderr while also
- * keeping the tail so failures can be diagnosed. stdin stays attached so
+ * keeping the tail so failures can be diagnosed. In a terminal stdin stays attached so
  * the child can still prompt. Never throws.
  */
 export function execTee(command: string, args: string[]): Promise<TeeResult> {
@@ -85,7 +86,7 @@ export function execTee(command: string, args: string[]): Promise<TeeResult> {
       output = (output + chunk.toString("utf8")).slice(-TEE_LIMIT);
     };
     try {
-      const child = spawn(command, args, { stdio: ["inherit", "pipe", "pipe"] });
+      const child = spawn(command, args, { stdio: [childStdin(Boolean(process.stdin.isTTY)), "pipe", "pipe"] });
       child.stdout?.on("data", (chunk: Buffer) => {
         process.stdout.write(chunk);
         keep(chunk);
@@ -105,7 +106,8 @@ export function execTee(command: string, args: string[]): Promise<TeeResult> {
 /**
  * Run a command, capturing its output (stdout + stderr, last 64 KB) and
  * handing every chunk to `onChunk` instead of the terminal, so a live status
- * can show progress. stdin stays attached so the child can still prompt.
+ * can show progress. In a terminal stdin stays attached so the child can still prompt
+ * (unattended: no stdin, see childStdin).
  * Never throws; honors the side-effect sandbox.
  */
 export function execCapture(command: string, args: string[], onChunk: (text: string) => void): Promise<TeeResult> {
@@ -119,7 +121,7 @@ export function execCapture(command: string, args: string[], onChunk: (text: str
       onChunk(text);
     };
     try {
-      const child = spawn(command, args, { stdio: ["inherit", "pipe", "pipe"] });
+      const child = spawn(command, args, { stdio: [childStdin(Boolean(process.stdin.isTTY)), "pipe", "pipe"] });
       child.stdout?.on("data", keep);
       child.stderr?.on("data", keep);
       child.on("error", (error) => resolve({ code: null, output: output + String(error) }));

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { lookup } from "node:dns/promises";
-import pc from "picocolors";
+import pc from "./ui/colors";
 import { fetch as undiciFetch, type Dispatcher } from "undici";
 import { cacheDir } from "./utils/cache";
 import { configDir } from "./utils/config";

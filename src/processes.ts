@@ -93,7 +93,7 @@ export function countRunning(
 
 export interface UnattendedSkip<T> {
   target: T;
-  reason: "running" | "claude-session";
+  reason: "running" | "claude-session" | "needs-admin";
   processes: number;
 }
 
@@ -102,7 +102,7 @@ export interface UnattendedSkip<T> {
  * files are in use), and so is Claude Code when ccl-caut itself runs inside a
  * Claude Code session.
  */
-export function splitUnattended<T extends { id: string; claudeAuto: boolean }>(
+export function splitUnattended<T extends { id: string; claudeAuto: boolean; needsAdmin?: boolean }>(
   targets: readonly T[],
   running: ReadonlyMap<string, number> | null,
   insideClaudeCode: boolean,
@@ -113,6 +113,7 @@ export function splitUnattended<T extends { id: string; claudeAuto: boolean }>(
     const n = running?.get(target.id) ?? 0;
     if (n > 0) skipped.push({ target, reason: "running", processes: n });
     else if (insideClaudeCode && target.claudeAuto) skipped.push({ target, reason: "claude-session", processes: 0 });
+    else if (target.needsAdmin) skipped.push({ target, reason: "needs-admin", processes: 0 });
     else keep.push(target);
   }
   return { keep, skipped };

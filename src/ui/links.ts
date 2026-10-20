@@ -1,4 +1,4 @@
-import pc from "picocolors";
+import pc from "./colors";
 
 /*
  * Where people find docs, issues and the vendor. Used sparingly: the --help

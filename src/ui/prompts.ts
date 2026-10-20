@@ -1,6 +1,6 @@
 import { isCancel, MultiSelectPrompt, SelectPrompt, TextPrompt } from "@clack/core";
 import { S_BAR, S_BAR_END, S_CHECKBOX_INACTIVE, S_CHECKBOX_SELECTED, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_SUBMIT } from "@clack/prompts";
-import pc from "picocolors";
+import pc from "./colors";
 import { tone } from "./theme";
 
 /*

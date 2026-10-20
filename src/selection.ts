@@ -15,6 +15,9 @@ export interface SelectionStore {
   /** Once per version: the last version that showed the "Star it on GitHub" line. */
   readonly starShownVersion: string | null;
   markStarShown(version: string): void;
+  /** Whether --discover has been run (hides the scan line's --discover hint). */
+  readonly discoverUsed: boolean;
+  markDiscoverUsed(): void;
 }
 
 /**

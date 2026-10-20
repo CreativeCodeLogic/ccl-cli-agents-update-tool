@@ -1,4 +1,4 @@
-import pc from "picocolors";
+import pc from "./colors";
 
 /**
  * The one color system, used on every surface (table, checklist, progress, summary):

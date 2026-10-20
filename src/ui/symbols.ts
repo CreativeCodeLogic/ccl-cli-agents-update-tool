@@ -33,6 +33,7 @@ export function iconSet(unicode: boolean) {
     arrow: or("→", "->"),
     fail: or("✖", "x"),
     rule: or("─", "-"),
+    bar: or("│", "|"),
     retired: or("⊘", "x"),
     selfUpdating: or("↻", "~"),
   };

@@ -1,6 +1,6 @@
 import { S_BAR, unicodeOr } from "@clack/prompts";
 import { stripVTControlCharacters } from "node:util";
-import pc from "picocolors";
+import pc from "./colors";
 import { tone } from "./theme";
 
 const FRAMES = unicode() ? ["◒", "◐", "◓", "◑"] : ["-", "\\", "|", "/"];
