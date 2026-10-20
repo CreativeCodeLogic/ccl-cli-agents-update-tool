@@ -89,4 +89,13 @@ If CCL CAUT misdetects something on your machine, a fixture in `test/installMeth
 - One logical change per commit, with a message that says why.
 - Code comments in English, concise.
 
+## Dependabot
+
+Dependabot opens weekly PRs for npm packages (minor and patch updates grouped) and GitHub Actions.
+
+- **Minor/patch PRs with green CI** can be merged directly (squash).
+- **Major updates, and anything touching a runtime dependency** (`undici`, `@clack/*`, `semver`, `cross-spawn`, `figlet`, `picocolors`), get a local check first: check out the PR branch, `npm ci && npm run build`, compare `dist/index.js` with the build from `main` (size, ESM format, shebang, target), run `npm pack --dry-run`, then install the packed tarball globally (`npm pack`, `npm i -g ./ccl-caut-X.Y.Z.tgz`) and run `ccl-caut --version`, `--check` and `--json` from a normal terminal. Put the published version back afterwards (`npm i -g ccl-caut@latest`).
+- A major that drops a Node version we support (`engines.node`) is not merged; close it with a note and track it in the matching "drop Node N" issue. `undici` majors are ignored in `.github/dependabot.yml` until Node 20 is dropped (#41).
+- Dependency updates reach users only with the next release; no release is needed just for them.
+
 By contributing you agree that your contributions are licensed under the MIT License.

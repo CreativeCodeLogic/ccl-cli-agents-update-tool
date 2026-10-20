@@ -8,6 +8,12 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # undici 7+ needs Node 22 (8.x fails to load on Node 20) and ccl-caut still
+      # supports Node 20. Majors come with the "Drop Node 20 support" decision (#41);
+      # 6.x minor and patch updates keep coming.
+      - dependency-name: undici
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

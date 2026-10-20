@@ -62,7 +62,7 @@ A newly saved trusted publisher must be used by a successful publish within 2 da
 
    The npm page shows the provenance badge. Edit the GitHub Release and delete the "awaits maintainer approval" first line.
 
-For a **stable** release, also finalize the CHANGELOG section (date, no beta marker), update ROADMAP.md (and the README why-line counts if tools or install methods changed) and close the milestone before step 1. Optionally point `next` at the stable version afterwards so `ccl-caut@next` never lags behind it: `npm dist-tag add ccl-caut@X.Y.Z next` (as a maintainer; the workflow can't change dist-tags).
+For a **stable** release, also finalize the CHANGELOG section (date, no beta marker), update ROADMAP.md (and the README why-line counts if tools or install methods changed) and close the milestone before step 1. After approving a stable release, point `next` at it so `ccl-caut@next` never lags behind `latest`: `npm dist-tag add ccl-caut@X.Y.Z next` (by hand with 2FA; the trusted publisher can only stage). Dependency updates (Dependabot) need no release of their own; see CONTRIBUTING.md.
 
 Beta users are told about the next beta or the stable release, whichever is newer; stable users are never pointed at a beta.
 ## Release candidates
