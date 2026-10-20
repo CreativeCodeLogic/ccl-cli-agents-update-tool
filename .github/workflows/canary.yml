@@ -96,7 +96,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # Aider pins Python 3.12 the way aider-install does; Vibe needs 3.12+.
+      # Aider pins Python 3.12 the way aider-install does; Mistral Vibe 3 needs Python 3.14+
+      # (on an older Python the resolver silently installs Vibe 2.x). uv fetches 3.14 itself.
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
@@ -109,7 +110,7 @@ jobs:
           # uv tool shims go to ~/.local/bin (%USERPROFILE%\.local\bin on Windows).
           uv tool dir --bin >> "$GITHUB_PATH"
           uv tool install --python 3.12 aider-chat
-          uv tool install --python 3.12 mistral-vibe
+          uv tool install --python 3.14 mistral-vibe
           uv tool list
       - name: Check detection
         run: |
@@ -131,9 +132,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Mistral Vibe 3 needs Python 3.14+.
       - uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - run: npm ci
       - run: npm run build
       - name: Install Mistral Vibe with pipx
