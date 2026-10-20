@@ -186,8 +186,15 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
       }
       const latestVersion = await latest.get(tool, active?.installMethod, active?.version);
       const staleAt = latest.stale.get(LatestResolver.key(tool, active?.installMethod, active?.version));
-      const plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
+      let plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
       const { state, updateAvailable } = deriveState(tool, active?.version, latestVersion, Boolean(active));
+      // The latest release may not install over this copy as it is (e.g. it needs a newer Python).
+      const lookup = (key: string, fetch: () => Promise<string | null>) => latest.getByKey(key, fetch, false);
+      const compatibility =
+        active && latestVersion && updateAvailable && tool.checkCompatibility
+          ? await safe(() => tool.checkCompatibility!(active, latestVersion, lookup), null)
+          : null;
+      if (compatibility) plan = compatibility.plan;
       const npmRoot = (await getNpmGlobalPaths())?.root ?? null;
       const needsAdmin = computeNeedsAdmin(tool, active, plan, getHost(), npmRoot);
       const projectPin = projectPinFor(tool, project, getHost());
@@ -216,6 +223,7 @@ export function resolveLatest(detections: readonly Detection[], latest: LatestRe
         deprecation: tool.deprecation ?? null,
         notes,
         projectPin,
+        compatibility: compatibility?.message ?? null,
       };
     }),
   );

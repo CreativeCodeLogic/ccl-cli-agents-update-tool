@@ -222,6 +222,8 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
       ...real,
       getInstalledVersion: async (instance: BinaryInstance) => versions.get(instance.path) ?? null,
       getLatestVersion: async () => fixture.latest,
+      // No PyPI lookups in the demo.
+      checkCompatibility: async () => null,
     };
   });
 

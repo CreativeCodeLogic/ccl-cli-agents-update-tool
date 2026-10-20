@@ -32,7 +32,7 @@ export function isOffered(r: ToolScan): boolean {
 
 /** Pick for an offered tool the user has never decided on. */
 export function selectedByDefault(r: ToolScan): boolean {
-  return r.deprecation === null && r.state !== "self-updating";
+  return r.deprecation === null && r.state !== "self-updating" && r.compatibility === null;
 }
 
 export interface InitialSelection {
@@ -41,11 +41,16 @@ export interface InitialSelection {
   remembered: boolean;
 }
 
-/** Preselect "update" choices, plus undecided tools that are selected by default; "skip" stays unticked. */
+/**
+ * Preselect "update" choices, plus undecided tools that are selected by default;
+ * "skip" stays unticked. A tool whose latest release needs a reinstall (compatibility)
+ * is never preselected, whatever was remembered.
+ */
 export function initialSelection(offered: readonly ToolScan[], choices: ToolChoices): InitialSelection {
   const ids = offered
     .filter((r) => {
       const choice = choices[r.id];
+      if (r.compatibility !== null) return false;
       return choice === "update" || (choice === undefined && selectedByDefault(r));
     })
     .map((r) => r.id);

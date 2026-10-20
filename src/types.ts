@@ -64,6 +64,17 @@ export type UpdatePlan =
   | { kind: "auto"; command: string[] }
   | { kind: "manual"; command: string; reason: string; /** Needs an elevated terminal / sudo. */ needsAdmin?: boolean };
 
+/** A cached, de-duplicated lookup for one run (latest-version cache; null = unknown). */
+export type KeyedLookup = (key: string, fetch: () => Promise<string | null>) => Promise<string | null>;
+
+/** The latest release can't run on this install as it is (e.g. it needs a newer Python). */
+export interface Compatibility {
+  /** One sentence, shown as a note and in the plan's reason. */
+  message: string;
+  /** What to do instead (manual, never preselected). */
+  plan: UpdatePlan;
+}
+
 /** One copy of a tool's executable found on PATH. */
 export interface BinaryInstance {
   /** Path as found on PATH (e.g. a Windows .cmd shim or a POSIX symlink). */
@@ -143,6 +154,11 @@ export interface ToolDescriptor {
    * output. null = genuinely unchanged (reported as a warning).
    */
   explainUnchanged?(instance: BinaryInstance, output: string): { status: "held"; message: string } | null;
+  /**
+   * When an update is available: whether the latest release can be installed
+   * over this copy (e.g. its Python version). null = fine, or unknown.
+   */
+  checkCompatibility?(instance: BinaryInstance, latestVersion: string, lookup: KeyedLookup): Promise<Compatibility | null>;
 }
 
 export type ToolState =
@@ -188,4 +204,6 @@ export interface ToolScan {
   notes: ToolNote[];
   /** The project in the current directory pins its own copy of this tool. */
   projectPin: ProjectPin | null;
+  /** Set when the latest release can't simply be updated to (e.g. it needs a newer Python); the plan says what to do. */
+  compatibility: string | null;
 }

@@ -11,17 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Recipes for scheduled runs:** [docs/scheduling.md](docs/scheduling.md) shows how to run `ccl-caut --check` (notify only) or `--yes` (update) weekly from cron, launchd and Task Scheduler as your normal user, with absolute paths (including nvm, fnm and Volta), a log file and the exit codes. The cron and launchd recipes are run for real in CI.
 - The canary run (real installs of the npm, uv and pipx CLIs) now runs on macOS and Windows as well as Linux.
+- **Python version check for uv, pipx and pip installs:** when the latest release needs a newer (or older) Python than the one your install uses, for example Mistral Vibe 3.0 needs Python 3.14+, the row still says `update available`, a note explains it, and the update becomes a command to copy that reinstalls it with a fitting Python (`uv tool upgrade --python 3.14 mistral-vibe`, `pipx reinstall --python 3.14 mistral-vibe`, or a pip command). It is never preselected, so `--yes` no longer reports it as "unchanged" on every run. Only when both versions are known; otherwise nothing changes. `--json`: `compatibility` per tool.
 
 ### Changed
 
 - The scan line stops suggesting `ccl-caut --discover` once you have run it (remembered in the config as an extra key, so 1.0.x and 1.1.x still read the file; `--reset-selection` keeps it).
 - Unattended runs never wait for input: without a terminal, update commands get no stdin (a prompt sees end-of-input instead of hanging), and `--yes` skips automatic updates that need admin rights, with the reason.
-- `--yes` exits with 1 when a selected update was skipped (running, needs admin rights, Claude Code session), like a failed update, so a scheduled run's log and exit code show it.
+- **`--yes` now exits with 1 when a selected tool was skipped** (it is running, needs admin rights, or Claude Code inside a Claude Code session). It used to exit with 0. Scripts that treated `--yes` as "always 0" should check for 1: like a failed update, a skipped one did not apply, and a scheduled run's log and exit code now show it.
 
 ### Fixed
 
 - On Windows, output redirected to a file or a scheduler log contained color escape codes; output that doesn't go to a terminal is now plain text on every OS (`FORCE_COLOR=1` keeps colors, CI logs keep them).
 - In classic Windows consoles, the line above the table used a Unicode bar between ASCII ones.
+
 ## [1.1.0] - 2026-10-13
 
 CCL CAUT 1.1 (Dev CLIs & more agents): 23 CLIs in two groups, Python tool detection and notes for tools that live in your projects. Update with `npm i -g ccl-caut` or run `npx ccl-caut`. This release is identical to 1.1.0-beta.2; the [CHANGELOG](https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/blob/main/CHANGELOG.md) sections for 1.1.0-beta.1 and 1.1.0-beta.2 list every change in detail. Published from GitHub Actions with npm provenance and approved by a maintainer.

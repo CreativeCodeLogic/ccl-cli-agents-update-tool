@@ -4,7 +4,7 @@ import { fetchLatestNpmVersion, readPackageVersionNear } from "../utils/npm";
 import { isInside } from "../utils/paths";
 import { fetchLatestPypiVersion } from "../utils/pypi";
 import { distInfoVersion, pythonUpdatePlan } from "../utils/python";
-import { pythonInstallOf } from "./python-package-tool";
+import { pythonCompatibility, pythonInstallOf } from "./python-package-tool";
 import { extractVersion } from "../utils/version";
 import { npmGlobalPlan, versionFromCommand } from "./shared";
 
@@ -102,6 +102,10 @@ export const kimi: ToolDescriptor = {
   },
 
   latestChannel: (method) => (isPython(method) ? "pypi" : "npm"),
+
+  // The legacy Python Kimi CLI: its latest release may need a newer Python.
+  checkCompatibility: (instance, latest, lookup) =>
+    isPython(instance.installMethod) ? pythonCompatibility(pythonInstallOf(instance, LEGACY_PYPI_PKG), LEGACY_PYPI_PKG, "Kimi CLI", latest, lookup) : Promise.resolve(null),
 
   async getLatestVersion(method?: InstallMethod) {
     return isPython(method) ? fetchLatestPypiVersion(LEGACY_PYPI_PKG) : fetchLatestNpmVersion(NPM_PKG);

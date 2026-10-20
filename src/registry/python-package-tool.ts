@@ -1,6 +1,7 @@
-import type { BinaryInstance, InstallMethod, ToolDescriptor, ToolGroup, UpdatePlan } from "../types";
+import type { BinaryInstance, Compatibility, InstallMethod, KeyedLookup, ToolDescriptor, ToolGroup, UpdatePlan } from "../types";
 import { getHost } from "../utils/host";
-import { fetchLatestPypiVersion } from "../utils/pypi";
+import { fetchLatestPypiVersion, fetchRequiresPython } from "../utils/pypi";
+import { pythonFits, pythonVersionOf, reinstallWithPython, suggestPython } from "../utils/pyrequires";
 import { detectPythonInstall, distInfoVersion, pythonUpdatePlan, type PythonInstall } from "../utils/python";
 import { findAllExecutables } from "../utils/which";
 import { versionFromCommand } from "./shared";
@@ -30,6 +31,29 @@ export function pythonInstallOf(instance: Pick<BinaryInstance, "path" | "realPat
 }
 
 const managerOnPath = (kind: PythonInstall["kind"]) => kind === "pip" || findAllExecutables([kind], getHost()).length > 0;
+
+/**
+ * The latest release needs another Python than this install uses: a manual
+ * reinstall with a fitting Python. null when it fits, or when the install's
+ * Python or the release's requires_python is unknown (no guessing).
+ */
+export async function pythonCompatibility(
+  install: PythonInstall | null,
+  pypi: string,
+  toolName: string,
+  latest: string,
+  lookup: KeyedLookup,
+): Promise<Compatibility | null> {
+  if (!install) return null;
+  const host = getHost();
+  const envVersion = pythonVersionOf(install, host);
+  if (!envVersion) return null;
+  const spec = await lookup(`pypi-requires-python:${pypi}@${latest}`, () => fetchRequiresPython(pypi, latest));
+  if (!spec || pythonFits(spec, envVersion) !== false) return null;
+  const target = suggestPython(spec, envVersion);
+  if (!target) return null;
+  return reinstallWithPython(install, pypi, { toolName, latest, spec, envVersion, target, platform: host.platform });
+}
 
 /** Descriptor for a CLI distributed on PyPI and installed with uv, pipx or pip. */
 export function createPythonPackageTool(config: PythonPackageToolConfig): ToolDescriptor {
@@ -68,6 +92,9 @@ export function createPythonPackageTool(config: PythonPackageToolConfig): ToolDe
         }
       );
     },
+
+    checkCompatibility: (instance, latest, lookup) =>
+      pythonCompatibility(PYTHON_METHODS.includes(instance.installMethod) ? pythonInstallOf(instance, pypi) : null, pypi, config.name, latest, lookup),
 
     // Admin rights are judged on the folder the upgrade writes to.
     updateTargetDir: (instance) => {

@@ -149,3 +149,54 @@ jobs:
         run: |
           node dist/index.js --json --refresh > scan.json || true
           node scripts/canary-check.mjs scan.json vibe=pipx
+
+  # A tool installed on a Python its latest release doesn't support (Mistral Vibe 3
+  # needs 3.14+; installed on 3.12 it stays on 2.x): ccl-caut must plan the manual
+  # reinstall with the documented command, and running that command must bring it
+  # up to date.
+  canary-python-compat:
+    name: Python compatibility (${{ matrix.manager }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        manager: [uv, pipx]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      # 3.12 for the old install; 3.14 must be available for `pipx reinstall --python 3.14`.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: |
+            3.14
+            3.12
+      - run: npm ci
+      - run: npm run build
+      - name: Install Mistral Vibe on Python 3.12 (${{ matrix.manager }})
+        run: |
+          if [ "${{ matrix.manager }}" = uv ]; then
+            python -m pip install --upgrade uv
+            uv tool dir --bin >> "$GITHUB_PATH"
+            uv tool install --python 3.12 mistral-vibe
+            cat "$(uv tool dir)/mistral-vibe/pyvenv.cfg"
+          else
+            python -m pip install --upgrade pipx
+            python -m pipx environment --value PIPX_BIN_DIR >> "$GITHUB_PATH"
+            python -m pipx install --python 3.12 mistral-vibe
+            cat "$(python -m pipx environment --value PIPX_LOCAL_VENVS)/mistral-vibe/pyvenv.cfg"
+          fi
+      - name: ccl-caut plans the reinstall, and the planned command works
+        run: |
+          node dist/index.js --json --refresh > before.json || true
+          cmd="$(node scripts/canary-compat.mjs before.json vibe plan)"
+          echo "planned: $cmd"
+          # pipx may only be reachable as a module on some runners.
+          if [ "${{ matrix.manager }}" = pipx ] && ! command -v pipx >/dev/null; then cmd="python -m $cmd"; fi
+          eval "$cmd"
+          node dist/index.js --json --refresh > after.json || true
+          node scripts/canary-compat.mjs after.json vibe up-to-date

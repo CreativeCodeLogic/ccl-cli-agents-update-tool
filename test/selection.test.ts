@@ -20,6 +20,7 @@ function scan(id: string, overrides: Partial<ToolScan> = {}): ToolScan {
     group: "agents",
     notes: [],
     projectPin: null,
+    compatibility: null,
     state: "outdated",
     updateAvailable: true,
     needsAdmin: false,

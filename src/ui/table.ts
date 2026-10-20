@@ -97,6 +97,12 @@ export function printNotes(results: readonly ToolScan[], platform: NodeJS.Platfo
     const verb = r.shadowed.length === 1 ? "is" : "are";
     log.warn(`${pc.bold(r.id)}: ${describe(r.installMethod, r.installedVersion)} runs; ${others} ${verb} installed but shadowed on PATH`);
   }
+  // e.g. "vibe: Mistral Vibe 3.0.0 needs Python >=3.14; your install uses Python 3.12." + the command
+  for (const r of results) {
+    if (!r.installed || !r.compatibility) continue;
+    const command = r.plan?.kind === "manual" ? `\n${r.plan.command}` : "";
+    log.warn(`${pc.bold(r.id)}: ${r.compatibility}${command}`);
+  }
   for (const r of results) {
     if (!r.installed) continue;
     for (const note of r.notes) log.message(formatInfoNote(r.id, note), { symbol: INFO_SYMBOL });
