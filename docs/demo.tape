@@ -4,8 +4,8 @@
 # Render: npm run build && vhs docs/demo.tape
 # (or the "Demo GIF" workflow, which uploads docs/demo.gif as an artifact)
 #
-# Layout (100 cols): the checklist needs 60 rows (banner = top 10) and the pre-flight 64,
-# so ~62 rows keep the banner visible at the checklist and scroll it off afterwards.
+# Layout (100 cols): the checklist needs 62 rows (banner = top 10) and the pre-flight 66,
+# so ~64 rows keep the banner visible at the checklist and scroll it off afterwards.
 
 Output docs/demo.gif
 
@@ -14,7 +14,7 @@ Require node
 Set Shell "bash"
 Set FontSize 18
 Set Width 1200
-Set Height 1440
+Set Height 1480
 Set Padding 24
 Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful
@@ -32,12 +32,14 @@ Type "ccl-caut --demo"
 Sleep 600ms
 Enter
 
-# Banner, scan, the table in two groups (AI agents, Dev CLIs), notes (Wrangler's
-# vendor note and the project that pins it) and the remembered checklist.
+# Banner, scan, the live table filling in row by row (AI agents, Dev CLIs), notes
+# (Wrangler's vendor note and the project that pins it) and the remembered checklist,
+# which starts with the newer CCL CAUT itself.
 Sleep 5s
 
-# Untick Kimi Code (4th item), then confirm: Codex (npm), Aider (uv), gcloud (manual), Netlify (npm).
-Down@450ms 3
+# Untick Kimi Code (5th item), then confirm: CCL CAUT (runs last), Codex (npm),
+# Aider (uv), gcloud (manual), Netlify (npm).
+Down@450ms 4
 Sleep 500ms
 Space
 Sleep 1.2s
@@ -50,8 +52,9 @@ Sleep 900ms
 Enter
 
 # Live progress (spinner, elapsed time, latest output line), results, the gcloud
-# command on its own line, the summary and the "What next?" menu.
-Sleep 6.5s
+# command on its own line, CCL CAUT updated last ("Run ccl-caut again to use it"),
+# the summary and the "What next?" menu with only Quit.
+Sleep 8.5s
 
 # q quits from any prompt.
 Type "q"

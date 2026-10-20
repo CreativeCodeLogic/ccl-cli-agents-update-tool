@@ -13,7 +13,7 @@ import { icons } from "./ui/symbols";
 /** Every host ccl-caut reads latest versions from, with a cheap URL to probe. */
 export const VERSION_HOSTS = [
   { host: "registry.npmjs.org", url: "https://registry.npmjs.org/-/ping", usedFor: "npm packages, Amp, ccl-caut itself" },
-  { host: "api.github.com", url: "https://api.github.com/zen", usedFor: "Antigravity, Supabase, GitHub CLI, Goose" },
+  { host: "api.github.com", url: "https://api.github.com/zen", usedFor: "Antigravity, Supabase, GitHub CLI, Goose, winget versions" },
   { host: "dl.google.com", url: "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json", usedFor: "Google Cloud CLI" },
   { host: "pypi.org", url: "https://pypi.org/pypi/aider-chat/json", usedFor: "Aider, Mistral Vibe, legacy kimi-cli" },
   { host: "prod.download.cli.kiro.dev", url: "https://prod.download.cli.kiro.dev/stable/latest/manifest.json", usedFor: "Kiro CLI" },

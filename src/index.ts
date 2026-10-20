@@ -92,7 +92,9 @@ interface Runtime {
   /** Undefined = run update commands for real. */
   executor?: UpdateExecutor;
   /** Demo only: a canned "newer ccl-caut" result, no network. */
-  selfFixture?: { latest: string; context: InstallContext };
+  selfFixture?: { latest: string; context: InstallContext; entryPath?: string };
+  /** CCL CAUT's own update re-check (the demo replaces it; default: `ccl-caut --version`). */
+  selfTool?: ToolDescriptor;
 }
 
 /** Cache key of ccl-caut's own latest version (shares the 1h latest-version cache). */
@@ -123,8 +125,8 @@ const isPrerelease = (version: string) => /^\d+\.\d+\.\d+-/.test(version);
  */
 function startSelfCheck(runtime: Runtime): SelfCheck {
   if (runtime.selfFixture) {
-    const { latest, context } = runtime.selfFixture;
-    return { immediate: latest, settled: () => latest, next: () => null, context, ready: Promise.resolve(), entryPath: "" };
+    const { latest, context, entryPath = "" } = runtime.selfFixture;
+    return { immediate: latest, settled: () => latest, next: () => null, context, ready: Promise.resolve(), entryPath };
   }
   const off = { immediate: null, settled: () => null, next: () => null, ready: Promise.resolve(), entryPath: "" };
   if (!selfCheckEnabled(process.env)) return { ...off, context: null };
@@ -547,7 +549,7 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
     const targets: UpdateTarget[] = [];
     for (const scan of offered) {
       if (selfRow && scan.id === SELF_ID && picked.includes(SELF_ID)) {
-        targets.push({ scan, tool: selfTool, instance: selfRow.instance });
+        targets.push({ scan, tool: runtime.selfTool ?? selfTool, instance: selfRow.instance });
         continue;
       }
       const detection = detections.find((d) => d.tool.id === scan.id);

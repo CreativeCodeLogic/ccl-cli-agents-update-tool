@@ -5,15 +5,16 @@ CCL CAUT can run unattended from cron (Linux), launchd (macOS) or Task Scheduler
 | Mode | Command | What it does |
 | --- | --- | --- |
 | **Notify only** (recommended) | `ccl-caut --check` | Scans and writes the table to a log. Exit code 1 when updates are available. Changes nothing. |
-| **Update** | `ccl-caut --yes` | Updates what would be preselected in the checklist: your remembered selections, else every outdated tool that isn't retired or self-updating. Prints the commands for everything it can't update itself. |
+| **Update** | `ccl-caut --yes` | Updates what would be preselected in the checklist: your remembered selections, else every outdated tool that isn't retired or self-updating, and a newer CCL CAUT itself (global npm installs, last). Prints the commands for everything it can't update itself. |
 
-Start with notify only. Switch to `--yes` once you have seen a few logs and you're happy with what your checklist preselects.
+Start with notify only. Switch to `--yes` once you have seen a few logs and you're happy with what your checklist preselects. To keep a scheduled `--yes` from updating CCL CAUT itself, untick the **CCL CAUT** row once in an interactive run; the choice is remembered like any other.
 
 ## Before you start
 
 - **Weekly is enough.** CLIs release often, but a weekly check catches everything without hammering the version servers.
 - **Run it as your normal user. Never as root, with sudo, as Administrator or as an elevated ("highest privileges") task.** Global npm folders, Python tool folders and the config with your remembered selections are per user: an elevated run checks a different set of installs, and anything it updates ends up owned by the wrong user. Updates that need admin rights are skipped in `--yes` and listed with their command, for you to run by hand.
-- **Start in your home folder.** Inside a project folder CCL CAUT adds a note when the project pins its own copy of a CLI; a scheduled run should not pick up whatever `package.json` happens to be in the scheduler's default folder (Task Scheduler starts in `C:\Windows\System32`, launchd in `/`). cron already starts in your home folder; the launchd and Task Scheduler recipes set it. cron and launchd give a job a `PATH` of roughly `/usr/bin:/bin`, so `node`, `npm` and the CLIs you want checked are not found. The recipes below call Node and CCL CAUT by absolute path, and set `PATH` to your normal one so CCL CAUT sees the same tools you do.
+- **Start in your home folder.** Inside a project folder CCL CAUT adds a note when the project pins its own copy of a CLI; a scheduled run should not pick up whatever `package.json` happens to be in the scheduler's default folder (Task Scheduler starts in `C:\Windows\System32`, launchd in `/`). cron already starts in your home folder; the launchd and Task Scheduler recipes set it.
+- **Schedulers start with a minimal environment.** cron and launchd give a job a `PATH` of roughly `/usr/bin:/bin`, so `node`, `npm` and the CLIs you want checked are not found. The recipes below call Node and CCL CAUT by absolute path, and set `PATH` to your normal one so CCL CAUT sees the same tools you do.
 
 ### What an unattended run does
 

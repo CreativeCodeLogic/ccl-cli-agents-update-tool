@@ -11,29 +11,21 @@
 5. **Honest results.** Every update is re-checked. You see "updates itself", "retired" or "held" instead of a guess.
 6. **No telemetry.**
 
-## Now: 1.1 (released)
+## In beta: 1.2 — Polish
 
-23 tools in two groups. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini (retired), Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro CLI and Goose. Dev CLIs: Firebase, Google Cloud CLI, npm, Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI. Run it with `npx ccl-caut` or `npm i -g ccl-caut`.
+`npm i -g ccl-caut@next` (back to stable: `npm i -g ccl-caut@latest`). It becomes stable once it meets the bar under "Release channels" below.
 
-Dev CLIs and more agents shipped together in 1.1 (the agents planned for 1.2 shipped early, in 1.1; Polish is now 1.2):
+- **Live table:** the table appears right away and each row fills in as its check finishes.
+- **Update CCL CAUT from the checklist:** a newer CCL CAUT is the first row of the checklist, updated last, verified, then *Run ccl-caut again*.
+- **Automatic winget updates** for an allowlist of tools whose silent upgrade was verified (OpenCode, Antigravity CLI, GitHub CLI), per-user installs only, and only once winget has the vendor's version (*waiting for winget* until then).
+- **Python version check:** when a new release needs another Python than your uv, pipx or pip install, the update becomes a reinstall command with the right Python instead of an update that silently does nothing.
+- **Scheduled runs:** tested recipes for cron, launchd and Task Scheduler ([docs/scheduling.md](docs/scheduling.md)); unattended runs never wait for input, and `--yes` reports skipped tools in its exit code.
+- **Quieter:** the `--discover` hint disappears once you've used it.
+- **Canary on Linux, macOS and Windows,** plus real Python-reinstall and winget-upgrade checks.
 
-- **Two groups in the table:** AI agents and Dev CLIs. Firebase, the Google Cloud CLI and npm move to Dev CLIs, and you can hide a group you don't need.
-- **New Dev CLIs:** Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI.
-- **Project-copy check:** when you run CCL CAUT inside a project that pins its own copy of a tool (for example `wrangler` in `devDependencies`), it tells you the global update won't affect that project.
-- **Per-project notes:** tools whose vendors recommend installing them per project say so on their row.
-- **Python tool detection** for tools installed with uv, pipx or pip.
-- **New agents:** Aider, Mistral Vibe, Cline, Amp, Kiro CLI and Goose.
-- **Beta channel:** try upcoming versions early with `npx ccl-caut@next`.
+## Now: 1.1 (stable)
 
-**1.1.x patches** focus on confirming every automatic update path on real Windows, macOS and Linux machines, and on fixing what people report.
-
-## Next: 1.2 — Polish
-
-- A table that fills in live, row by row, as each check finishes.
-- Update CCL CAUT itself from the checklist.
-- Ready-made recipes for scheduled runs (cron, launchd, Task Scheduler) with `--check` or `--yes`.
-- winget updates run automatically where a vendor's unattended upgrade has been shown to work reliably.
-- The canary run also on macOS and Windows.
+23 tools in two groups. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini (retired), Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro CLI and Goose. Dev CLIs: Firebase, Google Cloud CLI, npm, Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI, with Python tool detection, project-copy notes and the beta channel. Run it with `npx ccl-caut` or `npm i -g ccl-caut`. **1.1.x patches** fix what people report until 1.2 is stable.
 
 ## Later (ideas)
 

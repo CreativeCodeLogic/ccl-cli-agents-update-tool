@@ -152,7 +152,8 @@ Options:
                  Hide a group from now on, or show it again (saved in your config).
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
-                 Tools that are running right now are skipped and listed in the summary.
+                 A newer global ccl-caut is updated too, last. Tools that are running
+                 or need admin rights are skipped and listed; skips make the exit code 1.
   --reset-selection
                  Forget the selection remembered from previous runs, then run normally.
   --no-clear     Don't clear the screen when starting the interactive checklist.
@@ -163,18 +164,23 @@ Options:
 Keys (interactive):
   ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
   r retry the version lookups (offered when they failed)
+  While the latest versions are checked: q stops, Ctrl+C or Esc cancel.
   Before updating, ccl-caut shows which selected CLIs are running and which
   updates need administrator rights (needs admin). It never kills or elevates.
 
 Exit codes:
   0    success / everything up-to-date / quit with q
-  1    updates available (--check), or an update failed or did not apply
+  1    updates available (--check), or an update failed, did not apply or was
+       skipped (--yes)
   2    invalid arguments
   130  cancelled (Ctrl+C or Esc)
 
 Environment:
   CCL_CAUT_DEBUG=1             Print diagnostics (failed lookups, cache problems) to stderr.
   CCL_CAUT_NO_UPDATE_CHECK=1   Don't check whether a newer ccl-caut is available.
+  CCL_CAUT_NO_LIVE=1           No live table: a spinner, then the finished table.
+  GITHUB_TOKEN, GH_TOKEN       Raise GitHub's API limit (sent to api.github.com only).
+  FORCE_COLOR=1                Keep colors when the output isn't a terminal.
   HTTPS_PROXY, HTTP_PROXY, NO_PROXY
                                Send version lookups through a proxy (like curl and npm).
 

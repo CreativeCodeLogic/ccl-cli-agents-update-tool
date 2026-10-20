@@ -1,3 +1,4 @@
+import semver from "semver";
 import pkg from "../../package.json" with { type: "json" };
 import { registry } from "../registry";
 import { LatestResolver } from "../scan";
@@ -7,6 +8,7 @@ import type { InstallContext } from "../self";
 import type { SelectionStore, ToolChoice } from "../selection";
 import type { BinaryInstance, ToolDescriptor, ToolGroup } from "../types";
 import type { UpdateExecutor } from "../ui/update";
+import { SELF_ID, selfTool } from "../selfupdate";
 import type { FsProbe, Host } from "../utils/host";
 import { setHost } from "../utils/host";
 import { primeNpmGlobalPaths } from "../utils/npm";
@@ -25,6 +27,9 @@ const HOME = "/home/dev";
 /** As if the user decided on Cursor last time: shows the "Selection remembered" hint. */
 const DEMO_CHOICES: Record<string, ToolChoice> = { cursor: "skip" };
 const NPM_GLOBAL = { prefix: "/usr/local", root: "/usr/local/lib/node_modules" };
+/** ccl-caut itself, installed globally in the demo's npm prefix (for the CCL CAUT checklist row). */
+const SELF_BIN = "/usr/local/bin/ccl-caut";
+const SELF_ENTRY = `${NPM_GLOBAL.root}/ccl-caut/dist/index.js`;
 const UV_TOOLS = `${HOME}/.local/share/uv/tools`;
 /** Text files the Python detector reads (uv's environment for Aider). */
 const TEXTS: Record<string, string> = {
@@ -106,8 +111,8 @@ const UPDATE_OUTPUT: Record<string, string[]> = {
 };
 function demoHost(): Host {
   // uv on PATH, so Aider's uv plan runs automatically.
-  const files = new Set<string>(["/usr/local/bin/node", `${HOME}/.local/bin/uv`, ...Object.keys(TEXTS)]);
-  const links = new Map<string, string>();
+  const files = new Set<string>(["/usr/local/bin/node", `${HOME}/.local/bin/uv`, SELF_BIN, SELF_ENTRY, ...Object.keys(TEXTS)]);
+  const links = new Map<string, string>([[SELF_BIN, SELF_ENTRY]]);
   for (const tool of Object.values(FIXTURE)) {
     for (const bin of tool.binaries) {
       files.add(bin.path);
@@ -159,8 +164,10 @@ export interface DemoRuntime {
   elevated: Promise<boolean>;
   /** Codex "running" for the pre-flight check; no real processes are listed. */
   listProcesses: () => Promise<ProcessInfo[]>;
-  /** Shows the "newer ccl-caut" notice under the banner without any network. */
-  selfFixture: { latest: string; context: InstallContext };
+  /** A newer ccl-caut (one patch release ahead), without any network: the CCL CAUT checklist row. */
+  selfFixture: { latest: string; context: InstallContext; entryPath: string };
+  /** CCL CAUT's own re-check, reading the fixture instead of running `ccl-caut --version`. */
+  selfTool: ToolDescriptor;
 }
 
 /** Remembered selections for the demo: in memory only, never the user's config file. */
@@ -213,7 +220,7 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
   const sleep = options.sleep ?? realSleep;
 
   /** Current fixture version per binary path; updates bump the copy that runs. */
-  const versions = new Map<string, string>();
+  const versions = new Map<string, string>([[SELF_BIN, pkg.version]]);
   for (const tool of Object.values(FIXTURE)) for (const bin of tool.binaries) versions.set(bin.path, bin.version);
 
   const tools = registry.map((real, index): ToolDescriptor => {
@@ -238,7 +245,7 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
       await sleep(Math.round(1_500 / lines.length));
       onChunk(`${line}\n`);
     }
-    const latest = FIXTURE[target.scan.id]?.latest;
+    const latest = target.scan.id === SELF_ID ? target.scan.latestVersion : FIXTURE[target.scan.id]?.latest;
     if (latest) versions.set(target.instance.path, latest);
     return { code: 0, output: lines.join("\n") };
   };
@@ -254,6 +261,7 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
     projectFixture: DEMO_PROJECT,
     selections: memorySelections(DEMO_CHOICES),
     executor,
-    selfFixture: { latest: "1.0.1", context: "global" },
+    selfFixture: { latest: semver.inc(pkg.version, "patch") ?? pkg.version, context: "global", entryPath: SELF_ENTRY },
+    selfTool: { ...selfTool, getInstalledVersion: async (instance) => versions.get(instance.path) ?? null },
   };
 }
