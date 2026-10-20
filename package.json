@@ -1,6 +1,6 @@
 {
   "name": "ccl-caut",
-  "version": "1.1.0",
+  "version": "1.2.0-beta.1",
   "description": "CLI Agents Update Tool — check and update AI/dev CLIs from one terminal UI",
   "keywords": [
     "cli",
