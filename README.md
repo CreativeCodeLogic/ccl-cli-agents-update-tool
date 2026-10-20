@@ -37,7 +37,7 @@ npm ci && npm run build
 node dist/index.js
 ```
 
-Requires Node.js 20 or newer.
+Requires Node.js 20 or newer to run; building from source needs Node 22.18 or newer.
 
 ## What it looks like
 

@@ -14,6 +14,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Building and developing needs Node 22.18+ (tsup 9, vitest 5); ccl-caut itself runs
+# on Node 20+. Each job builds and packs with a supported toolchain (Node 22 for the
+# Node 20 jobs, the job's own Node otherwise), then installs the packed tarball
+# globally and smoke-tests it on the job's Node version: the bundle users get.
 jobs:
   test:
     name: ${{ matrix.os }} / Node ${{ matrix.node }}
@@ -27,31 +31,64 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v7
+      - name: Set up the build toolchain (Node ${{ matrix.node == 20 && 22 || matrix.node }})
+        uses: actions/setup-node@v7
         with:
-          node-version: ${{ matrix.node }}
+          node-version: ${{ matrix.node == 20 && 22 || matrix.node }}
           cache: npm
 
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
-      - run: npm test
+
+      # vitest 5 needs Node 22.12+, so the unit tests run in the Node 22 and 24 jobs;
+      # the Node 20 jobs test the built package instead.
+      - name: Unit tests
+        if: matrix.node != 20
+        run: npm test
+
+      - name: Pack
+        shell: bash
+        run: |
+          npm pack
+          node -e 'const c=require("crypto"),f=require("fs");console.log("dist/index.js sha256", c.createHash("sha256").update(f.readFileSync("dist/index.js")).digest("hex"))'
+
+      - name: Switch to the runtime (Node ${{ matrix.node }})
+        if: matrix.node == 20
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install the packed tarball globally
+        shell: bash
+        run: |
+          node --version
+          npm install -g ./ccl-caut-*.tgz
+          expected="$(node -p 'require("./package.json").version')"
+          actual="$(ccl-caut --version)"
+          echo "ccl-caut --version: $actual"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::ccl-caut --version printed '$actual', expected '$expected'"
+            exit 1
+          fi
 
       # Real detection on the runner: hosted images ship some of these CLIs
       # (e.g. npm everywhere, gcloud on Ubuntu). Exit 0 = all current,
       # 1 = updates available; anything else is a failure.
-      - name: Smoke test (--check --json)
+      - name: Smoke test (--check, --json)
         shell: bash
         run: |
           set +e
-          node dist/index.js --check --json > scan.json
+          ccl-caut --check > check.txt
           code=$?
           set -e
-          echo "exit code: $code"
+          cat check.txt
+          echo "--check exit code: $code"
           if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
-            echo "::error::unexpected exit code $code"
+            echo "::error::unexpected --check exit code $code"
             exit 1
           fi
+          ccl-caut --json > scan.json
           node -e '
             const report = JSON.parse(require("fs").readFileSync("scan.json", "utf8"));
             if (report.tool !== "ccl-caut" || !Array.isArray(report.tools)) {

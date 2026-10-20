@@ -6,7 +6,7 @@ Testing CCL CAUT? See [docs/TESTING.md](docs/TESTING.md).
 
 ## Setup
 
-Requires Node.js 20+.
+Building and developing needs Node 22.18+; ccl-caut itself runs on Node 20+. CI builds and runs the unit tests on Node 22 and 24, and installs the packed package on Node 20, 22 and 24 for a smoke test (`--version`, `--check`, `--json`).
 
 ```bash
 git clone https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool.git
