@@ -69,6 +69,8 @@ i  wrangler: This project pins wrangler ^4.149.0 (devDependencies; 4.148.0 in no
 
 Then pick what to update: `↑/↓` move, `space` selects, `a` toggles all, `enter` confirms and `q` quits from any prompt without changing anything. Colors mean the same thing everywhere: green is done or up-to-date, amber needs action (selected, update available, needs admin), cyan updates itself, red is retired or failed, dim is not selected or secondary.
 
+In a terminal the table appears as soon as your installed CLIs are found, and each row fills in as its latest-version check finishes (*checking…* until then); `q` stops, Ctrl+C or Esc cancel. When everything is checked, the finished table is printed exactly as before, so your scrollback is unchanged. Piped output, CI, `TERM=dumb`, a window too short for the table, or resizing it during the check use the plain spinner instead.
+
 Before anything runs, a short **pre-flight** check shows which selected CLIs are running right now (close agent sessions and the IDEs or terminals that use them first) and which updates need administrator rights. Choose *Update now*, *Re-check*, *Back to selection* or *Quit*. Each update shows a spinner, the elapsed time and the latest output line, then collapses to `Codex CLI 0.161.0 → 0.162.1`; the full log is printed only when something fails (or with `CCL_CAUT_DEBUG=1`). Commands CCL CAUT can't run safely are printed on a line of their own, ready to select and copy. Afterwards, *Rescan* runs the whole check again with fresh versions, or *Quit*.
 
 ## Supported tools
@@ -196,7 +198,7 @@ A new release can need a newer Python than the one a tool was installed with (Mi
 
 When you confirm the checklist, CCL CAUT remembers your choice per tool: ticked tools are preselected next time, unticked ones start unticked ("Selection remembered from your last run" appears under the prompt). Tools you've never decided on follow the defaults: preselected if outdated, unticked if retired or self-updating. `--yes` applies the same selection without asking, which makes it handy for a scheduled task. `--reset-selection` forgets every tool selection (hidden groups and other settings stay).
 
-Choices are stored in your OS config folder: `%APPDATA%\ccl-caut\config.json` on Windows, and `$XDG_CONFIG_HOME/ccl-caut/config.json` or `~/.config/ccl-caut/config.json` on macOS and Linux (like other developer CLIs). Latest versions are cached for an hour in your OS cache folder (`%LOCALAPPDATA%\ccl-caut`, `~/Library/Caches/ccl-caut` or `$XDG_CACHE_HOME/ccl-caut`). Set `CCL_CAUT_DEBUG=1` to see failed lookups and config or cache problems on stderr.
+Choices are stored in your OS config folder: `%APPDATA%\ccl-caut\config.json` on Windows, and `$XDG_CONFIG_HOME/ccl-caut/config.json` or `~/.config/ccl-caut/config.json` on macOS and Linux (like other developer CLIs). Latest versions are cached for an hour in your OS cache folder (`%LOCALAPPDATA%\ccl-caut`, `~/Library/Caches/ccl-caut` or `$XDG_CACHE_HOME/ccl-caut`). Set `CCL_CAUT_DEBUG=1` to see failed lookups and config or cache problems on stderr, and `CCL_CAUT_NO_LIVE=1` to turn off the live table (a spinner, then the finished table, as in 1.1).
 
 ### Scheduled runs
 

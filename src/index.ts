@@ -7,6 +7,7 @@ import { registry } from "./registry";
 import {
   detectAll,
   LatestResolver,
+  pendingScan,
   prefetchLatest,
   resolveLatest,
   summarize,
@@ -22,6 +23,7 @@ import { displayVersion } from "./ui/format";
 import { icons } from "./ui/symbols";
 import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
 import { discoverHint, renderDiscovery } from "./ui/discover";
+import { latestVersionsProgress, liveTableAllowed } from "./ui/livetable";
 import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
 import { CANCELLED, checklist, choose, QUIT, RETRY } from "./ui/prompts";
 import { getNetwork, networkProblem } from "./utils/http";
@@ -151,6 +153,12 @@ function createRuntime(options: CliOptions): Runtime {
     elevated: detectElevation(),
     selections: UserConfig.load(),
   };
+}
+
+/** q during the check: like q on a prompt. */
+function quitDuringScan(): never {
+  outro(tone.muted("Nothing was changed."));
+  process.exit(0);
 }
 
 function exitCancelled(): never {
@@ -301,14 +309,20 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
   const hiddenHint = runtime.hiddenNote ? ` · ${runtime.hiddenNote}` : "";
   progress.stop(`Found ${found} of ${detections.length} supported CLIs${discoverHint(found, detections.length, runtime.selections.discoverUsed)}${hiddenHint}`);
 
-  progress.start("Checking latest versions...");
-  const slow = setTimeout(() => progress.message("Checking latest versions… (slow connection)"), SLOW_LOOKUP_MS);
   await applyElevation(runtime);
-  const results = await resolveLatest(detections, latest, project(runtime));
+  // In a terminal: the live table (rows fill in as lookups finish); else the spinner.
+  const check = latestVersionsProgress({
+    live: liveTableAllowed(Boolean(process.stdout.isTTY), process.env),
+    placeholders: detections.map(pendingScan).filter((r) => r.installed),
+    message: "Checking latest versions...",
+    keys: { quit: quitDuringScan, cancel: exitCancelled },
+  });
+  const slow = setTimeout(() => check.message("Checking latest versions… (slow connection)"), SLOW_LOOKUP_MS);
+  const results = await resolveLatest(detections, latest, project(runtime), (scan) => check.update(scan));
   clearTimeout(slow);
   latest.cache?.save();
   const networkIssue = networkIssueLine(results);
-  progress.stop(networkIssue ? "Latest versions could not be checked" : "Latest versions checked");
+  check.stop(networkIssue ? "Latest versions could not be checked" : "Latest versions checked");
 
   console.log(`${pc.gray(icons.bar)}\n${renderTable(results, process.stdout.isTTY ? (process.stdout.columns ?? 80) : Number.POSITIVE_INFINITY)}`);
   printNotes(results, getHost().platform);

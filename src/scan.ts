@@ -173,60 +173,102 @@ export function computeNeedsAdmin(
 /**
  * Phase 2: latest versions + state + update plan for the copy that runs, plus
  * info notes (vendor advice, and pins in `project`, the package.json of the
- * current directory if any).
+ * current directory if any). `onResult` hears about each tool as soon as it is
+ * done (the live table); the returned array keeps the detection order.
  */
-export function resolveLatest(detections: readonly Detection[], latest: LatestResolver, project: ProjectManifest | null = null): Promise<ToolScan[]> {
+export function resolveLatest(
+  detections: readonly Detection[],
+  latest: LatestResolver,
+  project: ProjectManifest | null = null,
+  onResult?: (scan: ToolScan) => void,
+): Promise<ToolScan[]> {
   return Promise.all(
-    detections.map(async ({ tool, instances }): Promise<ToolScan> => {
-      const [active, ...others] = instances;
-      const rest: DetectedInstance[] = [];
-      for (const other of others) {
-        const delegated = active && tool.runsThrough ? await safe(() => tool.runsThrough!(active, other), false) : false;
-        if (!delegated) rest.push(other);
-      }
-      const latestVersion = await latest.get(tool, active?.installMethod, active?.version);
-      const staleAt = latest.stale.get(LatestResolver.key(tool, active?.installMethod, active?.version));
-      let plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
-      const { state, updateAvailable } = deriveState(tool, active?.version, latestVersion, Boolean(active));
-      // The latest release may not install over this copy as it is (e.g. it needs a newer Python).
-      const lookup = (key: string, fetch: () => Promise<string | null>) => latest.getByKey(key, fetch, false);
-      const compatibility =
-        active && latestVersion && updateAvailable && tool.checkCompatibility
-          ? await safe(() => tool.checkCompatibility!(active, latestVersion, lookup), null)
-          : null;
-      if (compatibility) plan = compatibility.plan;
-      const npmRoot = (await getNpmGlobalPaths())?.root ?? null;
-      const needsAdmin = computeNeedsAdmin(tool, active, plan, getHost(), npmRoot);
-      const projectPin = projectPinFor(tool, project, getHost());
-      const notes = [
-        ...(tool.notes ?? []),
-        ...(active && tool.instanceNotes ? safeSync(() => tool.instanceNotes!(active), []) : []),
-        ...(projectPin ? [projectPinNote(projectPin, tool.binNames[0] ?? tool.id)] : []),
-      ];
-      return {
-        id: tool.id,
-        name: tool.name,
-        shortName: tool.shortName ?? tool.name,
-        group: tool.group,
-        docsUrl: tool.docsUrl,
-        installed: Boolean(active),
-        installMethod: active?.installMethod ?? null,
-        binaryPath: active?.path ?? null,
-        installedVersion: active?.version ?? null,
-        latestVersion,
-        latestStaleCachedAt: staleAt === undefined ? null : new Date(staleAt).toISOString(),
-        state,
-        updateAvailable,
-        needsAdmin,
-        plan,
-        shadowed: rest.map((i) => ({ path: i.path, installMethod: i.installMethod, version: i.version })),
-        deprecation: tool.deprecation ?? null,
-        notes,
-        projectPin,
-        compatibility: compatibility?.message ?? null,
-      };
+    detections.map(async (detection) => {
+      const scan = await resolveOne(detection, latest, project);
+      onResult?.(scan);
+      return scan;
     }),
   );
+}
+
+/**
+ * What the live table shows for an installed tool before its latest version is
+ * known: the installed side of the row only.
+ */
+export function pendingScan({ tool, instances }: Detection): ToolScan {
+  const [active, ...others] = instances;
+  return {
+    id: tool.id,
+    name: tool.name,
+    shortName: tool.shortName ?? tool.name,
+    group: tool.group,
+    docsUrl: tool.docsUrl,
+    installed: Boolean(active),
+    installMethod: active?.installMethod ?? null,
+    binaryPath: active?.path ?? null,
+    installedVersion: active?.version ?? null,
+    latestVersion: null,
+    latestStaleCachedAt: null,
+    state: "unknown",
+    updateAvailable: false,
+    needsAdmin: false,
+    plan: null,
+    shadowed: others.map((i) => ({ path: i.path, installMethod: i.installMethod, version: i.version })),
+    deprecation: tool.deprecation ?? null,
+    notes: [],
+    projectPin: null,
+    compatibility: null,
+  };
+}
+
+async function resolveOne({ tool, instances }: Detection, latest: LatestResolver, project: ProjectManifest | null): Promise<ToolScan> {
+  const [active, ...others] = instances;
+  const rest: DetectedInstance[] = [];
+  for (const other of others) {
+    const delegated = active && tool.runsThrough ? await safe(() => tool.runsThrough!(active, other), false) : false;
+    if (!delegated) rest.push(other);
+  }
+  const latestVersion = await latest.get(tool, active?.installMethod, active?.version);
+  const staleAt = latest.stale.get(LatestResolver.key(tool, active?.installMethod, active?.version));
+  let plan = active ? await safe<UpdatePlan | null>(() => tool.getUpdatePlan(active), null) : null;
+  const { state, updateAvailable } = deriveState(tool, active?.version, latestVersion, Boolean(active));
+  // The latest release may not install over this copy as it is (e.g. it needs a newer Python).
+  const lookup = (key: string, fetch: () => Promise<string | null>) => latest.getByKey(key, fetch, false);
+  const compatibility =
+    active && latestVersion && updateAvailable && tool.checkCompatibility
+      ? await safe(() => tool.checkCompatibility!(active, latestVersion, lookup), null)
+      : null;
+  if (compatibility) plan = compatibility.plan;
+  const npmRoot = (await getNpmGlobalPaths())?.root ?? null;
+  const needsAdmin = computeNeedsAdmin(tool, active, plan, getHost(), npmRoot);
+  const projectPin = projectPinFor(tool, project, getHost());
+  const notes = [
+    ...(tool.notes ?? []),
+    ...(active && tool.instanceNotes ? safeSync(() => tool.instanceNotes!(active), []) : []),
+    ...(projectPin ? [projectPinNote(projectPin, tool.binNames[0] ?? tool.id)] : []),
+  ];
+  return {
+    id: tool.id,
+    name: tool.name,
+    shortName: tool.shortName ?? tool.name,
+    group: tool.group,
+    docsUrl: tool.docsUrl,
+    installed: Boolean(active),
+    installMethod: active?.installMethod ?? null,
+    binaryPath: active?.path ?? null,
+    installedVersion: active?.version ?? null,
+    latestVersion,
+    latestStaleCachedAt: staleAt === undefined ? null : new Date(staleAt).toISOString(),
+    state,
+    updateAvailable,
+    needsAdmin,
+    plan,
+    shadowed: rest.map((i) => ({ path: i.path, installMethod: i.installMethod, version: i.version })),
+    deprecation: tool.deprecation ?? null,
+    notes,
+    projectPin,
+    compatibility: compatibility?.message ?? null,
+  };
 }
 
 export interface ScanSummary {

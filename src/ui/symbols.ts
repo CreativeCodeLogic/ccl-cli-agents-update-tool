@@ -34,6 +34,7 @@ export function iconSet(unicode: boolean) {
     fail: or("✖", "x"),
     rule: or("─", "-"),
     bar: or("│", "|"),
+    ellipsis: or("…", "..."),
     retired: or("⊘", "x"),
     selfUpdating: or("↻", "~"),
   };

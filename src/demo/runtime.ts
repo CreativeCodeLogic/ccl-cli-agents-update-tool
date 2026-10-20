@@ -216,12 +216,17 @@ export function createDemoRuntime(options: DemoOptions = {}): DemoRuntime {
   const versions = new Map<string, string>();
   for (const tool of Object.values(FIXTURE)) for (const bin of tool.binaries) versions.set(bin.path, bin.version);
 
-  const tools = registry.map((real): ToolDescriptor => {
+  const tools = registry.map((real, index): ToolDescriptor => {
     const fixture = FIXTURE[real.id] ?? { latest: "1.0.0", binaries: [] };
+    // Staggered like real lookups (0.3-1.9s), so the live table fills in row by row.
+    const latency = 300 + ((index * 367) % 1_600);
     return {
       ...real,
       getInstalledVersion: async (instance: BinaryInstance) => versions.get(instance.path) ?? null,
-      getLatestVersion: async () => fixture.latest,
+      getLatestVersion: async () => {
+        await sleep(latency);
+        return fixture.latest;
+      },
       // No PyPI lookups in the demo.
       checkCompatibility: async () => null,
     };

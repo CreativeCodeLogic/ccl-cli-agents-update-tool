@@ -14,6 +14,12 @@ export function byGroup<T extends { group: ToolScan["group"] }>(items: readonly 
   return TOOL_GROUPS.flatMap((group) => items.filter((item) => item.group === group));
 }
 
+/** Live table: rows whose latest version is still being checked, and the icon they show. */
+export interface PendingRows {
+  ids: ReadonlySet<string>;
+  icon: string;
+}
+
 /** Short state labels for narrow terminals (colors are unchanged). */
 const SHORT_STATE: Partial<Record<ToolScan["state"], string>> = { outdated: "outdated", "self-updating": "self-updating" };
 
@@ -27,17 +33,29 @@ const SHORT_STATE: Partial<Record<ToolScan["state"], string>> = { outdated: "out
  * ago" becomes "*" with a legend, (2) shorter state labels, (3) "+1 hidden" ->
  * "+1" and "needs admin" -> "admin", (4) short tool names.
  */
-export function renderTable(results: readonly ToolScan[], columns: number = Number.POSITIVE_INFINITY): string {
-  let table = tableAt(results, 0);
-  for (let level = 1; level <= 4 && table.width > columns; level++) table = tableAt(results, level);
+export function renderTable(results: readonly ToolScan[], columns: number = Number.POSITIVE_INFINITY, pending?: PendingRows): string {
+  let table = tableAt(results, 0, pending);
+  for (let level = 1; level <= 4 && table.width > columns; level++) table = tableAt(results, level, pending);
   return table.text;
 }
 
-function tableAt(results: readonly ToolScan[], level: number): { text: string; width: number } {
+function tableAt(results: readonly ToolScan[], level: number, pending?: PendingRows): { text: string; width: number } {
   const visible = byGroup(results.filter((r) => r.installed));
   const header = ["", "Tool", "Installed", "Latest", "State", "Via"].map((h) => pc.bold(h));
   const stale = visible.filter((r) => r.latestStaleCachedAt);
   const rows = visible.map((r) => {
+    if (pending?.ids.has(r.id)) {
+      // Live table: installed version and install method are known, the latest version not yet.
+      const hidden = r.shadowed.length > 0 ? (level >= 3 ? ` +${r.shadowed.length}` : ` +${r.shadowed.length} hidden`) : "";
+      return [
+        pending.icon,
+        level >= 4 ? r.shortName : r.name,
+        r.installedVersion ? displayVersion(r.installedVersion) : pc.dim("?"),
+        pc.dim(icons.ellipsis),
+        tone.muted(`checking${icons.ellipsis}`),
+        tone.muted(`${r.installMethod ?? ""}${hidden}`),
+      ];
+    }
     const style = stateStyle[r.state];
     const retired = r.state === "retired";
     const name = level >= 4 ? r.shortName : r.name;
