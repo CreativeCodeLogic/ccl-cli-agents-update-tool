@@ -10,6 +10,7 @@ import { isUnderProgramFiles } from "../utils/paths";
 import { sameVersion } from "../utils/version";
 import { LiveStatus } from "./live";
 import { CANCEL_EXIT_CODE } from "./progress";
+import { SELF_ID, selfUpdateFailureHint } from "../selfupdate";
 import { icons } from "./symbols";
 import { tone } from "./theme";
 
@@ -92,6 +93,8 @@ export interface UpdateOutcome {
   manual: number;
   /** Ctrl+C was pressed during an update; remaining tools were skipped. */
   interrupted: boolean;
+  /** Tools whose re-check showed the new version. */
+  updatedIds: string[];
 }
 
 /**
@@ -147,7 +150,7 @@ export async function applyUpdates(
   cache: VersionCache | null = null,
   executor: UpdateExecutor = runForReal,
 ): Promise<UpdateOutcome> {
-  const outcome: UpdateOutcome = { updated: 0, unchanged: 0, held: 0, current: 0, failed: 0, manual: 0, interrupted: false };
+  const outcome: UpdateOutcome = { updated: 0, unchanged: 0, held: 0, current: 0, failed: 0, manual: 0, interrupted: false, updatedIds: [] };
 
   // The running child gets Ctrl+C too and cleans up after itself; we just
   // stop before the next tool instead of exiting mid-install.
@@ -188,8 +191,10 @@ export async function applyUpdates(
         log.error(tone.bad(`${scan.name} update failed${result.code === null ? "" : ` (exit code ${result.code})`} after ${elapsed}`));
         const tail = tracker.tail(20);
         if (tail.length > 0) log.message(tone.muted(tail.join("\n")));
-        const hint = await diagnose(result.output, scan.name, plan.command);
+        const selfHint = scan.id === SELF_ID && scan.latestVersion ? selfUpdateFailureHint(result.output, scan.latestVersion) : null;
+        const hint = selfHint ?? (await diagnose(result.output, scan.name, plan.command));
         if (hint) log.info(tone.action(hint));
+        if (scan.id === SELF_ID) printManualCommand(scan.name, plan.command.join(" "), "Or update it yourself:");
         continue;
       }
       // The command ran: whatever we cached about this tool is stale now.
@@ -200,6 +205,7 @@ export async function applyUpdates(
       const after = await tool.getInstalledVersion(instance).catch(() => null);
       if (after && !sameVersion(before, after)) {
         outcome.updated++;
+        outcome.updatedIds.push(scan.id);
         log.success(`${scan.name} ${tone.muted(before ?? "?")} ${icons.arrow} ${tone.done(after)}  ${tone.muted(elapsed)}`);
         continue;
       }

@@ -48,6 +48,20 @@ const NEXT_COMMAND: Record<InstallContext, string | null> = {
 };
 
 /**
+ * The version to move to, or null: `latest` when it is newer; for a prerelease
+ * also `next` when it is newer still. Never a downgrade, never a beta for
+ * stable users. Shared by the notice and the checklist row.
+ */
+export function selfUpdateTarget(current: string, latest: string | null, next: string | null = null): { version: string; channel: "latest" | "next" } | null {
+  const a = semver.valid(current);
+  if (!a) return null;
+  const candidates: { version: string; channel: "latest" | "next" }[] = [];
+  if (latest && semver.valid(latest)) candidates.push({ version: latest, channel: "latest" });
+  if (next && semver.valid(next) && semver.prerelease(a)) candidates.push({ version: next, channel: "next" });
+  return candidates.filter((c) => semver.gt(c.version, a)).sort((x, y) => semver.rcompare(x.version, y.version))[0] ?? null;
+}
+
+/**
  * "ccl-caut 1.0.1 is available · npm i -g ccl-caut", or null when there is
  * nothing to say. Beta users (a prerelease `current`) are compared against both
  * dist-tags and pointed at the higher one; stable users only ever see `latest`.
@@ -55,13 +69,9 @@ const NEXT_COMMAND: Record<InstallContext, string | null> = {
  */
 export function selfUpdateNotice(current: string, latest: string | null, context: InstallContext | null, next: string | null = null): string | null {
   if (!context) return null;
-  const a = semver.valid(current);
-  if (!a) return null;
-  const candidates: { version: string; command: string | null }[] = [];
-  if (latest && semver.valid(latest)) candidates.push({ version: latest, command: UPGRADE_COMMAND[context] });
-  if (next && semver.valid(next) && semver.prerelease(a)) candidates.push({ version: next, command: NEXT_COMMAND[context] });
-  const best = candidates.filter((c) => c.command && semver.gt(c.version, a)).sort((x, y) => semver.rcompare(x.version, y.version))[0];
-  return best ? `ccl-caut ${best.version} is available · ${best.command}` : null;
+  const best = selfUpdateTarget(current, latest, next);
+  const command = best && (best.channel === "latest" ? UPGRADE_COMMAND : NEXT_COMMAND)[context];
+  return best && command ? `ccl-caut ${best.version} is available · ${command}` : null;
 }
 
 /** Off in CI and with CCL_CAUT_NO_UPDATE_CHECK=1. */

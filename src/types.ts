@@ -15,12 +15,13 @@ export type InstallMethod =
   | "unknown";
 
 /** Table/checklist section: AI coding agents, or developer CLIs (cloud, hosting, package managers). */
-export type ToolGroup = "agents" | "dev";
+/** "self": CCL CAUT's own checklist row (not a registry group: never hidden, not in --discover). */
+export type ToolGroup = "agents" | "dev" | "self";
 
 export const TOOL_GROUPS: readonly ToolGroup[] = ["agents", "dev"];
 
 /** Heading shown above each group. */
-export const GROUP_LABELS: Record<ToolGroup, string> = { agents: "AI agents", dev: "Dev CLIs" };
+export const GROUP_LABELS: Record<ToolGroup, string> = { agents: "AI agents", dev: "Dev CLIs", self: "CCL CAUT" };
 
 /**
  * Advice shown after the table (dim cyan "i"). It never changes a row's state

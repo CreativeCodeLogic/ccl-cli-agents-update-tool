@@ -14,7 +14,8 @@ import {
   type Detection,
   type ScanSummary,
 } from "./scan";
-import { createNoticeSlot, detectInstallContext, nodeModulesParent, selfCheckEnabled, type InstallContext } from "./self";
+import { createNoticeSlot, detectInstallContext, nodeModulesParent, selfCheckEnabled, selfUpdateTarget, type InstallContext } from "./self";
+import { SELF_ID, SELF_NAME, selfLast, selfTool, selfUpdateRow } from "./selfupdate";
 import { initialSelection, isOffered, recordSelection, type SelectionStore } from "./selection";
 import type { ToolDescriptor, ToolScan } from "./types";
 import { headerStyle, printHeader, type HeaderStyle } from "./ui/banner";
@@ -47,6 +48,8 @@ const VERSION = pkg.version;
 interface ScanResult {
   results: ToolScan[];
   detections: Detection[];
+  /** ccl-caut's own latest version lookup (for the checklist row). */
+  self: SelfCheck;
   /** "Couldn't reach the version servers (timed out)." when most or all lookups failed. */
   networkIssue: string | null;
 }
@@ -103,6 +106,10 @@ interface SelfCheck {
   /** The "next" (beta) dist-tag, looked up only when this copy is itself a prerelease. */
   next(): string | null;
   context: InstallContext | null;
+  /** Settles when the lookups are done (awaited only for the checklist row, with a cap). */
+  ready: Promise<unknown>;
+  /** Real path of the running entry script. */
+  entryPath: string;
 }
 
 /** Cache key of ccl-caut's beta channel (dist-tag "next"). */
@@ -117,29 +124,34 @@ const isPrerelease = (version: string) => /^\d+\.\d+\.\d+-/.test(version);
 function startSelfCheck(runtime: Runtime): SelfCheck {
   if (runtime.selfFixture) {
     const { latest, context } = runtime.selfFixture;
-    return { immediate: latest, settled: () => latest, next: () => null, context };
+    return { immediate: latest, settled: () => latest, next: () => null, context, ready: Promise.resolve(), entryPath: "" };
   }
-  if (!selfCheckEnabled(process.env)) return { immediate: null, settled: () => null, next: () => null, context: null };
+  const off = { immediate: null, settled: () => null, next: () => null, ready: Promise.resolve(), entryPath: "" };
+  if (!selfCheckEnabled(process.env)) return { ...off, context: null };
 
   const { host } = runtime;
   const entryPath = host.fs.realpath(process.argv[1] ?? "");
   const parent = nodeModulesParent(entryPath, host.platform);
   const insideProject = parent !== null && host.fs.exists(pathFor(host.platform).join(parent, "package.json"));
   const context = detectInstallContext({ entryPath, env: process.env, insideProject, platform: host.platform });
-  if (context === "source") return { immediate: null, settled: () => null, next: () => null, context };
+  if (context === "source") return { ...off, context };
 
   // One dist-tags request answers both channels (fetchJson de-duplicates it).
   let latest: string | null = null;
   let next: string | null = isPrerelease(VERSION) ? runtime.latest.peek(SELF_NEXT_KEY) : null;
-  void runtime.latest.getByKey(SELF_KEY, async () => (await fetchDistTags("ccl-caut"))?.latest ?? null, false).then((v) => {
-    latest = v;
-  });
+  const lookups = [
+    runtime.latest.getByKey(SELF_KEY, async () => (await fetchDistTags("ccl-caut"))?.latest ?? null, false).then((v) => {
+      latest = v;
+    }),
+  ];
   if (isPrerelease(VERSION)) {
-    void runtime.latest.getByKey(SELF_NEXT_KEY, async () => (await fetchDistTags("ccl-caut"))?.next ?? null, false).then((v) => {
-      next = v ?? next;
-    });
+    lookups.push(
+      runtime.latest.getByKey(SELF_NEXT_KEY, async () => (await fetchDistTags("ccl-caut"))?.next ?? null, false).then((v) => {
+        next = v ?? next;
+      }),
+    );
   }
-  return { immediate: runtime.latest.peek(SELF_KEY), settled: () => latest, next: () => next, context };
+  return { immediate: runtime.latest.peek(SELF_KEY), settled: () => latest, next: () => next, context, ready: Promise.all(lookups), entryPath };
 }
 
 function createRuntime(options: CliOptions): Runtime {
@@ -199,7 +211,7 @@ async function applyElevation(runtime: Runtime): Promise<void> {
   const elevated = await runtime.elevated.catch(() => false);
   if (getHost().elevated !== elevated) setHost({ ...getHost(), elevated });
 }
-async function scan(runtime: Runtime): Promise<ScanResult> {
+async function scan(runtime: Runtime): Promise<Omit<ScanResult, "self">> {
   const { tools, host, latest } = runtime;
   prefetchLatest(tools, latest);
   const detections = await detectAll(tools, host);
@@ -290,13 +302,17 @@ function printHeaderNotes(runtime: Runtime): void {
   for (const note of runtime.headerNotes?.splice(0) ?? []) process.stdout.write(`${tone.muted(note)}\n`);
 }
 
-/** Center the banner only for a person at a terminal: --check, --json and piped output stay left-aligned. */
-async function scanWithProgress(runtime: Runtime, center: boolean): Promise<ScanResult> {
+/**
+ * Center the banner only for a person at a terminal: --check, --json and piped
+ * output stay left-aligned. With `selfRow`, a global install gets the newer
+ * ccl-caut as a checklist row instead of the notice.
+ */
+async function scanWithProgress(runtime: Runtime, center: boolean, selfRow = false): Promise<ScanResult> {
   const { tools, host, latest } = runtime;
   const self = startSelfCheck(runtime);
   // Under the banner only what is known right now (cache or demo fixture).
-  selfNotice = createNoticeSlot(VERSION, self.context, () => self.settled() ?? self.immediate, () => self.next());
-  const bannerNotice = self.immediate ? selfNotice.take() : null;
+  selfNotice = selfRow && self.context === "global" ? null : createNoticeSlot(VERSION, self.context, () => self.settled() ?? self.immediate, () => self.next());
+  const bannerNotice = self.immediate ? (selfNotice?.take() ?? null) : null;
   printHeader(runtime.header ?? "banner", VERSION, bannerNotice, center);
   printHeaderNotes(runtime);
   intro(pc.inverse(" Scan "));
@@ -338,7 +354,7 @@ async function scanWithProgress(runtime: Runtime, center: boolean): Promise<Scan
     const offerRetry = Boolean(process.stdin.isTTY && process.stdout.isTTY);
     log.warn(`${tone.action(networkIssue)}\n${tone.muted(offerRetry ? "Press r to retry, or run ccl-caut --doctor to see what's wrong." : "Run ccl-caut --doctor to see what's wrong.")}`);
   }
-  return { results, detections, networkIssue };
+  return { results, detections, networkIssue, self };
 }
 
 /** --discover: every supported tool, installed or not, with its official install docs. */
@@ -393,7 +409,8 @@ async function findRunning(runtime: Runtime, targets: readonly UpdateTarget[]): 
   const processes = await (runtime.listProcesses ?? listProcesses)();
   if (!processes) return null;
   const host = getHost();
-  const tools = targets.map((t) => ({ id: t.scan.id, signatures: processSignatures(t.instance, t.tool.npmPackage, host) }));
+  // ccl-caut itself is running, by definition: its own update is never held back for that.
+  const tools = targets.filter((t) => t.scan.id !== SELF_ID).map((t) => ({ id: t.scan.id, signatures: processSignatures(t.instance, t.tool.npmPackage, host) }));
   return countRunning(processes, tools, host.platform);
 }
 
@@ -467,6 +484,17 @@ async function preflightUnattended(runtime: Runtime, targets: UpdateTarget[]): P
   return { targets: keep.map((k) => k.t), skipped: skipped.length };
 }
 
+/** Wait for ccl-caut's own lookup (it ran during the scan) at most this long. */
+const SELF_ROW_WAIT_MS = 3_000;
+
+/** The "CCL CAUT" row when a newer ccl-caut can be installed over this global copy. */
+async function selfUpdateRowFor(self: SelfCheck): Promise<Awaited<ReturnType<typeof selfUpdateRow>>> {
+  if (self.context !== "global") return null;
+  await Promise.race([self.ready, new Promise((resolve) => setTimeout(resolve, SELF_ROW_WAIT_MS).unref())]);
+  const target = selfUpdateTarget(VERSION, self.settled() ?? self.immediate, self.next());
+  return target ? selfUpdateRow({ current: VERSION, target: target.version, context: self.context, entryPath: self.entryPath }) : null;
+}
+
 function quitNothingChanged(): RoundResult {
   outro(tone.muted("Nothing was changed."));
   return { code: 0, next: "done" };
@@ -489,9 +517,10 @@ function summaryLine(outcome: UpdateOutcome, upToDate: number, skipped: number):
 
 /** One pass: scan, checklist, pre-flight, updates, summary, then Rescan / Quit. */
 async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<RoundResult> {
-  const { results, detections, networkIssue } = await scanWithProgress(runtime, Boolean(process.stdout.isTTY));
+  const { results, detections, networkIssue, self } = await scanWithProgress(runtime, Boolean(process.stdout.isTTY), true);
   const summary = summarize(results);
-  const offered = results.filter(isOffered);
+  const selfRow = await selfUpdateRowFor(self);
+  const offered = [...(selfRow ? [selfRow.scan] : []), ...results.filter(isOffered)];
   // Retry is offered (r key) when the lookups failed and someone is there to press it.
   const retry = Boolean(networkIssue) && !options.yes && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
@@ -517,6 +546,10 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
   const targetsFor = (picked: readonly string[]): UpdateTarget[] => {
     const targets: UpdateTarget[] = [];
     for (const scan of offered) {
+      if (selfRow && scan.id === SELF_ID && picked.includes(SELF_ID)) {
+        targets.push({ scan, tool: selfTool, instance: selfRow.instance });
+        continue;
+      }
       const detection = detections.find((d) => d.tool.id === scan.id);
       const instance = detection?.instances[0];
       if (picked.includes(scan.id) && detection && instance) targets.push({ scan, tool: detection.tool, instance });
@@ -572,19 +605,24 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
   }
 
   process.off("SIGINT", exitCancelled); // applyUpdates handles Ctrl+C from here on
-  const outcome = await applyUpdates(targets, runtime.latest.cache, runtime.executor);
+  const outcome = await applyUpdates(selfLast(targets), runtime.latest.cache, runtime.executor);
   process.once("SIGINT", exitCancelled);
 
   const code = updateExitCode(outcome, skipped);
   const line = summaryLine(outcome, summary.upToDate, skipped);
+  // The new ccl-caut is installed, but this process still runs the old code: no Rescan.
+  const selfUpdated = outcome.updatedIds.includes(SELF_ID);
+  const selfLine = selfUpdated ? `${SELF_NAME} updated to ${selfRow?.scan.latestVersion ?? "the new version"}. Run ccl-caut again to use it.` : null;
   if (!interactive || outcome.interrupted) {
+    if (selfLine) log.success(tone.done(selfLine));
     outro(line);
     return { code, next: "done" };
   }
   log.success(line);
+  if (selfLine) log.success(tone.done(selfLine));
   const next = await choose({
     message: "What next?",
-    options: [
+    options: selfUpdated ? [{ value: "quit", label: "Quit" }] : [
       { value: "rescan", label: "Rescan" },
       { value: "quit", label: "Quit" },
     ],

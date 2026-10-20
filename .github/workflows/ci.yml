@@ -53,6 +53,17 @@ jobs:
           npm pack
           node -e 'const c=require("crypto"),f=require("fs");console.log("dist/index.js sha256", c.createHash("sha256").update(f.readFileSync("dist/index.js")).digest("hex"))'
 
+      # For the self-update test at the end: the same code as 1.1.0-selftest.0,
+      # which semver ranks below every published release.
+      - name: Pack a self-test build (1.1.0-selftest.0)
+        shell: bash
+        run: |
+          npm version 1.1.0-selftest.0 --no-git-tag-version
+          npm run build
+          mkdir -p selftest && npm pack --ignore-scripts --pack-destination selftest
+          git checkout -- package.json package-lock.json
+          npm run build
+
       - name: Switch to the runtime (Node ${{ matrix.node }})
         if: matrix.node == 20
         uses: actions/setup-node@v7
@@ -134,3 +145,35 @@ jobs:
           (cd "$HOME" && env -i HOME="$HOME" PATH="$path_value" /bin/sh -c "$cmd" >> "$HOME/Library/Logs/ccl-caut.log" 2>&1)
           cat "$HOME/Library/Logs/ccl-caut.log"
           node scripts/scheduling-recipe.mjs check-log "$HOME/Library/Logs/ccl-caut.log" 1
+
+      # Self-update, end to end: a global 1.1.0-selftest.0 updates itself with
+      # `ccl-caut --yes` to the newest published version of its channel (a
+      # prerelease is offered the higher of `latest` and `next`). Every other tool
+      # is set to "skip" in a temporary config, so nothing else on the runner
+      # changes. Runs last: afterwards the global install is the published version.
+      - name: Self-update end to end
+        shell: bash
+        env:
+          CI: ""
+        run: |
+          npm install -g ./selftest/ccl-caut-1.1.0-selftest.0.tgz
+          test "$(ccl-caut --version)" = "1.1.0-selftest.0"
+          expected="$(npm view ccl-caut dist-tags --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const t=JSON.parse(s),semver=require("semver");console.log([t.latest,t.next].filter(Boolean).sort(semver.rcompare)[0])})')"
+          echo "expected after the self-update: $expected"
+          # A temporary config folder (the npm prefix stays where it is).
+          export npm_config_prefix="$(npm prefix -g)"
+          cfg="$RUNNER_TEMP/ccl-caut-config"
+          if [ "$RUNNER_OS" = "Windows" ]; then export APPDATA="$(cygpath -w "$cfg")"; else export XDG_CONFIG_HOME="$cfg"; fi
+          mkdir -p "$cfg/ccl-caut"
+          ccl-caut --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const tools={};for(const t of JSON.parse(s).tools)tools[t.id]="skip";require("fs").writeFileSync(process.argv[1],JSON.stringify({schema:1,tools}))})' "$cfg/ccl-caut/config.json"
+          set +e
+          if [ "$RUNNER_OS" = "Windows" ]; then cmd //c "ccl-caut --yes" > selfupdate.log 2>&1; else ccl-caut --yes > selfupdate.log 2>&1; fi
+          code=$?
+          set -e
+          cat selfupdate.log
+          echo "exit code: $code"
+          grep -q "CCL CAUT updated to $expected" selfupdate.log || { echo "::error::no 'CCL CAUT updated to $expected' line"; exit 1; }
+          installed="$(node -p 'require(process.argv[1]+"/ccl-caut/package.json").version' "$(npm root -g)")"
+          test "$installed" = "$expected" || { echo "::error::global install is $installed, expected $expected"; exit 1; }
+          test "$(ccl-caut --version)" = "$expected" || { echo "::error::ccl-caut --version: $(ccl-caut --version), expected $expected"; exit 1; }
+          echo "self-update OK: 1.1.0-selftest.0 -> $expected"
