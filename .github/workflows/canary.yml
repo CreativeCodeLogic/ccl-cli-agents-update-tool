@@ -1,9 +1,10 @@
 name: Canary
 
 # Catches upstream changes (package renames, new bin names, moved installs) by
-# installing the npm- and PyPI-distributed CLIs for real and checking that ccl-caut
-# still detects each one with the right install method (npm, uv, pipx), a parsed
-# version and a resolved latest version.
+# installing the npm- and PyPI-distributed CLIs for real on Linux, macOS and
+# Windows and checking that ccl-caut still detects each one with the right
+# install method (npm, uv, pipx), a parsed version and a resolved latest version.
+# Read-only: it never commits, tags or publishes anything.
 on:
   workflow_dispatch:
   schedule:
@@ -12,9 +13,19 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   canary:
-    runs-on: ubuntu-latest
+    name: npm CLIs (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
 
@@ -36,13 +47,16 @@ jobs:
             echo "::endgroup::"
           done
           if [ ${#failed[@]} -gt 0 ]; then
-            echo "::error::npm install failed for: ${failed[*]}"
+            echo "::error::npm install failed on ${{ runner.os }} for: ${failed[*]}"
             exit 1
           fi
 
       # Copilot auto-updates itself into a cache dir; check whether the binary
       # that runs reports a different version than the npm package (warning only).
+      # Linux only: it relies on GNU timeout and find -printf, and the question is
+      # the same on every OS.
       - name: Copilot self-update check (informational)
+        if: runner.os == 'Linux'
         run: |
           pkg_version="$(node -p "require('$(npm root -g)/@github/copilot/package.json').version")"
           for attempt in 1 2; do
@@ -69,26 +83,34 @@ jobs:
 
   # PyPI tools installed with uv (aider-install and the Vibe install script both use uv tool).
   canary-uv:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: uv tools (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
+      # Aider pins Python 3.12 the way aider-install does; Vibe needs 3.12+.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
       - run: npm ci
       - run: npm run build
       - name: Install uv, then Aider and Mistral Vibe as uv tools
         run: |
-          pipx install uv
-          # Runners set PIPX_BIN_DIR, so find uv on PATH; uv tool shims go to ~/.local/bin.
-          uv="$(command -v uv || echo "$PIPX_BIN_DIR/uv")"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          # Aider pins Python 3.12 the way aider-install does; Vibe needs 3.12+.
-          timeout 600 "$uv" tool install --python python3.12 aider-chat
-          timeout 600 "$uv" tool install mistral-vibe
-          "$uv" tool list
+          python -m pip install --upgrade uv
+          uv --version
+          # uv tool shims go to ~/.local/bin (%USERPROFILE%\.local\bin on Windows).
+          uv tool dir --bin >> "$GITHUB_PATH"
+          uv tool install --python 3.12 aider-chat
+          uv tool install --python 3.12 mistral-vibe
+          uv tool list
       - name: Check detection
         run: |
           node dist/index.js --json --refresh > scan.json || true
@@ -96,21 +118,31 @@ jobs:
 
   # The same kind of tool through pipx (separate job: uv and pipx would share ~/.local/bin).
   canary-pipx:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    name: pipx tools (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
       - run: npm ci
       - run: npm run build
       - name: Install Mistral Vibe with pipx
         run: |
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          timeout 600 pipx install --python python3.12 mistral-vibe
-          pipx list
+          python -m pip install --upgrade pipx
+          # Hosted runners may preset PIPX_HOME / PIPX_BIN_DIR; ask pipx where its shims go.
+          python -m pipx environment --value PIPX_BIN_DIR >> "$GITHUB_PATH"
+          python -m pipx install mistral-vibe
+          python -m pipx list
       - name: Check detection
         run: |
           node dist/index.js --json --refresh > scan.json || true
