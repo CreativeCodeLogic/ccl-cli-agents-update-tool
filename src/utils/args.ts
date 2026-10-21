@@ -163,7 +163,7 @@ Options:
 
 Keys (interactive):
   ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
-  r retry the version lookups (offered when they failed)
+  r retry the version lookups (offered when they failed); on "What next?", r rescans
   While the latest versions are checked: q stops, Ctrl+C or Esc cancel.
   Before updating, ccl-caut shows which selected CLIs are running and which
   updates need administrator rights (needs admin). It never kills or elevates.

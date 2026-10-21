@@ -13,7 +13,7 @@ CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLI
 
 ![CCL CAUT demo: scan, the live table filling in, notes, the checklist with CCL CAUT itself on top, and updates](https://raw.githubusercontent.com/CreativeCodeLogic/ccl-cli-agents-update-tool/8757498968a0a3eaf609880fae4c5e9939601d03/docs/demo.gif)
 
-<sub>Recorded with `ccl-caut --demo` (fixture data, nothing real is updated) using [VHS](https://github.com/charmbracelet/vhs); see [`docs/demo.tape`](docs/demo.tape).</sub>
+<sub>Recorded with `ccl-caut --demo` (sample data, nothing real is updated; the demo says so on every screen) using [VHS](https://github.com/charmbracelet/vhs); see [`docs/demo.tape`](docs/demo.tape).</sub>
 
 ## Quick start
 
@@ -73,7 +73,7 @@ The table appears as soon as your installed CLIs are found, and each row fills i
 
 When a newer CCL CAUT is out and you installed it globally with npm, it is the first row of the checklist, **CCL CAUT** (see [Updating CCL CAUT itself](#updating-ccl-caut-itself)).
 
-Before anything runs, a short **pre-flight** check shows which selected CLIs are running right now (close agent sessions and the IDEs or terminals that use them first) and which updates need administrator rights. Choose *Update now*, *Re-check*, *Back to selection* or *Quit*. Each update shows a spinner, the elapsed time and the latest output line, then collapses to `Codex CLI 0.161.0 → 0.162.1`; the full log is printed only when something fails (or with `CCL_CAUT_DEBUG=1`). Commands CCL CAUT can't run safely are printed on a line of their own, ready to select and copy. Afterwards, *Rescan* runs the whole check again with fresh versions, or *Quit*. After CCL CAUT has updated itself only *Quit* is offered: run it again to use the new version.
+Before anything runs, a short **pre-flight** check shows which selected CLIs are running right now (close agent sessions and the IDEs or terminals that use them first) and which updates need administrator rights. Choose *Update now*, *Re-check*, *Back to selection* or *Quit*. Each update shows a spinner, the elapsed time and the latest output line, then collapses to `Codex CLI 0.161.0 → 0.162.1`; the full log is printed only when something fails (or with `CCL_CAUT_DEBUG=1`). Commands CCL CAUT can't run safely are printed on a line of their own, ready to select and copy. Afterwards, *Rescan* (or `r`) runs the whole check again with fresh versions, or *Quit* (`q`). After CCL CAUT has updated itself only *Quit* is offered: run it again to use the new version.
 
 ## Supported tools
 
@@ -164,7 +164,7 @@ ccl-caut [options]
 
 Keys (interactive):
   ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
-  r retry the version lookups (offered when they failed)
+  r retry the version lookups (offered when they failed); on "What next?", r rescans
   While the latest versions are checked: q stops, Ctrl+C or Esc cancel.
   Before updating, ccl-caut shows which selected CLIs are running and which
   updates need administrator rights (needs admin). It never kills or elevates.

@@ -109,7 +109,7 @@ describe("a scheduled --yes run (demo, no terminal)", () => {
     expect(out).toContain("Skipping Codex CLI: it is running");
     expect(out).toMatch(/1 skipped/);
     // The demo's ccl-caut fixture: updated last, in memory only.
-    expect(out).toMatch(/CCL CAUT updated to \d+\.\d+\.\d+\. Run ccl-caut again to use it\./);
+    expect(out).toMatch(/CCL CAUT updated to \d+\.\d+\.\d+ \(simulated\)\. Run ccl-caut again to use it\./);
     expect(out).not.toContain("CCL CAUT v");
   }, 70_000);
 });

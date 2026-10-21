@@ -4,8 +4,9 @@
 # Render: npm run build && vhs docs/demo.tape
 # (or the "Demo GIF" workflow, which uploads docs/demo.gif as an artifact)
 #
-# Layout (100 cols): the checklist needs 62 rows (banner = top 10) and the pre-flight 66,
-# so ~64 rows keep the banner visible at the checklist and scroll it off afterwards.
+# Layout (100 cols): with the demo notice (a block under the banner, and two lines at the
+# top and bottom of each prompt) the checklist needs 74 rows (banner = top 10), so ~75
+# rows keep the banner visible at the checklist and scroll it off afterwards.
 
 Output docs/demo.gif
 
@@ -14,7 +15,7 @@ Require node
 Set Shell "bash"
 Set FontSize 18
 Set Width 1200
-Set Height 1480
+Set Height 1720
 Set Padding 24
 Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful

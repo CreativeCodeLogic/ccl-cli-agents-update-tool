@@ -73,6 +73,8 @@ export interface LiveKeys {
 
 interface Input {
   isTTY?: boolean;
+  isRaw?: boolean;
+  isPaused?(): boolean;
   setRawMode?(mode: boolean): unknown;
   on(event: "data", listener: (data: Buffer | string) => void): unknown;
   off(event: "data", listener: (data: Buffer | string) => void): unknown;
@@ -98,6 +100,8 @@ export class LiveTable {
   private readonly onResize = () => this.resizeStarted();
   private readonly onData = (data: Buffer | string) => this.key(String(data));
   private readonly onExit = () => this.out.write(SHOW_CURSOR);
+  /** stdin as we found it, restored on stop (the prompts that follow expect it unchanged). */
+  private inputWas: { raw: boolean; paused: boolean } | null = null;
 
   constructor(
     placeholders: readonly ToolScan[],
@@ -120,7 +124,8 @@ export class LiveTable {
     process.on("exit", this.onExit);
     this.out.on("resize", this.onResize);
     if (this.input?.isTTY && this.input.setRawMode) {
-      this.input.setRawMode(true);
+      this.inputWas = { raw: Boolean(this.input.isRaw), paused: this.input.isPaused?.() ?? true };
+      if (!this.inputWas.raw) this.input.setRawMode(true);
       this.input.on("data", this.onData);
       this.input.resume();
     }
@@ -216,10 +221,13 @@ export class LiveTable {
     clearInterval(this.timer);
     this.out.off("resize", this.onResize);
     process.off("exit", this.onExit);
-    if (this.input?.isTTY && this.input.setRawMode) {
+    if (this.input?.isTTY && this.input.setRawMode && this.inputWas) {
+      // Restore, don't force: switching the console out of raw mode here (clack
+      // leaves it raw on Windows) made the next prompt lose its first keys.
       this.input.off("data", this.onData);
-      this.input.setRawMode(false);
-      this.input.pause();
+      if (!this.inputWas.raw) this.input.setRawMode(false);
+      if (this.inputWas.paused) this.input.pause();
+      this.inputWas = null;
     }
   }
 

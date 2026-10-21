@@ -25,8 +25,10 @@ import { icons } from "./ui/symbols";
 import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
 import { discoverHint, renderDiscovery } from "./ui/discover";
 import { latestVersionsProgress, liveTableAllowed } from "./ui/livetable";
+import { preflightQuestion } from "./ui/preflight";
 import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
-import { CANCELLED, checklist, choose, QUIT, RETRY } from "./ui/prompts";
+import { CANCELLED, checklist, choose, QUIT, RESCAN, RETRY } from "./ui/prompts";
+import { demoBlock, demoMode, setDemoMode, simulated } from "./ui/demo-notice";
 import { getNetwork, networkProblem } from "./utils/http";
 import { doctorReport } from "./doctor";
 import { reportBugLine, shouldShowStar, starLine, supportsHyperlinks } from "./ui/links";
@@ -251,6 +253,7 @@ async function runJson(runtime: Runtime, options: CliOptions): Promise<number> {
   const { latest } = runtime;
   const report = {
     tool: "ccl-caut",
+    ...(options.demo && { demo: true }),
     version: VERSION,
     self: { version: VERSION, latest: self.settled() ?? self.immediate, next: self.next() },
     generatedAt: new Date().toISOString(),
@@ -299,9 +302,21 @@ function printLateSelfNotice(): void {
   if (notice) console.log(pc.dim(notice));
 }
 
-/** Notes for under the header, shown once. */
+/** Notes for under the header, shown once (the demo notice first). */
 function printHeaderNotes(runtime: Runtime): void {
+  printDemoNotice();
   for (const note of runtime.headerNotes?.splice(0) ?? []) process.stdout.write(`${tone.muted(note)}\n`);
+}
+
+/** The demo notice block (demo runs only): under the header and at the very end. */
+function printDemoNotice(): void {
+  if (demoMode()) process.stdout.write(`${demoBlock().join("\n")}\n`);
+}
+
+/** A demo run ends with the notice too. */
+function withDemoFooter(code: number): number {
+  printDemoNotice();
+  return code;
 }
 
 /**
@@ -426,7 +441,7 @@ type PreflightAction = "update" | "update-skip-claude" | "update-all" | "recheck
  * Read-only: nothing is ever stopped or killed.
  */
 async function preflight(runtime: Runtime, targets: UpdateTarget[]): Promise<{ action: "update" | "back" | "quit"; targets: UpdateTarget[] }> {
-  for (;;) {
+  for (let check = 0; ; check++) {
     const running = await findRunning(runtime, targets);
     log.step(tone.focus("Pre-flight check"));
     if (running === null) log.message(tone.muted("Couldn't check which tools are running."));
@@ -453,7 +468,8 @@ async function preflight(runtime: Runtime, targets: UpdateTarget[]): Promise<{ a
     options.push({ value: "recheck", label: "Re-check" }, { value: "back", label: "Back to selection" }, { value: "quit", label: "Quit" });
     const initialValue: PreflightAction = claudeGuard ? "update-skip-claude" : running && running.size > 0 ? "recheck" : "update";
 
-    const choice = await choose({ message: "Ready to update?", options, initialValue });
+    const stillRunning = targets.filter((t) => running?.get(t.scan.id)).map((t) => t.scan.name);
+    const choice = await choose({ message: preflightQuestion(check, stillRunning), options, initialValue });
     if (choice === CANCELLED) exitCancelled();
     if (choice === QUIT || choice === "quit") return { action: "quit", targets };
     if (choice === "back") return { action: "back", targets };
@@ -614,7 +630,7 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
   const line = summaryLine(outcome, summary.upToDate, skipped);
   // The new ccl-caut is installed, but this process still runs the old code: no Rescan.
   const selfUpdated = outcome.updatedIds.includes(SELF_ID);
-  const selfLine = selfUpdated ? `${SELF_NAME} updated to ${selfRow?.scan.latestVersion ?? "the new version"}. Run ccl-caut again to use it.` : null;
+  const selfLine = selfUpdated ? `${SELF_NAME} updated to ${selfRow?.scan.latestVersion ?? "the new version"}${simulated()}. Run ccl-caut again to use it.` : null;
   if (!interactive || outcome.interrupted) {
     if (selfLine) log.success(tone.done(selfLine));
     outro(line);
@@ -629,9 +645,11 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
       { value: "quit", label: "Quit" },
     ],
     initialValue: "quit",
+    // r rescans like the Rescan option; never after a self-update (the old code still runs).
+    rescan: !selfUpdated,
   });
   if (next === CANCELLED) exitCancelled();
-  if (next === "rescan") return { code, next: "rescan" };
+  if (next === "rescan" || next === RESCAN) return { code, next: "rescan" };
   outro(tone.muted("Done."));
   return { code, next: "done" };
 }
@@ -662,6 +680,8 @@ async function main(): Promise<number> {
     return 2;
   }
   const { options } = parsed;
+  // --demo --json stays pure JSON (it carries "demo": true instead).
+  setDemoMode(options.demo && !options.json);
   const header = headerStyle(options, Boolean(process.stdout.isTTY), process.env);
 
   if (options.version) {
@@ -696,11 +716,11 @@ async function main(): Promise<number> {
   }
   // --json and --discover always cover every group.
   if (options.json) return runJson(runtime, options);
-  if (options.discover) return runDiscover(runtime);
+  if (options.discover) return withDemoFooter(await runDiscover(runtime));
   const view = groupView(options, runtime.selections.hiddenGroups);
   runtime.tools = runtime.tools.filter((tool) => view.groups.includes(tool.group));
   runtime.hiddenNote = view.note;
-  if (options.check) return finish(await runCheck(runtime));
+  if (options.check) return withDemoFooter(finish(await runCheck(runtime)));
 
   const interactive = !options.yes;
   const clear = { interactive, isTTY: Boolean(process.stdout.isTTY), env: process.env, noClear: options.noClear, demo: options.demo };
@@ -710,7 +730,7 @@ async function main(): Promise<number> {
   process.once("SIGINT", exitCancelled);
   const code = finish(await runInteractive(runtime, options));
   maybeShowStar(runtime, options);
-  return code;
+  return withDemoFooter(code);
 }
 
 /** Once per version, at the end of a normal interactive run: the dim "Star it on GitHub" line. */

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-beta.2] - 2026-10-21
+
+Second beta of 1.2, with fixes from team testing: `npm i -g ccl-caut@next`.
+
+### Changed
+
+- **Demo mode is impossible to miss:** `--demo` shows "DEMO MODE: sample data only. Nothing on this computer is installed, updated or changed. Tool names and versions are made up for the demo." under the header, at the very end, and at the top and bottom of every prompt (checklist, pre-flight, What next?), as an amber reversed bar between lines of `=` (plain ASCII in classic consoles and with `--no-color`). Every demo update is labelled "(simulated)". `--demo --json` has a top-level `"demo": true`.
+- **"What next?" takes `r` to rescan:** the footer reads `↑/↓ move · enter confirm · r rescan · q quit`; `r` does exactly what *Rescan* does. After CCL CAUT has updated itself there is no rescan (the old code is still running), so only `q`.
+- After *Re-check*, the pre-flight no longer repeats "Ready to update?": it says what it found, for example "Checked again: Codex CLI is still running. Update anyway?". "Ready to update?" is asked once per update round.
+
+### Fixed
+
+- **"Ready to update?" appeared twice, and the first key at the pre-flight was lost** (1.2.0-beta.1, live table). When the live table finished, it switched the console out of raw mode, which clack's spinner had left on (on Windows). The next prompt then dropped its first keys and left a stale copy of the question on screen, so pressing Enter seemed to do nothing and the question showed up twice. The live table now restores stdin exactly as it found it. Separately, pressing Enter on the preselected *Re-check* (preselected while a selected tool is running) used to ask the identical question again; see **Changed**.
+
 ## [1.2.0-beta.1] - 2026-10-20
 
 First beta of 1.2 "Polish": `npm i -g ccl-caut@next` (back to stable: `npm i -g ccl-caut@latest`). Note the changed `--yes` exit code under **Changed**.
@@ -154,7 +168,8 @@ First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. 
 - Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
-[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.1...HEAD
+[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.2...HEAD
+[1.2.0-beta.2]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.1...v1.2.0-beta.2
 [1.2.0-beta.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0...v1.2.0-beta.1
 [1.1.0]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.1...v1.1.0
 [1.1.0-beta.2]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0-beta.1...v1.1.0-beta.2

@@ -10,6 +10,7 @@ import { isUnderProgramFiles } from "../utils/paths";
 import { sameVersion } from "../utils/version";
 import { LiveStatus } from "./live";
 import { CANCEL_EXIT_CODE } from "./progress";
+import { simulated } from "./demo-notice";
 import { SELF_ID, selfUpdateFailureHint } from "../selfupdate";
 import { isWingetCommand, wingetExitKind } from "../utils/winget";
 import { icons } from "./symbols";
@@ -176,7 +177,7 @@ export async function applyUpdates(
       const [command, ...args] = plan.command;
       if (!command) continue;
       const tracker = new OutputTracker();
-      const live = new LiveStatus(`Updating ${tone.focus(scan.name)}  ${tone.muted(`$ ${displayCommand(plan.command)}`)}`);
+      const live = new LiveStatus(`Updating ${tone.focus(scan.name)}${simulated()}  ${tone.muted(`$ ${displayCommand(plan.command)}`)}`);
       live.start();
       const result = await executor(command, args, target, (text) => {
         tracker.feed(text);
@@ -220,7 +221,7 @@ export async function applyUpdates(
       if (after && !sameVersion(before, after)) {
         outcome.updated++;
         outcome.updatedIds.push(scan.id);
-        log.success(`${scan.name} ${tone.muted(before ?? "?")} ${icons.arrow} ${tone.done(after)}  ${tone.muted(elapsed)}`);
+        log.success(`${scan.name} ${tone.muted(before ?? "?")} ${icons.arrow} ${tone.done(after)}${simulated()}  ${tone.muted(elapsed)}`);
         continue;
       }
       if (scan.state === "self-updating" && after) {

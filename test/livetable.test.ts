@@ -56,6 +56,12 @@ class FakeOut extends EventEmitter {
 class FakeIn extends EventEmitter {
   isTTY = true;
   raw = false;
+  get isRaw() {
+    return this.raw;
+  }
+  isPaused() {
+    return true;
+  }
   setRawMode(mode: boolean) {
     this.raw = mode;
   }
@@ -205,6 +211,25 @@ describe("LiveTable", () => {
     expect(out.screen.text()).toBe(before);
     expect(input.raw).toBe(false);
     expect(out.raw.endsWith(`${ESC}[?25h`)).toBe(true);
+  });
+
+  it("regression (the doubled 'Ready to update?'): stdin is left as it was found, not forced out of raw mode", () => {
+    vi.useFakeTimers();
+    const out = new FakeOut();
+    const input = new FakeIn();
+    input.raw = true; // clack leaves stdin raw on Windows
+    const calls: boolean[] = [];
+    const setRawMode = input.setRawMode.bind(input);
+    input.setRawMode = (mode: boolean) => {
+      calls.push(mode);
+      setRawMode(mode);
+    };
+    const { table } = live([pendingOf(scan("claude"))], out, input);
+    table.start();
+    table.finish();
+    expect(calls).toEqual([]); // never switched off (that made the next prompt lose its first keys)
+    expect(input.raw).toBe(true);
+    expect(input.listenerCount("data")).toBe(0);
   });
 
   it("ignores other keys (arrows, letters)", () => {

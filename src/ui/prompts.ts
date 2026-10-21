@@ -1,6 +1,7 @@
 import { isCancel, MultiSelectPrompt, SelectPrompt, TextPrompt } from "@clack/core";
 import { S_BAR, S_BAR_END, S_CHECKBOX_INACTIVE, S_CHECKBOX_SELECTED, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_SUBMIT } from "@clack/prompts";
 import pc from "./colors";
+import { demoMode, demoPromptLines } from "./demo-notice";
 import { tone } from "./theme";
 
 /*
@@ -15,17 +16,22 @@ export const CANCELLED: unique symbol = Symbol("cancelled");
 export type Escape = typeof QUIT | typeof CANCELLED;
 /** `r` on a prompt that offers Retry (the latest-version lookups failed). */
 export const RETRY: unique symbol = Symbol("retry");
+/** `r` on "What next?": rescan, the same as choosing Rescan. */
+export const RESCAN: unique symbol = Symbol("rescan");
 
 export interface PromptIO {
   input?: NodeJS.ReadableStream;
   output?: NodeJS.WritableStream;
   /** Offer `r` = retry (footer "· r retry"); the prompt then resolves RETRY. */
   retry?: boolean;
+  /** Offer `r` = rescan (footer "· r rescan · q quit"); the prompt then resolves RESCAN. */
+  rescan?: boolean;
 }
 
 interface KeyFlags {
   quit: boolean;
   retry: boolean;
+  rescan?: boolean;
 }
 
 export interface ChecklistOption<T extends string> {
@@ -40,12 +46,17 @@ const bar = pc.gray(S_BAR);
 const CHECKLIST_KEYS = "↑/↓ move · space select · a all · enter confirm · q quit";
 const CHOOSE_KEYS = "↑/↓ move · enter confirm · q quit";
 
-/** Header shared by both prompts; a blank gutter line separates the hint from the options. */
+/**
+ * Header shared by both prompts; a blank gutter line separates the hint from the
+ * options. In demo mode an open prompt starts (and ends, see footer) with the notice.
+ */
 function header(state: string, message: string, hint?: string): string[] {
   const symbol =
     state === "submit" ? tone.done(S_STEP_SUBMIT) : state === "cancel" ? tone.bad(S_STEP_CANCEL) : tone.action(S_STEP_ACTIVE);
   const lines = [bar, `${symbol}  ${message}`];
-  if (hint && state !== "submit" && state !== "cancel") lines.push(`${bar}  ${tone.muted(hint)}`, bar);
+  const open = state !== "submit" && state !== "cancel";
+  if (open && demoMode()) lines.push(...demoPromptLines().map((l) => `${bar}  ${l}`), bar);
+  if (hint && open) lines.push(`${bar}  ${tone.muted(hint)}`, bar);
   return lines;
 }
 
@@ -53,13 +64,16 @@ function header(state: string, message: string, hint?: string): string[] {
  * Wire `q` (soft quit) and, when offered, `r` (retry) on any core prompt; the
  * flags tell render and caller apart from Esc/Ctrl+C.
  */
-function withKeys(prompt: { on(event: "key", cb: (char: string | undefined) => void): void; state: string }, flag: KeyFlags, retry = false): void {
+function withKeys(prompt: { on(event: "key", cb: (char: string | undefined) => void): void; state: string }, flag: KeyFlags, retry = false, rescan = false): void {
   prompt.on("key", (char) => {
     if (char === "q" || char === "Q") {
       flag.quit = true;
       prompt.state = "cancel";
     } else if (retry && (char === "r" || char === "R")) {
       flag.retry = true;
+      prompt.state = "cancel";
+    } else if (rescan && (char === "r" || char === "R")) {
+      flag.rescan = true;
       prompt.state = "cancel";
     }
   });
@@ -68,13 +82,18 @@ function withKeys(prompt: { on(event: "key", cb: (char: string | undefined) => v
 /** Closed-prompt lines: a soft quit or retry reads calmly, Esc/Ctrl+C as cancelled. */
 function closed(state: string, flag: KeyFlags, message: string, text: string): string {
   if (state === "cancel") {
-    const calm = flag.quit ? "quit" : flag.retry ? "retry" : null;
+    const calm = flag.quit ? "quit" : flag.retry ? "retry" : flag.rescan ? "rescan" : null;
     return (calm ? [...header("submit", message), `${bar}  ${tone.muted(calm)}`] : header(state, message)).join("\n");
   }
   return [...header(state, message), `${bar}  ${tone.muted(text)}`].join("\n");
 }
 
-const footer = (keys: string, retry?: boolean) => `${bar}  ${tone.muted(retry ? `${keys} · r retry` : keys)}`;
+/** Key hints (and the demo notice above them in demo mode). */
+function footer(keys: string, retry?: boolean, rescan?: boolean): string[] {
+  const hints = rescan ? keys.replace(" · q quit", " · r rescan · q quit") : retry ? `${keys} · r retry` : keys;
+  const demo = demoMode() ? [...demoPromptLines().map((l) => `${bar}  ${l}`), bar] : [];
+  return [...demo, `${bar}  ${tone.muted(hints)}`];
+}
 
 /** Multi-select: selected = amber filled box, unselected = dim empty box, focused row = bold label. */
 export async function checklist<T extends string>(
@@ -100,7 +119,7 @@ export async function checklist<T extends string>(
         const label = i === this.cursor ? tone.focus(option.label) : selected ? option.label : tone.muted(option.label);
         lines.push(`${bar}  ${box} ${label}${option.hint ? `  ${tone.muted(option.hint)}` : ""}`);
       });
-      lines.push(bar, footer(CHECKLIST_KEYS, opts.retry), pc.gray(S_BAR_END));
+      lines.push(bar, ...footer(CHECKLIST_KEYS, opts.retry), pc.gray(S_BAR_END));
       return lines.join("\n");
     },
   });
@@ -120,7 +139,7 @@ export interface ChoiceOption<T extends string> {
 /** Single choice (menus such as "Ready to update?" or "Rescan / Quit"). */
 export async function choose<T extends string>(
   opts: { message: string; hint?: string; options: ChoiceOption<T>[]; initialValue?: T } & PromptIO,
-): Promise<T | Escape | typeof RETRY> {
+): Promise<T | Escape | typeof RETRY | typeof RESCAN> {
   const flag: KeyFlags = { quit: false, retry: false };
   const prompt = new SelectPrompt<ChoiceOption<T>>({
     options: opts.options,
@@ -137,14 +156,15 @@ export async function choose<T extends string>(
         const focused = i === this.cursor;
         lines.push(`${bar}  ${focused ? tone.action(S_RADIO_ACTIVE) : tone.muted(S_RADIO_INACTIVE)} ${focused ? tone.focus(option.label) : tone.muted(option.label)}`);
       });
-      lines.push(bar, footer(CHOOSE_KEYS, opts.retry), pc.gray(S_BAR_END));
+      lines.push(bar, ...footer(CHOOSE_KEYS, opts.retry, opts.rescan), pc.gray(S_BAR_END));
       return lines.join("\n");
     },
   });
-  withKeys(prompt, flag, opts.retry);
+  withKeys(prompt, flag, opts.retry, opts.rescan);
   const result = await prompt.prompt();
   if (flag.quit) return QUIT;
   if (flag.retry) return RETRY;
+  if (flag.rescan) return RESCAN;
   if (isCancel(result)) return CANCELLED;
   return result as T;
 }
