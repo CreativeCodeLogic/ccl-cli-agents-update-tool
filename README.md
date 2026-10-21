@@ -11,7 +11,7 @@ Twenty-three CLIs. Twelve ways to install them. One checklist.
 
 CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed, compares what you run with what's released, and lets you pick what to update from a single checklist. It supports 23 tools. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini, Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro and Goose. Dev CLIs: Firebase, the Google Cloud CLI, npm, Wrangler, Vercel, Netlify, Supabase and the GitHub CLI.
 
-![CCL CAUT demo: scan, the live table filling in, notes, the checklist with CCL CAUT itself on top, and updates](https://raw.githubusercontent.com/CreativeCodeLogic/ccl-cli-agents-update-tool/8757498968a0a3eaf609880fae4c5e9939601d03/docs/demo.gif)
+![CCL CAUT demo: scan, the live table filling in, notes, the checklist with CCL CAUT itself on top, and updates](https://raw.githubusercontent.com/CreativeCodeLogic/ccl-cli-agents-update-tool/831d50e7e4f38e93f5f2f93ae88fe487ac3c76fe/docs/demo.gif)
 
 <sub>Recorded with `ccl-caut --demo` (sample data, nothing real is updated; the demo says so on every screen) using [VHS](https://github.com/charmbracelet/vhs); see [`docs/demo.tape`](docs/demo.tape).</sub>
 
