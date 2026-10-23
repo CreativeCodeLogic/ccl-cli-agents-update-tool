@@ -118,5 +118,6 @@ export async function wingetAvailability(pkg: WingetPackage, toolName: string, l
   return {
     message,
     plan: { kind: "manual", command: `winget upgrade --id ${pkg.id} --exact --source winget`, reason: `${message} Run this once winget has the new version, or try again later.` },
+    waiting: "winget",
   };
 }

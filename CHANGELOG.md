@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-beta.3] - 2026-10-23
+
+Third beta of 1.2: `npm i -g ccl-caut@next`.
+
+### Added
+
+- **"Still to do" at the end of every run:** when a run ends (`q` at the checklist or at *What next?*, after updates, after a self-update, in `--yes` and scheduled runs), the last lines list the commands you still have to run yourself: ticked tools whose update is a command to copy (Python reinstalls included), and automatic updates that failed or were skipped (running, needs admin rights), with their command. Each command is a plain line (no symbol, indent or color) under a `#` comment with its context, so a triple-click copies exactly the command, and pasting both lines works in bash, zsh and PowerShell. Nothing is printed when there's nothing left, after Ctrl+C, or for unticked, up-to-date or *waiting for winget* tools. In `--demo` the demo notice stays the very last block.
+- **`ccl-caut --pending`:** rescans and prints only that list, for the tools that would be selected (remembered choices, else the defaults; `--only` and hidden groups apply). Exit code 1 while something is left, 0 when not. `--pending --json` prints the list as JSON; `--json` includes it as `pending` (`id`, `name`, `command`, `reason`, `needsAdmin`, `shell`).
 ## [1.2.0-beta.2] - 2026-10-21
 
 Second beta of 1.2, with fixes from team testing: `npm i -g ccl-caut@next`.
@@ -168,7 +176,8 @@ First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. 
 - Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
-[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.2...HEAD
+[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.3...HEAD
+[1.2.0-beta.3]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.2...v1.2.0-beta.3
 [1.2.0-beta.2]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.1...v1.2.0-beta.2
 [1.2.0-beta.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0...v1.2.0-beta.1
 [1.1.0]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.0.1...v1.1.0

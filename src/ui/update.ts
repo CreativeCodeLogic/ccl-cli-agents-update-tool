@@ -97,6 +97,8 @@ export interface UpdateOutcome {
   interrupted: boolean;
   /** Tools whose re-check showed the new version. */
   updatedIds: string[];
+  /** Tools whose update command failed (they go on the "still to do" list). */
+  failedIds: string[];
 }
 
 /**
@@ -152,7 +154,7 @@ export async function applyUpdates(
   cache: VersionCache | null = null,
   executor: UpdateExecutor = runForReal,
 ): Promise<UpdateOutcome> {
-  const outcome: UpdateOutcome = { updated: 0, unchanged: 0, held: 0, current: 0, failed: 0, manual: 0, interrupted: false, updatedIds: [] };
+  const outcome: UpdateOutcome = { updated: 0, unchanged: 0, held: 0, current: 0, failed: 0, manual: 0, interrupted: false, updatedIds: [], failedIds: [] };
 
   // The running child gets Ctrl+C too and cleans up after itself; we just
   // stop before the next tool instead of exiting mid-install.
@@ -197,6 +199,7 @@ export async function applyUpdates(
       }
       if (result.code !== 0) {
         outcome.failed++;
+        outcome.failedIds.push(scan.id);
         log.error(tone.bad(`${scan.name} update failed${result.code === null ? "" : ` (exit code ${result.code})`} after ${elapsed}`));
         const tail = tracker.tail(20);
         if (tail.length > 0) log.message(tone.muted(tail.join("\n")));

@@ -29,6 +29,7 @@ import { preflightQuestion } from "./ui/preflight";
 import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
 import { CANCELLED, checklist, choose, QUIT, RESCAN, RETRY } from "./ui/prompts";
 import { demoBlock, demoMode, setDemoMode, simulated } from "./ui/demo-notice";
+import { collectPending, leftOverPending, pendingForResults, pendingForSelection, renderPending, type PendingItem } from "./pending";
 import { getNetwork, networkProblem } from "./utils/http";
 import { doctorReport } from "./doctor";
 import { reportBugLine, shouldShowStar, starLine, supportsHyperlinks } from "./ui/links";
@@ -265,6 +266,8 @@ async function runJson(runtime: Runtime, options: CliOptions): Promise<number> {
     network: { ...getNetwork().report(), problem: networkProblem(getNetwork().report()) },
     // Groups hidden with --hide-group (--json still lists every tool, each with its "group").
     hiddenGroups: runtime.selections.hiddenGroups,
+    // Commands the user would still have to run, for the tools that would be selected.
+    pending: pendingOfSelection(results, runtime, options),
     summary,
     tools: results,
   };
@@ -479,11 +482,34 @@ async function preflight(runtime: Runtime, targets: UpdateTarget[]): Promise<{ a
 }
 
 /**
+ * Pending commands without a run (--json, --pending): the tools that would be
+ * selected (remembered ticks, else the defaults) in the groups this run shows.
+ */
+function pendingOfSelection(results: readonly ToolScan[], runtime: Runtime, options: CliOptions): PendingItem[] {
+  return pendingForResults(results, runtime.selections.toolChoices, groupView(options, runtime.selections.hiddenGroups).groups);
+}
+
+/** --pending: rescan quietly, print only the commands still to run. Exit 1 when there are any. */
+async function runPending(runtime: Runtime, options: CliOptions): Promise<number> {
+  const { results } = await scan(runtime);
+  const pending = pendingOfSelection(results, runtime, options);
+  if (options.json) {
+    process.stdout.write(`${JSON.stringify(pending, null, 2)}\n`);
+    return pending.length > 0 ? 1 : 0;
+  }
+  printHeader(runtime.header ?? "line", VERSION);
+  printHeaderNotes(runtime);
+  if (pending.length > 0) process.stdout.write(renderPending(pending));
+  else if (process.stdout.isTTY) process.stdout.write(`${tone.muted("Nothing to run yourself.")}\n`);
+  return pending.length > 0 ? 1 : 0;
+}
+
+/**
  * --yes: no prompt. Skipped with a reason: running tools, Claude Code inside a
  * Claude Code session, and automatic updates that need admin rights (they would
  * fail; ccl-caut never elevates itself).
  */
-async function preflightUnattended(runtime: Runtime, targets: UpdateTarget[]): Promise<{ targets: UpdateTarget[]; skipped: number }> {
+async function preflightUnattended(runtime: Runtime, targets: UpdateTarget[]): Promise<{ targets: UpdateTarget[]; skipped: number; skippedWhy: Map<string, string> }> {
   const running = await findRunning(runtime, targets);
   const tagged = targets.map((t) => ({ id: t.scan.id, claudeAuto: isClaudeAuto(t), needsAdmin: t.scan.needsAdmin && t.scan.plan?.kind !== "manual", t }));
   const { keep, skipped } = splitUnattended(tagged, running, insideClaudeCode());
@@ -499,7 +525,8 @@ async function preflightUnattended(runtime: Runtime, targets: UpdateTarget[]): P
       ),
     );
   }
-  return { targets: keep.map((k) => k.t), skipped: skipped.length };
+  const why = { running: "was running", "needs-admin": "needs admin rights", "claude-session": "skipped inside Claude Code" } as const;
+  return { targets: keep.map((k) => k.t), skipped: skipped.length, skippedWhy: new Map(skipped.map((s) => [s.target.id, why[s.reason]])) };
 }
 
 /** Wait for ccl-caut's own lookup (it ran during the scan) at most this long. */
@@ -513,14 +540,16 @@ async function selfUpdateRowFor(self: SelfCheck): Promise<Awaited<ReturnType<typ
   return target ? selfUpdateRow({ current: VERSION, target: target.version, context: self.context, entryPath: self.entryPath }) : null;
 }
 
-function quitNothingChanged(): RoundResult {
+function quitNothingChanged(pending: PendingItem[] = []): RoundResult {
   outro(tone.muted("Nothing was changed."));
-  return { code: 0, next: "done" };
+  return { code: 0, next: "done", pending };
 }
 
 interface RoundResult {
   code: number;
   next: "done" | "rescan" | "retry";
+  /** Commands the user still has to run themselves (printed last, at exit). */
+  pending?: PendingItem[];
 }
 
 function summaryLine(outcome: UpdateOutcome, upToDate: number, skipped: number): string {
@@ -578,17 +607,23 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
   const initial = initialSelection(offered, runtime.selections.toolChoices);
   let targets: UpdateTarget[];
   let skipped = 0;
+  // --yes: tools left out by the pre-flight check (still to do, with the reason).
+  let skippedWhy = new Map<string, string>();
+  let selectedScans: ToolScan[] = [];
   const interactive = !options.yes;
   if (!interactive) {
     const names = offered.filter((r) => initial.ids.includes(r.id)).map((r) => r.shortName);
     log.info(names.length > 0 ? `--yes: updating ${names.join(", ")}` : "--yes: nothing is selected by default");
-    const unattended = await preflightUnattended(runtime, targetsFor(initial.ids));
+    const chosen = targetsFor(initial.ids);
+    selectedScans = chosen.map((t) => t.scan);
+    const unattended = await preflightUnattended(runtime, chosen);
     targets = unattended.targets;
     skipped = unattended.skipped;
+    skippedWhy = unattended.skippedWhy;
   } else {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       outro(`${scanVerdict(summary)}${tone.muted(". Run in an interactive terminal (or with --yes) to apply updates.")}`);
-      return { code: 0, next: "done" };
+      return { code: 0, next: "done", pending: pendingForSelection(offered.filter((r) => initial.ids.includes(r.id))) };
     }
     let picked = initial.ids;
     for (;;) {
@@ -599,7 +634,7 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
         initialValues: picked,
         retry,
       });
-      if (answer === QUIT) return quitNothingChanged();
+      if (answer === QUIT) return quitNothingChanged(pendingForSelection(offered.filter((r) => picked.includes(r.id))));
       if (answer === RETRY) return { code: 0, next: "retry" };
       if (answer === CANCELLED) exitCancelled();
       picked = answer;
@@ -611,15 +646,16 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
       }
       const ready = await preflight(runtime, targets);
       if (ready.action === "back") continue;
-      if (ready.action === "quit") return quitNothingChanged();
+      if (ready.action === "quit") return quitNothingChanged(collectPending(targets.map((t) => t.scan)));
       targets = ready.targets;
+      selectedScans = targets.map((t) => t.scan);
       break;
     }
   }
   if (targets.length === 0) {
     outro(tone.muted(`Nothing to update: nothing was changed.${skipped > 0 ? ` ${skipped} skipped.` : ""}`));
     // Skipped updates did not apply: exit 1, so a scheduled run shows up in its log.
-    return { code: skipped > 0 ? 1 : 0, next: "done" };
+    return { code: skipped > 0 ? 1 : 0, next: "done", pending: collectPending(selectedScans, skippedWhy) };
   }
 
   process.off("SIGINT", exitCancelled); // applyUpdates handles Ctrl+C from here on
@@ -627,6 +663,8 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
   process.once("SIGINT", exitCancelled);
 
   const code = updateExitCode(outcome, skipped);
+  // Still to do: manual commands, plus automatic updates that failed or were skipped.
+  const pending = leftOverPending(selectedScans, outcome, skippedWhy);
   const line = summaryLine(outcome, summary.upToDate, skipped);
   // The new ccl-caut is installed, but this process still runs the old code: no Rescan.
   const selfUpdated = outcome.updatedIds.includes(SELF_ID);
@@ -634,7 +672,7 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
   if (!interactive || outcome.interrupted) {
     if (selfLine) log.success(tone.done(selfLine));
     outro(line);
-    return { code, next: "done" };
+    return { code, next: "done", pending };
   }
   log.success(line);
   if (selfLine) log.success(tone.done(selfLine));
@@ -651,13 +689,13 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
   if (next === CANCELLED) exitCancelled();
   if (next === "rescan" || next === RESCAN) return { code, next: "rescan" };
   outro(tone.muted("Done."));
-  return { code, next: "done" };
+  return { code, next: "done", pending };
 }
 
-async function runInteractive(runtime: Runtime, options: CliOptions): Promise<number> {
+async function runInteractive(runtime: Runtime, options: CliOptions): Promise<{ code: number; pending: PendingItem[] }> {
   for (;;) {
     const round = await interactiveRound(runtime, options);
-    if (round.next !== "rescan" && round.next !== "retry") return round.code;
+    if (round.next !== "rescan" && round.next !== "retry") return { code: round.code, pending: round.pending ?? [] };
     // Retry: forget this run's failed lookups so they go to the network again.
     if (round.next === "retry") getNetwork().reset();
     // Fresh lookups for everything (the tools just updated were dropped from the cache).
@@ -714,6 +752,8 @@ async function main(): Promise<number> {
     runtime.selections.setGroupHidden(group, hide);
     runtime.headerNotes.push(hide ? `${GROUP_LABELS[group]} hidden from now on · --show-group ${group} to show them again` : `${GROUP_LABELS[group]} shown again`);
   }
+  // --pending (also with --json: the list only) follows the selection and the groups this run shows.
+  if (options.pending) return withDemoFooter(await runPending(runtime, options));
   // --json and --discover always cover every group.
   if (options.json) return runJson(runtime, options);
   if (options.discover) return withDemoFooter(await runDiscover(runtime));
@@ -728,8 +768,12 @@ async function main(): Promise<number> {
 
   // Ctrl+C outside a prompt (e.g. during a scan) exits cleanly too.
   process.once("SIGINT", exitCancelled);
-  const code = finish(await runInteractive(runtime, options));
+  const run = await runInteractive(runtime, options);
+  const code = finish(run.code);
   maybeShowStar(runtime, options);
+  // Last (only the demo notice comes after it): the commands still to run.
+  process.stdout.write(renderPending(run.pending));
+  if (run.pending.length > 0 && demoMode()) process.stdout.write("\n");
   return withDemoFooter(code);
 }
 

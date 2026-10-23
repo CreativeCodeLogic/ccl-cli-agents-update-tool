@@ -88,6 +88,7 @@ export async function selfUpdateRow(options: {
     notes: [],
     projectPin: null,
     compatibility: null,
+    waitingFor: null,
   };
   return { scan, instance };
 }

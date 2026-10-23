@@ -198,7 +198,7 @@ describe("stale cache as a fallback", () => {
     const row = {
       id: "codex", name: "Codex CLI", shortName: "Codex", docsUrl: "", installed: true, installMethod: "npm" as const, binaryPath: "/x",
       installedVersion: "0.161.0", latestVersion: "0.162.1", latestStaleCachedAt: at, state: "outdated" as const, updateAvailable: true,
-      needsAdmin: false, plan: null, shadowed: [], deprecation: null, group: "agents" as const, notes: [], projectPin: null, compatibility: null,
+      needsAdmin: false, plan: null, shadowed: [], deprecation: null, group: "agents" as const, notes: [], projectPin: null, compatibility: null, waitingFor: null,
     };
     expect(strip(renderTable([row]))).toContain("0.162.1 cached 9h ago");
   });

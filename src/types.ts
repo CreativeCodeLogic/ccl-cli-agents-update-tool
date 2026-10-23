@@ -74,6 +74,8 @@ export interface Compatibility {
   message: string;
   /** What to do instead (manual, never preselected). */
   plan: UpdatePlan;
+  /** Nothing to run yet: the package manager doesn't have the version (not "still to do"). */
+  waiting?: "winget";
 }
 
 import type { WingetPackage } from "./utils/winget";
@@ -214,4 +216,6 @@ export interface ToolScan {
   projectPin: ProjectPin | null;
   /** Set when the latest release can't simply be updated to (e.g. it needs a newer Python); the plan says what to do. */
   compatibility: string | null;
+  /** "winget" while winget doesn't offer the latest version yet (nothing to run until then). */
+  waitingFor: "winget" | null;
 }

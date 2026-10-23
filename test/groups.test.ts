@@ -14,7 +14,7 @@ const strip = (s: string) => s.replace(ANSI, "");
 const row = (id: string, group: ToolScan["group"], overrides: Partial<ToolScan> = {}): ToolScan => ({
   id, name: id, shortName: id, group, docsUrl: "", installed: true, installMethod: "npm", binaryPath: `/bin/${id}`,
   installedVersion: "1.0.0", latestVersion: "1.0.0", latestStaleCachedAt: null, state: "up-to-date", updateAvailable: false,
-  needsAdmin: false, plan: null, shadowed: [], deprecation: null, notes: [], projectPin: null, compatibility: null, ...overrides,
+  needsAdmin: false, plan: null, shadowed: [], deprecation: null, notes: [], projectPin: null, compatibility: null, waitingFor: null, ...overrides,
 });
 
 describe("tool groups", () => {

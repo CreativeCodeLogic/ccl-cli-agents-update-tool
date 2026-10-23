@@ -71,7 +71,7 @@ export type HeaderStyle = "banner" | "line" | "none";
  */
 export function headerStyle(
   options: {
-    json?: boolean; version?: boolean; check?: boolean; discover?: boolean; doctor?: boolean; help?: boolean;
+    json?: boolean; version?: boolean; check?: boolean; discover?: boolean; doctor?: boolean; help?: boolean; pending?: boolean;
     only?: unknown; hideGroup?: unknown; showGroup?: unknown; resetSelection?: boolean; yes?: boolean;
   },
   isTTY: boolean,
@@ -79,7 +79,7 @@ export function headerStyle(
 ): HeaderStyle {
   if (!isTTY || env.CI || options.json || options.version) return "none";
   const optionPath =
-    options.check || options.discover || options.doctor || options.help || options.only || options.hideGroup || options.showGroup || options.resetSelection || options.yes;
+    options.check || options.discover || options.doctor || options.help || options.pending || options.only || options.hideGroup || options.showGroup || options.resetSelection || options.yes;
   return optionPath ? "line" : "banner";
 }
 

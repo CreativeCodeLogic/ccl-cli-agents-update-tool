@@ -219,6 +219,7 @@ export function pendingScan({ tool, instances }: Detection): ToolScan {
     notes: [],
     projectPin: null,
     compatibility: null,
+    waitingFor: null,
   };
 }
 
@@ -276,6 +277,7 @@ async function resolveOne({ tool, instances }: Detection, latest: LatestResolver
     notes,
     projectPin,
     compatibility: compatibility?.message ?? null,
+    waitingFor: compatibility?.waiting ?? null,
   };
 }
 

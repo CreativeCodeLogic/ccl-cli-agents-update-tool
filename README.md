@@ -75,6 +75,26 @@ When a newer CCL CAUT is out and you installed it globally with npm, it is the f
 
 Before anything runs, a short **pre-flight** check shows which selected CLIs are running right now (close agent sessions and the IDEs or terminals that use them first) and which updates need administrator rights. Choose *Update now*, *Re-check*, *Back to selection* or *Quit*. Each update shows a spinner, the elapsed time and the latest output line, then collapses to `Codex CLI 0.161.0 → 0.162.1`; the full log is printed only when something fails (or with `CCL_CAUT_DEBUG=1`). Commands CCL CAUT can't run safely are printed on a line of their own, ready to select and copy. Afterwards, *Rescan* (or `r`) runs the whole check again with fresh versions, or *Quit* (`q`). After CCL CAUT has updated itself only *Quit* is offered: run it again to use the new version.
 
+### Still to do
+
+Whenever a run ends (`q` at the checklist or at *What next?*, after updates, after a self-update, and in `--yes` and scheduled runs), the last thing printed is what you still have to run yourself: the tools you ticked whose update is a command to copy, plus automatic updates that failed or were skipped (running, needs admin rights), with their command. Unticked tools, *waiting for winget* and up-to-date tools aren't listed, and nothing is printed when there's nothing to do (or after Ctrl+C):
+
+```text
+Still to do, run these yourself:
+
+# Google Cloud CLI (admin terminal)
+sudo apt-get update && sudo apt-get install --only-upgrade google-cloud-cli
+
+# Kimi Code (PowerShell)
+irm https://code.kimi.com/kimi-code/install.ps1 | iex
+
+Run ccl-caut --pending anytime to see what's left.
+```
+
+Each command is a line of its own, with no symbol, indent or color, so a triple-click copies exactly the command. Its context is a `#` comment on the line above: bash, zsh and PowerShell ignore it if you paste both lines (cmd.exe just says `'#' is not recognized` and runs the next line).
+
+`ccl-caut --pending` rescans (latest versions from the cache unless `--refresh`) and prints only that list, for the tools that would be selected (your remembered choices, else the defaults; `--only` and hidden groups apply). It exits with 1 when something is left and 0 when not, so once you've run a command it drops off the list. `--pending --json` prints the list as JSON, and `--json` includes it as `pending` (`id`, `name`, `command`, `reason`, `needsAdmin`, `shell`: `powershell`, `sh` or `any`).
+
 ## Supported tools
 
 ### AI agents
@@ -148,6 +168,8 @@ ccl-caut [options]
                  (ccl-caut never installs tools.)
   --doctor       Check the connection to every version server (DNS, HTTPS, timings),
                  and show the proxy settings and cache/config paths in use.
+  --pending      Print only the commands you still have to run yourself (for the tools
+                 you selected; no table, no checklist). Exit code 1 if there are any.
   --only <group> Show one group for this run: agents (AI agents) or dev (Dev CLIs).
   --hide-group <group>, --show-group <group>
                  Hide a group from now on, or show it again (saved in your config).
@@ -212,7 +234,7 @@ Choices are stored in your OS config folder: `%APPDATA%\ccl-caut\config.json` on
 
 ### Scheduled runs
 
-Run `ccl-caut --check` (notify only, recommended) or `ccl-caut --yes` (update) weekly from cron, launchd or Task Scheduler, as your normal user. Without a terminal nothing waits for input: `--yes` skips tools that are running or need admin rights and says why, and the log is plain text. Tested recipes for Linux, macOS and Windows, with logging and exit codes: [docs/scheduling.md](docs/scheduling.md).
+Run `ccl-caut --check` (notify only, recommended) or `ccl-caut --yes` (update) weekly from cron, launchd or Task Scheduler, as your normal user. Without a terminal nothing waits for input: `--yes` skips tools that are running or need admin rights and says why, and the log is plain text. Each log ends with the commands still to run yourself (see [Still to do](#still-to-do)). Tested recipes for Linux, macOS and Windows, with logging and exit codes: [docs/scheduling.md](docs/scheduling.md).
 
 ### Privacy & network
 
@@ -271,8 +293,8 @@ It exits with 0 when every server is reachable and 1 otherwise.
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Success, everything is up-to-date, or you quit with `q` |
-| 1 | Updates available (`--check`), or an update failed, did not apply, or was skipped (`--yes`: running, needs admin rights) |
+| 0 | Success, everything is up-to-date, nothing pending (`--pending`), or you quit with `q` |
+| 1 | Updates available (`--check`), commands still to run (`--pending`), or an update failed, did not apply, or was skipped (`--yes`: running, needs admin rights) |
 | 2 | Invalid arguments |
 | 130 | Cancelled (Ctrl+C or Esc) |
 

@@ -193,6 +193,22 @@ exit 1
 
 With `--yes`, the end shows what was done, one line per tool, for example `Skipping Codex CLI: it is running (1 process). Close it and run ccl-caut again.`, followed by the summary (`3 updated, 1 manual, 3 up-to-date, 1 skipped`). Commands it can't run itself are printed on their own line, ready to copy.
 
+Every run's log ends with the to-do list: what you still have to run yourself (manual updates, and automatic ones that were skipped or failed), each command on a plain line under a `#` comment, then `Run ccl-caut --pending anytime to see what's left.` For example, after a scheduled `--yes` that skipped a running Codex:
+
+```text
+Still to do, run these yourself:
+
+# Codex CLI (was running)
+npm install -g @openai/codex@latest
+
+# Google Cloud CLI (admin terminal)
+sudo apt-get update && sudo apt-get install --only-upgrade google-cloud-cli
+
+Run ccl-caut --pending anytime to see what's left.
+```
+
+`ccl-caut --pending` shows the same list on demand (exit 1 while something is left, 0 when nothing is), so it also works as a quick check after you've run the commands.
+
 | Exit code | `--check` | `--yes` |
 | --- | --- | --- |
 | 0 | Everything is up-to-date | Every selected update applied (or nothing was selected) |

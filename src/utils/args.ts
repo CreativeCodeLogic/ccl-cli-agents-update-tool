@@ -18,6 +18,8 @@ export interface CliOptions {
   discover: boolean;
   /** Check the network path to every version server, show proxy settings and file paths. */
   doctor: boolean;
+  /** Print only the commands still to run yourself (exit 1 when there are any). */
+  pending: boolean;
   noClear: boolean;
   resetSelection: boolean;
   /** Non-interactive: update what would be preselected, no prompts. */
@@ -45,6 +47,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     refresh: false,
     discover: false,
     doctor: false,
+    pending: false,
     noClear: false,
     resetSelection: false,
     yes: false,
@@ -88,6 +91,9 @@ export function parseArgs(argv: readonly string[]): ParseResult {
         break;
       case "--doctor":
         options.doctor = true;
+        break;
+      case "--pending":
+        options.pending = true;
         break;
       case "--no-clear":
         options.noClear = true;
@@ -147,6 +153,8 @@ Options:
                  (ccl-caut never installs tools.)
   --doctor       Check the connection to every version server (DNS, HTTPS, timings),
                  and show the proxy settings and cache/config paths in use.
+  --pending      Print only the commands you still have to run yourself (for the tools
+                 you selected; no table, no checklist). Exit code 1 if there are any.
   --only <group> Show one group for this run: agents (AI agents) or dev (Dev CLIs).
   --hide-group <group>, --show-group <group>
                  Hide a group from now on, or show it again (saved in your config).
@@ -169,9 +177,9 @@ Keys (interactive):
   updates need administrator rights (needs admin). It never kills or elevates.
 
 Exit codes:
-  0    success / everything up-to-date / quit with q
-  1    updates available (--check), or an update failed, did not apply or was
-       skipped (--yes)
+  0    success / everything up-to-date / quit with q / nothing pending (--pending)
+  1    updates available (--check), commands still to run (--pending), or an
+       update failed, did not apply or was skipped (--yes)
   2    invalid arguments
   130  cancelled (Ctrl+C or Esc)
 
