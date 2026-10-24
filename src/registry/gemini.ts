@@ -1,5 +1,6 @@
 import { createNpmPackageTool } from "./npm-package-tool";
 import { brewPlan } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 export const gemini = createNpmPackageTool({
   id: "gemini",
@@ -8,6 +9,7 @@ export const gemini = createNpmPackageTool({
   shortName: "Gemini",
   description: "Google's Gemini CLI (retired for consumer accounts)",
   docsUrl: "https://github.com/google-gemini/gemini-cli",
+  releaseNotes: githubRelease("google-gemini/gemini-cli"),
   binNames: ["gemini"],
   pkg: "@google/gemini-cli",
   // https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/

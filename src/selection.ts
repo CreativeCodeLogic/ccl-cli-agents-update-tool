@@ -18,6 +18,9 @@ export interface SelectionStore {
   /** Whether --discover has been run (hides the scan line's --discover hint). */
   readonly discoverUsed: boolean;
   markDiscoverUsed(): void;
+  /** --hide-whats-new: the "n what's new" hint is left out (n still works). */
+  readonly whatsNewHidden: boolean;
+  setWhatsNewHidden(hidden: boolean): void;
 }
 
 /**

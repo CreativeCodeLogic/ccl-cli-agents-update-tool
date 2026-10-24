@@ -2,6 +2,7 @@ import type { BinaryInstance, ToolDescriptor, UpdatePlan } from "../types";
 import { getHost } from "../utils/host";
 import { normalizePath } from "../utils/paths";
 import { versionFromCommand } from "./shared";
+import { linkOnly } from "../whatsnew/sources";
 
 // cursor.com/docs/cli/installation: the installer puts the CLI in
 // ~/.local/share/cursor-agent/versions/<ver>/ with ~/.local/bin/{agent,cursor-agent}
@@ -36,6 +37,7 @@ export const cursor: ToolDescriptor = {
   shortName: "Cursor",
   description: "Cursor's coding agent for the terminal (agent)",
   docsUrl: "https://cursor.com/docs/cli/installation",
+  releaseNotes: linkOnly("https://cursor.com/docs/cli/changelog"),
   binNames: ["agent", "cursor-agent"],
   selfUpdating: true,
   identify: isCursorAgent,

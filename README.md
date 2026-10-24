@@ -95,6 +95,10 @@ Each command is a line of its own, with no symbol, indent or color, so a triple-
 
 `ccl-caut --pending` rescans (latest versions from the cache unless `--refresh`) and prints only that list, for the tools that would be selected (your remembered choices, else the defaults; `--only` and hidden groups apply). It exits with 1 when something is left and 0 when not, so once you've run a command it drops off the list. `--pending --json` prints the list as JSON, and `--json` includes it as `pending` (`id`, `name`, `command`, `reason`, `needsAdmin`, `shell`: `powershell`, `sh` or `any`).
 
+### What's new
+
+Press `n` on a row of the checklist to read that tool's official release notes for its latest version, in a panel on top of the checklist (`↑/↓` scroll, `o` opens them in your browser, `q` closes it and brings the checklist back as it was). On "What next?", `n` shows the notes of what was just updated. Notes are fetched only when you ask (one request, cached for 7 days), never during the scan, and every control sequence in them is stripped before anything is shown. Tools that publish their notes on a web page only (Amp, Cursor, Kiro, Vercel) get the link. `ccl-caut --whats-new codex` prints the notes without a prompt; `--hide-whats-new` hides the key hint (the key keeps working). The sources per tool are in [docs/whats-new-sources.md](docs/whats-new-sources.md).
+
 ## Supported tools
 
 ### AI agents
@@ -170,9 +174,17 @@ ccl-caut [options]
                  and show the proxy settings and cache/config paths in use.
   --pending      Print only the commands you still have to run yourself (for the tools
                  you selected; no table, no checklist). Exit code 1 if there are any.
+  --whats-new <tool>
+                 Print the release notes of <tool>'s latest version (e.g. codex,
+                 ccl-caut) and the official link. No prompt. Exit code 0 when notes
+                 were shown, 1 when there are none or they couldn't be fetched,
+                 2 for an unknown tool (the valid ids are listed).
   --only <group> Show one group for this run: agents (AI agents) or dev (Dev CLIs).
   --hide-group <group>, --show-group <group>
                  Hide a group from now on, or show it again (saved in your config).
+  --hide-whats-new, --show-whats-new
+                 Hide the "n what's new" key hint from now on, or show it again
+                 (saved in your config; n keeps working either way).
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
                  A newer global ccl-caut is updated too, last. Tools that are running
@@ -187,6 +199,9 @@ ccl-caut [options]
 Keys (interactive):
   ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
   r retry the version lookups (offered when they failed); on "What next?", r rescans
+  n what's new: the highlighted tool's release notes for its latest version, in a
+    panel (↑/↓ scroll, o opens the official notes in your browser, q closes).
+    On "What next?", n shows the notes of what was just updated.
   While the latest versions are checked: q stops, Ctrl+C or Esc cancel.
   Before updating, ccl-caut shows which selected CLIs are running and which
   updates need administrator rights (needs admin). It never kills or elevates.

@@ -142,7 +142,7 @@ describe("Python update plans", () => {
 describe("createPythonPackageTool", () => {
   const home = "/home/jane";
   const venv = `${home}/.local/share/uv/tools/aider-chat`;
-  const tool = createPythonPackageTool({ id: "aider", name: "Aider", binNames: ["aider"], pypi: "aider-chat", group: "agents", description: "d", docsUrl: "https://example.test" });
+  const tool = createPythonPackageTool({ id: "aider", name: "Aider", binNames: ["aider"], pypi: "aider-chat", group: "agents", description: "d", docsUrl: "https://example.test", releaseNotes: { kind: "link-only", url: "https://example.test/notes" } });
 
   it("detects, reads the version without spawning, plans and finds the update target", async () => {
     use(fakeHost({ platform: "linux", homedir: home, env: { PATH: "/usr/bin" }, files: ["/usr/bin/uv"], texts: dist(`${venv}/lib/python3.12/site-packages`) }));

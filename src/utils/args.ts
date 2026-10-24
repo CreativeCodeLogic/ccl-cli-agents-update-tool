@@ -20,6 +20,11 @@ export interface CliOptions {
   doctor: boolean;
   /** Print only the commands still to run yourself (exit 1 when there are any). */
   pending: boolean;
+  /** --whats-new <tool>: print that tool's release notes for its latest version, no prompt. */
+  whatsNew: string | null;
+  /** --hide-whats-new / --show-whats-new: persistent, saved in the config. */
+  hideWhatsNew: boolean;
+  showWhatsNew: boolean;
   noClear: boolean;
   resetSelection: boolean;
   /** Non-interactive: update what would be preselected, no prompts. */
@@ -48,6 +53,9 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     discover: false,
     doctor: false,
     pending: false,
+    whatsNew: null,
+    hideWhatsNew: false,
+    showWhatsNew: false,
     noClear: false,
     resetSelection: false,
     yes: false,
@@ -72,6 +80,12 @@ export function parseArgs(argv: readonly string[]): ParseResult {
       options.output = value;
       continue;
     }
+    if (flag === "--whats-new") {
+      const value = inline ?? argv[++i];
+      if (!value || value.startsWith("-")) return { ok: false, error: "--whats-new needs a tool id (e.g. --whats-new codex)" };
+      options.whatsNew = value;
+      continue;
+    }
     const arg = raw;
     switch (arg) {
       case "--force":
@@ -94,6 +108,12 @@ export function parseArgs(argv: readonly string[]): ParseResult {
         break;
       case "--pending":
         options.pending = true;
+        break;
+      case "--hide-whats-new":
+        options.hideWhatsNew = true;
+        break;
+      case "--show-whats-new":
+        options.showWhatsNew = true;
         break;
       case "--no-clear":
         options.noClear = true;
@@ -123,6 +143,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     }
   }
   if (options.output && !options.json) return { ok: false, error: "--output works with --json" };
+  if (options.hideWhatsNew && options.showWhatsNew) return { ok: false, error: "--hide-whats-new and --show-whats-new can't be used together" };
   if (options.hideGroup && options.hideGroup === options.showGroup) {
     return { ok: false, error: `--hide-group and --show-group both name ${options.hideGroup}` };
   }
@@ -155,9 +176,17 @@ Options:
                  and show the proxy settings and cache/config paths in use.
   --pending      Print only the commands you still have to run yourself (for the tools
                  you selected; no table, no checklist). Exit code 1 if there are any.
+  --whats-new <tool>
+                 Print the release notes of <tool>'s latest version (e.g. codex,
+                 ccl-caut) and the official link. No prompt. Exit code 0 when notes
+                 were shown, 1 when there are none or they couldn't be fetched,
+                 2 for an unknown tool (the valid ids are listed).
   --only <group> Show one group for this run: agents (AI agents) or dev (Dev CLIs).
   --hide-group <group>, --show-group <group>
                  Hide a group from now on, or show it again (saved in your config).
+  --hide-whats-new, --show-whats-new
+                 Hide the "n what's new" key hint from now on, or show it again
+                 (saved in your config; n keeps working either way).
   -y, --yes      Don't ask: update the tools that would be preselected (your remembered
                  choices, else every outdated tool that isn't retired or self-updating).
                  A newer global ccl-caut is updated too, last. Tools that are running
@@ -172,6 +201,9 @@ Options:
 Keys (interactive):
   ↑/↓ move · space select · a all · enter confirm · q quit (nothing is changed)
   r retry the version lookups (offered when they failed); on "What next?", r rescans
+  n what's new: the highlighted tool's release notes for its latest version, in a
+    panel (↑/↓ scroll, o opens the official notes in your browser, q closes).
+    On "What next?", n shows the notes of what was just updated.
   While the latest versions are checked: q stops, Ctrl+C or Esc cancel.
   Before updating, ccl-caut shows which selected CLIs are running and which
   updates need administrator rights (needs admin). It never kills or elevates.
