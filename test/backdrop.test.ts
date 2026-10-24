@@ -151,16 +151,21 @@ describe("the overlay: the panel on top of the dimmed backdrop", () => {
     expect(renderPopup(content, { cols, rows, ascii: false, scroll: 0, backdrop: null }).lines).toEqual(plain);
   });
 
-  it("the ASCII console and colors off never ask for the backdrop", async () => {
-    for (const ascii of [true, false]) {
-      // The test runner's output is not a terminal: colors are off here.
+  it("only with colors on and a Unicode console: the ASCII console or colors off never ask for the backdrop", async () => {
+    const cases = [
+      { ascii: false, colors: true, asked: true },
+      { ascii: true, colors: true, asked: false },
+      { ascii: false, colors: false, asked: false },
+      { ascii: true, colors: false, asked: false },
+    ];
+    for (const { ascii, colors, asked } of cases) {
       const backdrop = vi.fn(() => null);
       const input = Object.assign(new PassThrough(), { isTTY: true, isRaw: false, setRawMode: () => undefined });
       const output = Object.assign(new PassThrough(), { isTTY: true, columns: 100, rows: 30 }) as unknown as NodeJS.WriteStream;
-      const done = showNotes(content, { input, output, ascii, backdrop });
+      const done = showNotes(content, { input, output, ascii, colors, backdrop });
       input.write("q");
       await done;
-      expect(backdrop).not.toHaveBeenCalled();
+      expect(backdrop.mock.calls.length > 0, `ascii ${ascii}, colors ${colors}`).toBe(asked);
     }
   });
 });

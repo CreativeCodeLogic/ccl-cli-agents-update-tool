@@ -229,6 +229,8 @@ export interface PopupIO {
    * when it doesn't fit the window.
    */
   backdrop?: () => ScreenSnapshot | null;
+  /** Colors on (default: whether CCL CAUT prints colors; off with --no-color or NO_COLOR). */
+  colors?: boolean;
 }
 
 /** How showNotes ended. */
@@ -265,7 +267,7 @@ export function showNotes(content: PopupContent | Promise<PopupContent>, io: Pop
     let closed = false;
     const was = { raw: Boolean(input.isRaw), paused: input.isPaused?.() ?? true };
     // Taken before the alternate screen: the screen as CCL CAUT left it.
-    const under = io.backdrop && pc.isColorSupported && !io.ascii ? io.backdrop() : null;
+    const under = io.backdrop && (io.colors ?? pc.isColorSupported) && !io.ascii ? io.backdrop() : null;
 
     const draw = () => {
       if (closed) return;
