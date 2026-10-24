@@ -4,6 +4,7 @@ import { fetchJson, stringField } from "../utils/http";
 import { normalizePath } from "../utils/paths";
 import { linuxPackageManager } from "./detect-helpers";
 import { versionFromCommand } from "./shared";
+import { linkOnly } from "../whatsnew/sources";
 
 /*
  * kiro.dev/docs/cli/installation/: `curl -fsSL https://cli.kiro.dev/install | bash`
@@ -28,6 +29,7 @@ export const kiro: ToolDescriptor = {
   shortName: "Kiro",
   description: "AWS Kiro's agent for the terminal (formerly Amazon Q CLI)",
   docsUrl: "https://kiro.dev/docs/cli/installation/",
+  releaseNotes: linkOnly("https://kiro.dev/changelog/cli/", (v) => `https://kiro.dev/changelog/cli/${v.split(".").slice(0, 2).join("-")}/`),
   binNames: ["kiro-cli"],
 
   refineInstallMethod: (method, instance) => (method !== "brew" && isInstallerCopy(instance.realPath) ? "native" : method === "unknown" ? "native" : method),

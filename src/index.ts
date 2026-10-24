@@ -21,13 +21,20 @@ import type { ToolDescriptor, ToolScan } from "./types";
 import { headerStyle, printHeader, type HeaderStyle } from "./ui/banner";
 import { CANCEL_EXIT_CODE, CANCEL_MESSAGE, createProgress } from "./ui/progress";
 import { displayVersion } from "./ui/format";
-import { icons } from "./ui/symbols";
+import { icons, isUnicodeSupported } from "./ui/symbols";
+import { fitsPopup, inlineNotes, openUrl, showNotes, type PopupContent, type ShowResult } from "./whatsnew/popup";
+import { demoNotes } from "./demo/notes";
+import { NotesCache } from "./whatsnew/cache";
+import { rowsForWhatsNew } from "./whatsnew/flow";
+import { loadNotes, type NotesResult, type NotesTarget } from "./whatsnew/notes";
+import { notesLink, resolveSource, SELF_NOTES, type ReleaseNotesSource } from "./whatsnew/sources";
+import { recordScreen, screenRecord } from "./ui/backdrop";
 import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
 import { discoverHint, renderDiscovery } from "./ui/discover";
 import { latestVersionsProgress, liveTableAllowed } from "./ui/livetable";
 import { preflightQuestion } from "./ui/preflight";
 import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
-import { CANCELLED, checklist, choose, QUIT, RESCAN, RETRY } from "./ui/prompts";
+import { CANCELLED, checklist, choose, NOTES, QUIT, RESCAN, RETRY } from "./ui/prompts";
 import { demoBlock, demoMode, setDemoMode, simulated } from "./ui/demo-notice";
 import { collectPending, leftOverPending, pendingForResults, pendingForSelection, renderPending, type PendingItem } from "./pending";
 import { getNetwork, networkProblem } from "./utils/http";
@@ -269,7 +276,8 @@ async function runJson(runtime: Runtime, options: CliOptions): Promise<number> {
     // Commands the user would still have to run, for the tools that would be selected.
     pending: pendingOfSelection(results, runtime, options),
     summary,
-    tools: results,
+    // whatsNewUrl: the official release notes of each tool's latest version (never fetched here).
+    tools: results.map((r) => ({ ...r, whatsNewUrl: whatsNewUrl(runtime, r) })),
   };
   const json = `${JSON.stringify(report, null, 2)}\n`;
   const code = check ? checkExitCode(summary) : 0;
@@ -562,6 +570,111 @@ function summaryLine(outcome: UpdateOutcome, upToDate: number, skipped: number):
   return parts.join(tone.muted(", "));
 }
 
+/** Where a row's notes are: its registry source for the copy that runs (CCL CAUT's own row: its releases). */
+function notesSourceFor(runtime: Runtime, row: Pick<ToolScan, "id" | "installMethod" | "installedVersion">): ReleaseNotesSource | null {
+  if (row.id === SELF_ID) return SELF_NOTES;
+  const tool = runtime.tools.find((t) => t.id === row.id) ?? registry.find((t) => t.id === row.id);
+  return tool ? resolveSource(tool.releaseNotes, row.installMethod, row.installedVersion) : null;
+}
+
+/** The notes to fetch for a row: the version CCL CAUT shows as Latest. */
+function notesTargetFor(runtime: Runtime, row: ToolScan): NotesTarget & { link: string } {
+  const source = notesSourceFor(runtime, row) ?? { kind: "link-only", url: row.docsUrl };
+  return { id: row.id, name: row.name, version: row.latestVersion, installed: row.installedVersion, source, link: notesLink(source, row.latestVersion) };
+}
+
+/** The row's notes (the demo: fixture notes, no network). Never rejects. */
+function notesFor(runtime: Runtime, options: CliOptions, row: ToolScan, signal?: AbortSignal): Promise<NotesResult> {
+  if (options.demo) return Promise.resolve(demoNotes(row));
+  return loadNotes(notesTargetFor(runtime, row), { cache: NotesCache.open() }, signal);
+}
+
+/** The popup for one row: "Fetching notes…" first, q cancels the fetch. */
+function showRowNotes(runtime: Runtime, options: CliOptions, row: ToolScan, tooSmall: "inline" | "report" = "inline"): Promise<ShowResult> {
+  const abort = new AbortController();
+  const target = notesTargetFor(runtime, row);
+  const loading: Omit<PopupContent, "state"> = { tool: row.name, version: row.latestVersion ?? "", link: target.link };
+  return showNotes(notesFor(runtime, options, row, abort.signal), {
+    input: process.stdin,
+    output: process.stdout,
+    ascii: !isUnicodeSupported(),
+    cursorHiddenAfter: true,
+    loading,
+    cancel: () => abort.abort(),
+    tooSmall,
+    backdrop: () => screenRecord.snapshot(),
+  });
+}
+
+/** n on "What next?": one updated tool opens directly; several get a small picker first. */
+async function notesAfterUpdate(runtime: Runtime, options: CliOptions, rows: readonly ToolScan[]): Promise<void> {
+  let row: ToolScan | undefined = rows[0];
+  if (rows.length > 1) {
+    const back = "__back";
+    const pick = await choose({
+      message: "What's new in",
+      options: [...rows.map((r) => ({ value: r.id, label: `${r.name} ${r.latestVersion ? displayVersion(r.latestVersion) : ""}`.trim() })), { value: back, label: "Back" }],
+      initialValue: rows[0]!.id,
+    });
+    row = rows.find((r) => r.id === pick);
+  }
+  if (!row) return;
+  const shown = await showRowNotes(runtime, options, row, "report");
+  if (shown === "too-small") log.message(tone.muted(`Window too small for notes. Official notes: ${notesTargetFor(runtime, row).link}`));
+}
+
+/** --json: the official notes link for each tool's latest version (nothing is fetched). */
+function whatsNewUrl(runtime: Runtime, row: ToolScan): string | null {
+  const source = notesSourceFor(runtime, row);
+  return source ? notesLink(source, row.latestVersion) : null;
+}
+
+/** For the canary: how the notes were looked for, with the version as "<version>" (a format, not a value). */
+function sourceFormat(source: ReleaseNotesSource): Record<string, string> {
+  const v = "<version>";
+  if (source.kind === "github-release") return { kind: source.kind, repo: source.repo, tagFormat: source.tag(v) };
+  if (source.kind === "changelog-file") return { kind: source.kind, url: source.url, headingFormat: source.heading(v).source };
+  return { kind: source.kind, url: source.url };
+}
+
+/**
+ * --whats-new <tool>: the notes for that tool's Latest, plain, then the link.
+ * 0 = notes shown, 1 = no notes (or a web page only) or the fetch failed, 2 = unknown id.
+ */
+async function runWhatsNew(runtime: Runtime, options: CliOptions, id: string): Promise<number> {
+  let row: ToolScan | null = null;
+  if (id === SELF_ID) {
+    // Asked for by name: look it up even where the background self-check is off (a source checkout).
+    const tags = runtime.selfFixture ? { latest: runtime.selfFixture.latest, next: null } : await fetchDistTags("ccl-caut");
+    const latest = tags?.latest ?? null;
+    const next = tags?.next ?? null;
+    const version = selfUpdateTarget(VERSION, latest, next)?.version ?? (isPrerelease(VERSION) ? (next ?? latest) : latest);
+    row = { ...pendingScan({ tool: selfTool, instances: [] }), installed: true, installedVersion: VERSION, latestVersion: version };
+  } else {
+    const tool = runtime.tools.find((t) => t.id === id);
+    if (!tool) {
+      const ids = [...runtime.tools.map((t) => t.id), SELF_ID].sort();
+      process.stderr.write(`ccl-caut: unknown tool "${id}". Valid ids: ${ids.join(", ")}\n`);
+      return 2;
+    }
+    const detections = await detectAll([tool], runtime.host);
+    await applyElevation(runtime);
+    [row = null] = await resolveLatest(detections, runtime.latest, null);
+    runtime.latest.cache?.save();
+  }
+  if (!row) return 1;
+  const content = await notesFor(runtime, options, row);
+  if (options.json) {
+    const source = notesSourceFor(runtime, row);
+    const { tool, version, state, link, notes, truncated, error, rateLimit, from } = content;
+    const retryAt = rateLimit?.resetAt ? new Date(rateLimit.resetAt).toISOString() : undefined;
+    process.stdout.write(`${JSON.stringify({ id, tool, version, state, link, ...(notes !== undefined && { notes }), ...(truncated && { truncated }), ...(error && { error }), ...(rateLimit && { rateLimited: true }), ...(retryAt && { retryAt }), ...(from && { from }), ...(source && { source: sourceFormat(source) }) }, null, 2)}\n`);
+  } else {
+    process.stdout.write(inlineNotes(content, process.stdout.isTTY ? (process.stdout.columns ?? 80) : 80));
+  }
+  return content.state === "ready" ? 0 : 1;
+}
+
 /** One pass: scan, checklist, pre-flight, updates, summary, then Rescan / Quit. */
 async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<RoundResult> {
   const { results, detections, networkIssue, self } = await scanWithProgress(runtime, Boolean(process.stdout.isTTY), true);
@@ -633,6 +746,19 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
         options: offered.map((r) => ({ value: r.id, label: optionLabel(r), hint: optionHint(r), group: GROUP_LABELS[r.group] })),
         initialValues: picked,
         retry,
+        // What's new: n on a row shows that tool's notes for its latest version in a popup.
+        notes: {
+          show: async (id: string) => {
+            const row = offered.find((r) => r.id === id);
+            if (row) await showRowNotes(runtime, options, row);
+          },
+          open: (id: string) => {
+            const row = offered.find((r) => r.id === id);
+            if (row) openUrl(notesTargetFor(runtime, row).link);
+          },
+          fits: () => fitsPopup(process.stdout.columns ?? 80, process.stdout.rows ?? 24),
+          hint: !runtime.selections.whatsNewHidden,
+        },
       });
       if (answer === QUIT) return quitNothingChanged(pendingForSelection(offered.filter((r) => picked.includes(r.id))));
       if (answer === RETRY) return { code: 0, next: "retry" };
@@ -676,16 +802,25 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
   }
   log.success(line);
   if (selfLine) log.success(tone.done(selfLine));
-  const next = await choose({
-    message: "What next?",
-    options: selfUpdated ? [{ value: "quit", label: "Quit" }] : [
-      { value: "rescan", label: "Rescan" },
-      { value: "quit", label: "Quit" },
-    ],
-    initialValue: "quit",
-    // r rescans like the Rescan option; never after a self-update (the old code still runs).
-    rescan: !selfUpdated,
-  });
+  // n: what's new in the tools just updated (not after a self-update: the old code still runs, like r).
+  const updatedRows = rowsForWhatsNew(offered, outcome.updatedIds, selfUpdated);
+  let next: Awaited<ReturnType<typeof choose<"rescan" | "quit">>>;
+  for (;;) {
+    next = await choose({
+      message: "What next?",
+      options: selfUpdated ? [{ value: "quit", label: "Quit" }] : [
+        { value: "rescan", label: "Rescan" },
+        { value: "quit", label: "Quit" },
+      ],
+      initialValue: "quit",
+      // r rescans like the Rescan option; never after a self-update (the old code still runs).
+      rescan: !selfUpdated,
+      notes: updatedRows.length > 0,
+      notesHint: !runtime.selections.whatsNewHidden,
+    });
+    if (next !== NOTES) break;
+    await notesAfterUpdate(runtime, options, updatedRows);
+  }
   if (next === CANCELLED) exitCancelled();
   if (next === "rescan" || next === RESCAN) return { code, next: "rescan" };
   outro(tone.muted("Done."));
@@ -702,6 +837,7 @@ async function runInteractive(runtime: Runtime, options: CliOptions): Promise<{ 
     runtime.latest = runtime.freshLatest();
     if (shouldClearScreen({ interactive: true, isTTY: Boolean(process.stdout.isTTY), env: process.env, noClear: options.noClear, demo: options.demo })) {
       clearScreenKeepScrollback();
+      recordScreen();
     }
   }
 }
@@ -752,6 +888,12 @@ async function main(): Promise<number> {
     runtime.selections.setGroupHidden(group, hide);
     runtime.headerNotes.push(hide ? `${GROUP_LABELS[group]} hidden from now on · --show-group ${group} to show them again` : `${GROUP_LABELS[group]} shown again`);
   }
+  if (options.hideWhatsNew || options.showWhatsNew) {
+    runtime.selections.setWhatsNewHidden(options.hideWhatsNew);
+    runtime.headerNotes.push(options.hideWhatsNew ? `"n what's new" hint hidden from now on (n still works) · --show-whats-new to show it again` : `"n what's new" hint shown again`);
+  }
+  // --whats-new covers every tool, whatever the hidden groups.
+  if (options.whatsNew) return withDemoFooter(await runWhatsNew(runtime, options, options.whatsNew));
   // --pending (also with --json: the list only) follows the selection and the groups this run shows.
   if (options.pending) return withDemoFooter(await runPending(runtime, options));
   // --json and --discover always cover every group.
@@ -764,7 +906,11 @@ async function main(): Promise<number> {
 
   const interactive = !options.yes;
   const clear = { interactive, isTTY: Boolean(process.stdout.isTTY), env: process.env, noClear: options.noClear, demo: options.demo };
-  if (shouldClearScreen(clear)) clearScreenKeepScrollback();
+  if (shouldClearScreen(clear)) {
+    clearScreenKeepScrollback();
+    // The "What's new" overlay shows this screen, dimmed, behind its panel.
+    recordScreen();
+  }
 
   // Ctrl+C outside a prompt (e.g. during a scan) exits cleanly too.
   process.once("SIGINT", exitCancelled);

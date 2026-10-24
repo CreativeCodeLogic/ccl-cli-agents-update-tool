@@ -3,6 +3,7 @@ import { fetchLatestGithubRelease, GITHUB_CACHE_TTL_MS } from "../utils/github";
 import { getHost, pathFor } from "../utils/host";
 import { linuxPackageManager } from "./detect-helpers";
 import { brewPlan, versionFromCommand } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 /*
  * github.com/cli/cli#installation: official winget (GitHub.cli), MSI, Homebrew
@@ -24,6 +25,7 @@ export const gh: ToolDescriptor = {
   shortName: "gh",
   description: "GitHub's official CLI (gh)",
   docsUrl: "https://github.com/cli/cli#installation",
+  releaseNotes: githubRelease("cli/cli"),
   binNames: ["gh"],
   // winget allowlist (per-user installs only): upgrade 2.101.0 -> 2.102.0 passed silently
   // (Windows runner, winget 1.11). The MSI in Program Files stays a command (it is "native").
