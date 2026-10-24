@@ -28,6 +28,7 @@ import { NotesCache } from "./whatsnew/cache";
 import { rowsForWhatsNew } from "./whatsnew/flow";
 import { loadNotes, type NotesResult, type NotesTarget } from "./whatsnew/notes";
 import { notesLink, resolveSource, SELF_NOTES, type ReleaseNotesSource } from "./whatsnew/sources";
+import { recordScreen, screenRecord } from "./ui/backdrop";
 import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
 import { discoverHint, renderDiscovery } from "./ui/discover";
 import { latestVersionsProgress, liveTableAllowed } from "./ui/livetable";
@@ -601,6 +602,7 @@ function showRowNotes(runtime: Runtime, options: CliOptions, row: ToolScan, tooS
     loading,
     cancel: () => abort.abort(),
     tooSmall,
+    backdrop: () => screenRecord.snapshot(),
   });
 }
 
@@ -664,8 +666,9 @@ async function runWhatsNew(runtime: Runtime, options: CliOptions, id: string): P
   const content = await notesFor(runtime, options, row);
   if (options.json) {
     const source = notesSourceFor(runtime, row);
-    const { tool, version, state, link, notes, truncated, error, from } = content;
-    process.stdout.write(`${JSON.stringify({ id, tool, version, state, link, ...(notes !== undefined && { notes }), ...(truncated && { truncated }), ...(error && { error }), ...(from && { from }), ...(source && { source: sourceFormat(source) }) }, null, 2)}\n`);
+    const { tool, version, state, link, notes, truncated, error, rateLimit, from } = content;
+    const retryAt = rateLimit?.resetAt ? new Date(rateLimit.resetAt).toISOString() : undefined;
+    process.stdout.write(`${JSON.stringify({ id, tool, version, state, link, ...(notes !== undefined && { notes }), ...(truncated && { truncated }), ...(error && { error }), ...(rateLimit && { rateLimited: true }), ...(retryAt && { retryAt }), ...(from && { from }), ...(source && { source: sourceFormat(source) }) }, null, 2)}\n`);
   } else {
     process.stdout.write(inlineNotes(content, process.stdout.isTTY ? (process.stdout.columns ?? 80) : 80));
   }
@@ -834,6 +837,7 @@ async function runInteractive(runtime: Runtime, options: CliOptions): Promise<{ 
     runtime.latest = runtime.freshLatest();
     if (shouldClearScreen({ interactive: true, isTTY: Boolean(process.stdout.isTTY), env: process.env, noClear: options.noClear, demo: options.demo })) {
       clearScreenKeepScrollback();
+      recordScreen();
     }
   }
 }
@@ -902,7 +906,11 @@ async function main(): Promise<number> {
 
   const interactive = !options.yes;
   const clear = { interactive, isTTY: Boolean(process.stdout.isTTY), env: process.env, noClear: options.noClear, demo: options.demo };
-  if (shouldClearScreen(clear)) clearScreenKeepScrollback();
+  if (shouldClearScreen(clear)) {
+    clearScreenKeepScrollback();
+    // The "What's new" overlay shows this screen, dimmed, behind its panel.
+    recordScreen();
+  }
 
   // Ctrl+C outside a prompt (e.g. during a scan) exits cleanly too.
   process.once("SIGINT", exitCancelled);

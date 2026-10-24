@@ -1,6 +1,7 @@
 import { stripVTControlCharacters } from "node:util";
 import spawn from "cross-spawn";
 import pc from "../ui/colors";
+import { cellSlice, layBackdrop, type Cells, type ScreenSnapshot } from "../ui/backdrop";
 import { DEMO_NOTICE } from "../ui/demo-notice";
 import { sideEffectsBlocked } from "../utils/sandbox";
 import { renderMarkdown, shortUrl } from "./markdown";
@@ -33,6 +34,8 @@ export interface PopupContent {
   installed?: string | null;
   /** state "error": what went wrong. */
   error?: string;
+  /** state "error": GitHub's rate limit (the error is then the whole message); resetAt is epoch ms. */
+  rateLimit?: { resetAt: number | null };
   /** The notes were longer than CCL CAUT shows: "Notes cut here. Full notes: <link>". */
   truncated?: boolean;
   /** Demo: the DEMO MODE notice in the panel footer. */
@@ -43,6 +46,8 @@ export interface PopupView {
   cols: number;
   rows: number;
   ascii: boolean;
+  /** What CCL CAUT drew underneath, one row per screen row: shown dimmed around the panel. */
+  backdrop?: Cells[] | null;
   /** First body line shown. */
   scroll: number;
   /** A one-off line in the footer (e.g. "Opening github.com/..."). */
@@ -74,7 +79,7 @@ export function bodyLines(content: PopupContent, width: number, ascii: boolean):
     case "loading":
       return ["", pc.dim(`Fetching notes${g.ellipsis} (q cancels)`)];
     case "error":
-      return ["", `Couldn't load the release notes: ${sanitize(content.error ?? "unknown error")}`, "", official];
+      return ["", content.rateLimit ? sanitize(content.error ?? "") : `Couldn't load the release notes: ${sanitize(content.error ?? "unknown error")}`, "", official];
     case "none":
       return ["", content.version ? `No release notes for ${sanitize(content.version)}.` : `CCL CAUT doesn't know the latest version of ${sanitize(content.tool)}.`, "", official];
     case "link-only":
@@ -147,8 +152,21 @@ export function renderPopup(content: PopupContent, view: PopupView): { lines: st
     row(hintLine),
     `${b.bl}${b.h.repeat(outer - 2)}${b.br}`,
   ];
-  const leftPad = " ".repeat(Math.max(0, Math.floor((view.cols - outer) / 2)));
+  const leftWidth = Math.max(0, Math.floor((view.cols - outer) / 2));
   const topPad = Math.max(0, Math.floor((view.rows - panel.length) / 2));
+  const backdrop = view.backdrop;
+  if (backdrop) {
+    // The overlay: CCL CAUT's own last screen, dimmed, with the panel on top.
+    const dimmed = (text: string) => (text.trim() ? pc.dim(pc.gray(text)) : text);
+    const lines = Array.from({ length: view.rows }, (_, r) => {
+      const under = backdrop[r] ?? [];
+      const p = panel[r - topPad];
+      if (p === undefined) return dimmed(cellSlice(under, 0, view.cols).trimEnd());
+      return `${dimmed(cellSlice(under, 0, leftWidth))}${p}${dimmed(cellSlice(under, leftWidth + outer, view.cols).trimEnd())}`;
+    });
+    return { lines, maxScroll, bodyHeight };
+  }
+  const leftPad = " ".repeat(leftWidth);
   const lines = [...Array.from({ length: topPad }, () => ""), ...panel.map((l) => leftPad + l)];
   while (lines.length < view.rows) lines.push("");
   return { lines: lines.slice(0, view.rows), maxScroll, bodyHeight };
@@ -205,6 +223,12 @@ export interface PopupIO {
    * so a prompt underneath can say so in one line and stay intact.
    */
   tooSmall?: "inline" | "report";
+  /**
+   * What CCL CAUT last drew (see ui/backdrop): shown dimmed behind the panel.
+   * Not used without colors or on the ASCII console (blank background), nor
+   * when it doesn't fit the window.
+   */
+  backdrop?: () => ScreenSnapshot | null;
 }
 
 /** How showNotes ended. */
@@ -240,10 +264,13 @@ export function showNotes(content: PopupContent | Promise<PopupContent>, io: Pop
     let status: string | undefined;
     let closed = false;
     const was = { raw: Boolean(input.isRaw), paused: input.isPaused?.() ?? true };
+    // Taken before the alternate screen: the screen as CCL CAUT left it.
+    const under = io.backdrop && pc.isColorSupported && !io.ascii ? io.backdrop() : null;
 
     const draw = () => {
       if (closed) return;
-      const { lines, maxScroll } = renderPopup(current, { cols: cols(), rows: rows(), ascii: io.ascii, scroll, status });
+      const backdrop = under ? layBackdrop(under, cols(), rows()) : null;
+      const { lines, maxScroll } = renderPopup(current, { cols: cols(), rows: rows(), ascii: io.ascii, scroll, status, backdrop });
       scroll = Math.min(scroll, maxScroll);
       output.write(`${ESC}[H${lines.map((l) => `${l}${ESC}[K`).join("\r\n")}`);
     };
@@ -252,11 +279,15 @@ export function showNotes(content: PopupContent | Promise<PopupContent>, io: Pop
       closed = true;
       input.off("data", onData);
       output.off("resize", onResize);
-      if (!was.raw) input.setRawMode?.(false);
-      if (was.paused) input.pause();
       output.write(`${ESC}[?1049l${io.cursorHiddenAfter ? `${ESC}[?25l` : `${ESC}[?25h`}`);
       if (!settled) io.cancel?.();
-      resolve("shown");
+      // Restore stdin outside its own data callback (q is read there): on Windows, raw mode
+      // switched off and stdin paused inside it made the next prompt's setRawMode fail (EPIPE).
+      setImmediate(() => {
+        if (!was.raw) input.setRawMode?.(false);
+        if (was.paused) input.pause();
+        resolve("shown");
+      });
     };
     const page = () => Math.max(1, renderPopup(current, { cols: cols(), rows: rows(), ascii: io.ascii, scroll }).bodyHeight - 1);
     const onData = (data: Buffer | string) => {

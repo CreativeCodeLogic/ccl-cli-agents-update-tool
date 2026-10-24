@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough, Writable } from "node:stream";
@@ -12,7 +12,7 @@ import { Network, type FetchImpl, type TextResult } from "../src/utils/http";
 import { NO_NOTES_TTL_MS, NotesCache, NOTES_TTL_MS } from "../src/whatsnew/cache";
 import { rowsForWhatsNew } from "../src/whatsnew/flow";
 import { changelogSection, loadNotes, NOTES_DOWNLOAD_CAP, NOTES_RENDER_CAP, RELEASE_JSON_CAP, type FetchText, type NotesTarget } from "../src/whatsnew/notes";
-import { bodyLines, inlineNotes, renderPopup } from "../src/whatsnew/popup";
+import { bodyLines, inlineNotes, renderPopup, showNotes } from "../src/whatsnew/popup";
 import { historyLink, notesLink, releaseApiUrl, resolveSource, SELF_NOTES } from "../src/whatsnew/sources";
 
 const ESC = "\u001b";
@@ -161,13 +161,27 @@ describe("loadNotes: GitHub releases", () => {
     }
   });
 
-  it("rate limited: the error says how to raise the limit, and never shows the token", async () => {
+  it("rate limited: the message says when to try again, advises a token only when none is set, and never shows it", async () => {
     const limited = fakeFetch(() => httpError(403, { resetAt: null }));
     const without = await loadNotes(codex(), { fetchText: limited.fetchText, env: {} });
-    expect(without).toMatchObject({ state: "error", error: "GitHub rate limit reached; set GITHUB_TOKEN for higher limits" });
+    expect(without).toMatchObject({ state: "error", error: "GitHub rate limit reached. Try again later, or set GITHUB_TOKEN.", rateLimit: { resetAt: null } });
+    expect(limited.calls).toHaveLength(1);
     const withToken = await loadNotes(codex(), { fetchText: limited.fetchText, env: { GH_TOKEN: "ghp_secret" } });
-    expect(withToken.error).toBe("GitHub rate limit reached");
+    expect(withToken.error).toBe("GitHub rate limit reached. Try again later.");
+    // A rate limit is never retried without the token (that would only use up the smaller limit).
+    expect(limited.calls).toHaveLength(2);
     expect(JSON.stringify(withToken)).not.toContain("ghp_secret");
+  });
+
+  it("a 403 that isn't a rate limit, with a token (an org's IP allow list refuses app tokens): retried once without it", async () => {
+    const f = fakeFetch((_url, init) => (init.headers?.authorization ? httpError(403) : release("- Vibe notes")));
+    const notes = await loadNotes(codex(), { fetchText: f.fetchText, env: { GITHUB_TOKEN: "ghs_app" } });
+    expect(notes).toMatchObject({ state: "ready", from: "network" });
+    expect(f.calls.map((c) => Boolean(c.init.headers?.authorization))).toEqual([true, false]);
+    // Without a token there is nothing to drop: one request, the plain error.
+    const anonymous = fakeFetch(() => httpError(403));
+    expect(await loadNotes(codex(), { fetchText: anonymous.fetchText, env: {} })).toMatchObject({ state: "error", error: "HTTP 403" });
+    expect(anonymous.calls).toHaveLength(1);
   });
 
   it("long notes are cut at a line break, ending with 'Notes cut here. Full notes: <link>'", async () => {
@@ -399,6 +413,78 @@ describe("Network.fetchText (undici keep-alive pool, proxy, timeouts)", () => {
   });
 });
 
+describe("GitHub refusals, from recorded answers (headers as GitHub sends them)", () => {
+  // Epoch seconds as in x-ratelimit-reset; 1792862088 = the reset in the recorded CI answer.
+  const RESET = 1792862088;
+  const NOW = (RESET - 600) * 1000;
+  const answer = (status: number, headers: Record<string, string>, body: string) =>
+    new Network({
+      fetch: async () => ({ ok: false, status, headers: new Headers(headers), json: async () => JSON.parse(body), text: async () => body }),
+      dispatcher: () => undefined,
+      warmUpUrl: null,
+      now: () => NOW,
+    });
+  const PRIMARY = { "x-ratelimit-limit": "60", "x-ratelimit-remaining": "0", "x-ratelimit-used": "60", "x-ratelimit-resource": "core", "x-ratelimit-reset": String(RESET) };
+  const PRIMARY_BODY = JSON.stringify({ message: "API rate limit exceeded for 203.0.113.7. (But here's the good news: Authenticated requests get a higher rate limit. Check out the documentation for more details.)", documentation_url: "https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting" });
+  const SECONDARY = { "retry-after": "60", "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4890", "x-ratelimit-resource": "core", "x-ratelimit-reset": String(RESET) };
+  const SECONDARY_BODY = JSON.stringify({ message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again.", documentation_url: "https://docs.github.com/rest/overview/rate-limits-for-the-rest-api#about-secondary-rate-limits" });
+  // Recorded in the canary (run 40110642514): Actions' GITHUB_TOKEN against mistralai/mistral-vibe.
+  const ALLOW_LIST = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4979", "x-ratelimit-resource": "core", "x-ratelimit-reset": String(RESET), "x-accepted-github-permissions": "contents=read" };
+  const ALLOW_LIST_BODY = JSON.stringify({ message: "Although you appear to have the correct authorization credentials, the `mistralai` organization has an IP allow list enabled, and your IP address is not permitted to access this resource.", documentation_url: "https://docs.github.com/rest/releases/releases#get-a-release-by-tag-name", status: "403" });
+  const at = (ms: number) => new Date(ms).toTimeString().slice(0, 5);
+
+  const dirs: string[] = [];
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+  const tempCache = () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "ccl-caut-notes-")), "whats-new");
+    dirs.push(join(dir, ".."));
+    return { dir, cache: new NotesCache(dir, () => NOW, undefined, process.platform) };
+  };
+
+  it("primary limit (403, x-ratelimit-remaining: 0): 'Try again after <reset, local time>, or set GITHUB_TOKEN', with the link", async () => {
+    const net = answer(403, PRIMARY, PRIMARY_BODY);
+    const notes = await loadNotes(codex(), { fetchText: (url, init) => net.fetchText(url, init), env: {} });
+    expect(notes).toMatchObject({ state: "error", rateLimit: { resetAt: RESET * 1000 } });
+    expect(notes.error).toBe(`GitHub rate limit reached. Try again after ${at(RESET * 1000)}, or set GITHUB_TOKEN.`);
+    const body = stripVTControlCharacters(bodyLines(notes, 80, true).join("\n"));
+    expect(body).toContain(`GitHub rate limit reached. Try again after ${at(RESET * 1000)}, or set GITHUB_TOKEN.`);
+    expect(body).not.toContain("Couldn't load");
+    expect(body).toContain("https://github.com/openai/codex/releases/tag/rust-v0.164.0");
+  });
+
+  it("secondary limit (403 + retry-after) and 429 are rate limits too", async () => {
+    const secondary = answer(403, SECONDARY, SECONDARY_BODY);
+    expect((await loadNotes(codex(), { fetchText: (u, i) => secondary.fetchText(u, i), env: { GITHUB_TOKEN: "ghs_x" } })).error).toBe(`GitHub rate limit reached. Try again after ${at(RESET * 1000)}.`);
+    const tooMany = answer(429, { "retry-after": "120" }, "{}");
+    const notes = await loadNotes(codex(), { fetchText: (u, i) => tooMany.fetchText(u, i), env: {} });
+    expect(notes).toMatchObject({ rateLimit: { resetAt: NOW + 120_000 } });
+    expect(notes.error).toBe(`GitHub rate limit reached. Try again after ${at(NOW + 120_000)}, or set GITHUB_TOKEN.`);
+  });
+
+  it("a rate limit is not cached as 'no notes': the next press asks GitHub again", async () => {
+    const { dir, cache } = tempCache();
+    let calls = 0;
+    const net = answer(403, PRIMARY, PRIMARY_BODY);
+    const fetchText: FetchText = (u, i) => {
+      calls++;
+      return net.fetchText(u, i);
+    };
+    expect((await loadNotes(codex(), { fetchText, cache, env: {} })).state).toBe("error");
+    expect(existsSync(dir) ? readdirSync(dir) : []).toHaveLength(0);
+    await loadNotes(codex(), { fetchText, cache, env: {} });
+    expect(calls).toBe(2);
+  });
+
+  it("the IP allow list refusal (403, quota left) is not a rate limit", async () => {
+    const net = answer(403, ALLOW_LIST, ALLOW_LIST_BODY);
+    const result = await net.fetchText("https://api.github.com/repos/mistralai/mistral-vibe/releases/tags/v3.0.2", { maxBytes: 100 });
+    expect(result).toMatchObject({ ok: false, status: 403 });
+    expect(!result.ok && result.failure.rateLimit).toBeFalsy();
+  });
+});
+
 function keys(...sequence: string[]) {
   const input = new PassThrough();
   let drawn = "";
@@ -485,3 +571,35 @@ describe("popup glyphs come from symbols.ts", () => {
   });
 });
 
+describe("closing the popup hands stdin back cleanly", () => {
+  it("q: raw mode and pause are restored after the key's data callback, before the next prompt (Windows EPIPE)", async () => {
+    const calls: string[] = [];
+    const input = Object.assign(new PassThrough(), {
+      isTTY: true,
+      isRaw: false,
+      setRawMode: (mode: boolean) => calls.push(`raw ${mode}`),
+    });
+    const pause = input.pause.bind(input);
+    input.pause = () => {
+      calls.push("pause");
+      return pause();
+    };
+    input.pause();
+    calls.length = 0;
+    const output = Object.assign(new PassThrough(), { isTTY: true, columns: 100, rows: 30 }) as unknown as NodeJS.WriteStream;
+    const content = { tool: "Codex CLI", version: "0.164.0", state: "ready" as const, notes: "- one", link: "https://x.test" };
+    let closed = false;
+    const done = showNotes(content, { input, output, ascii: true }).then((r) => {
+      closed = true;
+      return r;
+    });
+    input.on("data", (d) => {
+      // Inside the data callback of q: stdin is still raw and flowing.
+      if (String(d) === "q") calls.push("data q");
+    });
+    input.write("q");
+    expect(await done).toBe("shown");
+    expect(closed).toBe(true);
+    expect(calls).toEqual(["raw true", "data q", "raw false", "pause"]);
+  });
+});

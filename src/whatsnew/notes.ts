@@ -73,16 +73,36 @@ export function changelogSection(text: string, heading: RegExp): { body: string;
   return { body: (lastBreak > 0 ? rest.slice(0, lastBreak) : rest).trim(), complete: false };
 }
 
-type Outcome = { state: "ready"; notes: string; truncated: boolean } | { state: "none" } | { state: "error"; error: string };
+type Outcome =
+  | { state: "ready"; notes: string; truncated: boolean }
+  | { state: "none" }
+  | { state: "error"; error: string; rateLimit?: { resetAt: number | null } };
 
-function failureMessage(failure: NetFailure, env: Readonly<Record<string, string | undefined>>): string {
-  if (failure.rateLimit) return `GitHub rate limit reached${githubTokenSource(env) ? "" : "; set GITHUB_TOKEN for higher limits"}`;
-  return describeFailure(failure);
+/**
+ * "GitHub rate limit reached. Try again after 19:42, or set GITHUB_TOKEN." (local time;
+ * "later" when GitHub didn't say or the time already passed; no advice when a token is set).
+ */
+export function rateLimitMessage(resetAt: number | null, hasToken: boolean, now = Date.now()): string {
+  const after = resetAt && resetAt > now ? `after ${new Date(resetAt).toTimeString().slice(0, 5)}` : "later";
+  return `GitHub rate limit reached. Try again ${after}${hasToken ? "" : ", or set GITHUB_TOKEN"}.`;
+}
+
+function failureOutcome(failure: NetFailure, env: Readonly<Record<string, string | undefined>>): Outcome {
+  if (failure.rateLimit) return { state: "error", error: rateLimitMessage(failure.rateLimit.resetAt, githubTokenSource(env) !== null), rateLimit: failure.rateLimit };
+  return { state: "error", error: describeFailure(failure) };
 }
 
 async function fromGithub(source: Extract<ReleaseNotesSource, { kind: "github-release" }>, version: string, fetchText: FetchText, env: Readonly<Record<string, string | undefined>>, signal?: AbortSignal): Promise<Outcome> {
-  const result = await fetchText(releaseApiUrl(source.repo, source.tag(version)), { headers: githubApiHeaders(env), maxBytes: RELEASE_JSON_CAP, ...(signal && { signal }) });
-  if (!result.ok) return result.status === 404 ? { state: "none" } : { state: "error", error: failureMessage(result.failure, env) };
+  const url = releaseApiUrl(source.repo, source.tag(version));
+  const headers = githubApiHeaders(env);
+  let result = await fetchText(url, { headers, maxBytes: RELEASE_JSON_CAP, ...(signal && { signal }) });
+  // A 403 that isn't a rate limit, with a token: orgs with an IP allow list refuse GitHub App
+  // tokens (Actions' GITHUB_TOKEN) even for public releases, which are readable without one.
+  if (!result.ok && result.status === 403 && !result.failure.rateLimit && headers.authorization) {
+    const { authorization: _, ...anonymous } = headers;
+    result = await fetchText(url, { headers: anonymous, maxBytes: RELEASE_JSON_CAP, ...(signal && { signal }) });
+  }
+  if (!result.ok) return result.status === 404 ? { state: "none" } : failureOutcome(result.failure, env);
   if (result.capped) return { state: "error", error: "the release is too large to read here" };
   let body: unknown;
   try {
@@ -96,7 +116,7 @@ async function fromGithub(source: Extract<ReleaseNotesSource, { kind: "github-re
 
 async function fromChangelog(source: Extract<ReleaseNotesSource, { kind: "changelog-file" }>, version: string, fetchText: FetchText, env: Readonly<Record<string, string | undefined>>, signal?: AbortSignal): Promise<Outcome> {
   const result = await fetchText(source.url, { headers: { accept: "text/plain, text/markdown, */*", range: `bytes=0-${source.rangeBytes - 1}` }, maxBytes: NOTES_DOWNLOAD_CAP, ...(signal && { signal }) });
-  if (!result.ok) return { state: "error", error: failureMessage(result.failure, env) };
+  if (!result.ok) return failureOutcome(result.failure, env);
   // 206: the server sent the first part we asked for. 200: it ignored Range and sent the file (cut at the cap).
   const partial = result.status === 206 || result.capped;
   const section = changelogSection(sanitize(result.text), source.heading(version));
@@ -143,8 +163,9 @@ export async function loadNotes(target: NotesTarget, deps: NotesDeps = {}, signa
 
   if (outcome.state === "error") {
     // Offline or rate limited: notes cached earlier (even expired) are still the right notes.
+    // An error itself is never cached (it isn't "no notes").
     if (hit) return fromCache(hit.entry, "stale-cache");
-    return { ...base, state: "error", error: outcome.error };
+    return { ...base, state: "error", error: outcome.error, ...(outcome.rateLimit && { rateLimit: outcome.rateLimit }) };
   }
   if (signal?.aborted) return { ...base, state: "error", error: "cancelled" };
   cache?.set(key, outcome.state === "ready" ? { state: "ready", notes: outcome.notes, ...(outcome.truncated && { truncated: true }) } : { state: "none" });
