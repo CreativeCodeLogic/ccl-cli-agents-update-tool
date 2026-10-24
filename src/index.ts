@@ -21,7 +21,9 @@ import type { ToolDescriptor, ToolScan } from "./types";
 import { headerStyle, printHeader, type HeaderStyle } from "./ui/banner";
 import { CANCEL_EXIT_CODE, CANCEL_MESSAGE, createProgress } from "./ui/progress";
 import { displayVersion } from "./ui/format";
-import { icons } from "./ui/symbols";
+import { icons, isUnicodeSupported } from "./ui/symbols";
+import { showNotes } from "./whatsnew/popup";
+import { demoNotes } from "./demo/notes";
 import { clearScreenKeepScrollback, shouldClearScreen } from "./ui/screen";
 import { discoverHint, renderDiscovery } from "./ui/discover";
 import { latestVersionsProgress, liveTableAllowed } from "./ui/livetable";
@@ -633,6 +635,13 @@ async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<
         options: offered.map((r) => ({ value: r.id, label: optionLabel(r), hint: optionHint(r), group: GROUP_LABELS[r.group] })),
         initialValues: picked,
         retry,
+        // What's new (1.3, demo only for now): n on a row shows that tool's notes in a popup.
+        ...(options.demo && {
+          onNotes: async (id: string) => {
+            const row = offered.find((r) => r.id === id);
+            if (row) await showNotes(demoNotes(row), { input: process.stdin, output: process.stdout, ascii: !isUnicodeSupported(), cursorHiddenAfter: true });
+          },
+        }),
       });
       if (answer === QUIT) return quitNothingChanged(pendingForSelection(offered.filter((r) => picked.includes(r.id))));
       if (answer === RETRY) return { code: 0, next: "retry" };

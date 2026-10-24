@@ -1,3 +1,4 @@
+import { PassThrough } from "node:stream";
 import { isCancel, MultiSelectPrompt, SelectPrompt, TextPrompt } from "@clack/core";
 import { S_BAR, S_BAR_END, S_CHECKBOX_INACTIVE, S_CHECKBOX_SELECTED, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_SUBMIT } from "@clack/prompts";
 import pc from "./colors";
@@ -44,6 +45,38 @@ export interface ChecklistOption<T extends string> {
 
 const bar = pc.gray(S_BAR);
 const CHECKLIST_KEYS = "↑/↓ move · space select · a all · enter confirm · q quit";
+const CHECKLIST_KEYS_NOTES = "↑/↓ move · space select · a all · n what's new · enter confirm · q quit";
+
+/**
+ * Keys for a prompt that can open a popup (n): stdin passes through a gate, so
+ * while the popup is open the prompt sees nothing (arrows scroll the notes, not
+ * the checklist). Raw mode is left as it was found.
+ */
+function keyGate(stdin: NodeJS.ReadStream = process.stdin) {
+  const proxy = new PassThrough();
+  let open = true;
+  const forward = (data: Buffer | string) => {
+    if (open) proxy.write(data);
+  };
+  const wasRaw = Boolean(stdin.isRaw);
+  if (stdin.isTTY && !wasRaw) stdin.setRawMode(true);
+  stdin.on("data", forward);
+  stdin.resume();
+  return {
+    input: proxy,
+    pause: () => {
+      open = false;
+    },
+    resume: () => {
+      open = true;
+    },
+    dispose: () => {
+      stdin.off("data", forward);
+      if (stdin.isTTY && !wasRaw) stdin.setRawMode(false);
+      proxy.end();
+    },
+  };
+}
 const CHOOSE_KEYS = "↑/↓ move · enter confirm · q quit";
 
 /**
@@ -97,13 +130,21 @@ function footer(keys: string, retry?: boolean, rescan?: boolean): string[] {
 
 /** Multi-select: selected = amber filled box, unselected = dim empty box, focused row = bold label. */
 export async function checklist<T extends string>(
-  opts: { message: string; hint?: string; options: ChecklistOption<T>[]; initialValues: T[] } & PromptIO,
+  opts: {
+    message: string;
+    hint?: string;
+    options: ChecklistOption<T>[];
+    initialValues: T[];
+    /** n on a row: show that tool's release notes (a popup); the checklist waits, unchanged. */
+    onNotes?: (value: T) => Promise<void>;
+  } & PromptIO,
 ): Promise<T[] | Escape | typeof RETRY> {
   const flag: KeyFlags = { quit: false, retry: false };
+  const gate = opts.onNotes && !opts.input ? keyGate() : null;
   const prompt = new MultiSelectPrompt<ChecklistOption<T>>({
     options: opts.options,
     initialValues: opts.initialValues,
-    ...(opts.input && { input: opts.input as never }),
+    ...(opts.input ? { input: opts.input as never } : gate ? { input: gate.input as never } : {}),
     ...(opts.output && { output: opts.output as never }),
     render() {
       const value = (this.value ?? []) as T[];
@@ -119,12 +160,27 @@ export async function checklist<T extends string>(
         const label = i === this.cursor ? tone.focus(option.label) : selected ? option.label : tone.muted(option.label);
         lines.push(`${bar}  ${box} ${label}${option.hint ? `  ${tone.muted(option.hint)}` : ""}`);
       });
-      lines.push(bar, ...footer(CHECKLIST_KEYS, opts.retry), pc.gray(S_BAR_END));
+      lines.push(bar, ...footer(opts.onNotes ? CHECKLIST_KEYS_NOTES : CHECKLIST_KEYS, opts.retry), pc.gray(S_BAR_END));
       return lines.join("\n");
     },
   });
   withKeys(prompt, flag, opts.retry);
-  const result = await prompt.prompt();
+  if (opts.onNotes) {
+    const onNotes = opts.onNotes;
+    let busy = false;
+    prompt.on("key", (char) => {
+      if ((char !== "n" && char !== "N") || busy) return;
+      const value = opts.options[prompt.cursor]?.value;
+      if (value === undefined) return;
+      busy = true;
+      gate?.pause();
+      void onNotes(value).finally(() => {
+        busy = false;
+        gate?.resume();
+      });
+    });
+  }
+  const result = await prompt.prompt().finally(() => gate?.dispose());
   if (flag.quit) return QUIT;
   if (flag.retry) return RETRY;
   if (isCancel(result)) return CANCELLED;
