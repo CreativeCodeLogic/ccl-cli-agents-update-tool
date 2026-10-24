@@ -31,6 +31,18 @@ async function formatStillUsed(source) {
   return { known: true, used: shape.test(res.text), why: "no heading of that shape in the first 128 KB" };
 }
 
+/** Why did GitHub refuse? Status, rate-limit headers and the message (never the token). */
+async function probeGitHub(source, version) {
+  const tag = source.tagFormat.replace("<version>", version);
+  const url = `https://api.github.com/repos/${source.repo}/releases/tags/${encodeURIComponent(tag)}`;
+  const auth = token ? { authorization: `Bearer ${token}` } : {};
+  const res = await fetch(url, { headers: { "user-agent": "ccl-caut-canary", accept: "application/vnd.github+json", ...auth }, signal: AbortSignal.timeout(20_000) });
+  const pick = ["x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-resource", "x-ratelimit-reset", "retry-after", "x-github-sso", "x-accepted-github-permissions"];
+  const headers = pick.map((h) => res.headers.get(h) !== null && `${h}=${res.headers.get(h)}`).filter(Boolean).join(" ");
+  const body = (await res.text()).replace(/\s+/g, " ").slice(0, 300);
+  return `probe (${token ? "with" : "without"} a token): HTTP ${res.status} ${headers} ${body}`;
+}
+
 const broken = [];
 for (const id of ids) {
   const run = spawnSync(process.execPath, ["dist/index.js", "--whats-new", id, "--json"], { encoding: "utf8", timeout: 120_000 });
@@ -55,6 +67,7 @@ for (const id of ids) {
   }
   if (result.state === "error" && result.source?.kind === "github-release") {
     console.log(`warn ${line}: ${result.error}`);
+    console.log(`     ${await probeGitHub(result.source, result.version).catch((error) => `probe failed: ${error}`)}`);
     console.log(`::warning title=${id}::${result.error}`);
     continue;
   }
