@@ -1,4 +1,5 @@
-import { log, spinner } from "@clack/prompts";
+import { spinner } from "@clack/prompts";
+import { log } from "./log";
 
 export interface Progress {
   start(message: string): void;

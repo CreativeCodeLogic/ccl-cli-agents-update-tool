@@ -1,12 +1,13 @@
 import path from "node:path";
-import { log } from "@clack/prompts";
+import { stripVTControlCharacters } from "node:util";
+import { log } from "./log";
 import type { BinaryInstance, ToolDescriptor, ToolScan } from "../types";
 import type { VersionCache } from "../utils/cache";
 import { debug } from "../utils/debug";
 import { exec, execCapture, type TeeResult } from "../utils/exec";
 import { getHost } from "../utils/host";
 import { getNpmGlobalPaths } from "../utils/npm";
-import { getNpmScriptPolicy, installedPackageOf, npmRepairCommand, parseBlockedScripts } from "../utils/npm-scripts";
+import { getNpmScriptPolicy, installedPackageOf, NPM_SCRIPT_NEEDED, npmRepairCommand, parseBlockedScripts } from "../utils/npm-scripts";
 import { isUnderProgramFiles } from "../utils/paths";
 import { sameVersion } from "../utils/version";
 import { LiveStatus } from "./live";
@@ -47,6 +48,13 @@ const runForReal: UpdateExecutor = (command, args, _target, onChunk) => execCapt
 
 const NPM_HTTP = /^npm (?:http|verb) (?:fetch|cache) /;
 
+/** What a \r-redrawn line finally shows: its last non-blank segment, as plain text. */
+export function finalState(raw: string): string {
+  const segments = raw.split("\r").map((s) => stripVTControlCharacters(s).replace(/\t/g, "  ").replace(/\s+$/, ""));
+  for (let i = segments.length - 1; i >= 0; i--) if (segments[i]!.trim()) return segments[i]!;
+  return "";
+}
+
 /** Follows an updater's output: the latest meaningful line, npm fetch count, and a tail for failures. */
 export class OutputTracker {
   private pending = "";
@@ -55,14 +63,18 @@ export class OutputTracker {
   fetched = 0;
 
   feed(text: string): void {
-    const parts = (this.pending + text).split(/\r?\n|\r/);
+    const parts = (this.pending + text).split(/\r?\n/);
     this.pending = parts.pop() ?? "";
-    for (const raw of parts) this.take(raw);
+    // A line redrawn with \r (progress bars, spinners) counts once, in its final state.
+    for (const raw of parts) this.take(finalState(raw));
+    // The line being redrawn right now: shown live, recorded once it ends.
+    const live = finalState(this.pending);
+    if (live) this.latest = live;
   }
 
   /** Flush a final line without a newline. */
   end(): void {
-    if (this.pending) this.take(this.pending);
+    if (this.pending) this.take(finalState(this.pending));
     this.pending = "";
   }
 
@@ -75,6 +87,7 @@ export class OutputTracker {
   }
 
   private take(raw: string): void {
+    // Escape-code-only and blank lines never become an empty "│" line.
     const line = raw.replace(/\s+$/, "");
     if (!line.trim()) return;
     this.lines.push(line);
@@ -238,7 +251,10 @@ export async function applyUpdates(
         const blocked = parseBlockedScripts(result.output);
         const pkg = installedPackageOf(args);
         const ownBlocked = pkg !== null && blocked.some((b) => b.pkg === pkg);
-        if (pkg && (ownBlocked || (after === null && !(await probe(instance.path))))) {
+        // Known to need its own script (placeholder binary): broken. Otherwise (e.g. Netlify's
+        // script only adds shell completion) only when the command no longer starts.
+        const needed = ownBlocked && Boolean(NPM_SCRIPT_NEEDED[pkg]);
+        if (pkg && (needed || ((ownBlocked || after === null) && !(await probe(instance.path))))) {
           const repair = npmRepairCommand(pkg, blocked, await getNpmScriptPolicy());
           outcome.failed++;
           outcome.failedIds.push(scan.id);
@@ -248,7 +264,7 @@ export async function applyUpdates(
           continue;
         }
         if (blocked.length > 0) {
-          log.message(tone.muted(`npm skipped install scripts it doesn't need to run ${scan.name}: ${blocked.map((b) => b.pkg).join(", ")}`));
+          log.message(tone.muted(`npm skipped these install scripts (${scan.name} starts without them): ${blocked.map((b) => b.pkg).join(", ")}`));
         }
       }
       if (after && !sameVersion(before, after)) {

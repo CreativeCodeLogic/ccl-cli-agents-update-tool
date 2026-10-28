@@ -159,6 +159,18 @@ describe("after an npm update: BROKEN, never 'unchanged'", () => {
     expect(outcome).toMatchObject({ updated: 1, failed: 0 });
   });
 
+  it("the tool's own script was skipped but isn't needed (Netlify: shell completion), and it starts: updated", async () => {
+    const netlify = (await import("../src/registry/netlify")).netlify;
+    const output = ["changed 1 package in 30s", "npm warn install-scripts 1 package had install scripts blocked because they are not covered by allowScripts:", "npm warn install-scripts   netlify-cli@27.15.0 (postinstall: node ./scripts/postinstall.js)", "npm warn install-scripts"].join("\n");
+    const probe = vi.fn(async () => true);
+    const outcome = await applyUpdates([target(netlify, "netlify-cli", async () => "27.15.0")], null, async () => ({ code: 0, output }), probe);
+    expect(outcome).toMatchObject({ updated: 1, failed: 0 });
+    expect(probe).toHaveBeenCalled();
+    // ...and when it doesn't start, it is broken.
+    const broken = await applyUpdates([target(netlify, "netlify-cli", async () => "27.15.0")], null, async () => ({ code: 0, output }), async () => false);
+    expect(broken).toMatchObject({ failed: 1 });
+  });
+
   it("old npm (no warning) and the tool runs: updated as before, no probe needed", async () => {
     const probe = vi.fn(async () => true);
     const outcome = await applyUpdates([target(codex, "@openai/codex", vi.fn(async () => "0.165.0"))], null, async () => ({ code: 0, output: "changed 1 package in 3s" }), probe);

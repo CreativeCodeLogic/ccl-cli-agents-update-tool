@@ -1,4 +1,6 @@
-import { cancel, intro, log, outro } from "@clack/prompts";
+import { cancel, intro, outro } from "@clack/prompts";
+import { log } from "./ui/log";
+import { keepTerminalTitle, releaseTerminalTitle } from "./utils/title";
 import pc from "./ui/colors";
 import pkg from "../package.json" with { type: "json" };
 import { createDemoRuntime } from "./demo/runtime";
@@ -362,7 +364,7 @@ async function scanWithProgress(runtime: Runtime, center: boolean, selfRow = fal
   const networkIssue = networkIssueLine(results);
   check.stop(networkIssue ? "Latest versions could not be checked" : "Latest versions checked");
 
-  console.log(`${pc.gray(icons.bar)}\n${renderTable(results, process.stdout.isTTY ? (process.stdout.columns ?? 80) : Number.POSITIVE_INFINITY)}`);
+  console.log(`${pc.gray(icons.bar)}\n${renderTable(results, process.stdout.isTTY ? (process.stdout.columns ?? 80) - 1 : Number.POSITIVE_INFINITY)}`);
   printNotes(results, getHost().platform);
   const lateNotice = takeSelfNotice();
   if (lateNotice) log.message(pc.dim(lateNotice));
@@ -721,6 +723,8 @@ async function main(): Promise<number> {
     return 2;
   }
   const { options } = parsed;
+  // Windows: the commands we run (npm, node-gyp) rename the console; put its title back after each.
+  if (keepTerminalTitle()) process.on("exit", releaseTerminalTitle);
   // --demo --json stays pure JSON (it carries "demo": true instead).
   setDemoMode(options.demo && !options.json);
   const header = headerStyle(options, Boolean(process.stdout.isTTY), process.env);

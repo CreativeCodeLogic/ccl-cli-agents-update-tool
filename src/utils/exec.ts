@@ -2,6 +2,7 @@ import spawn from "cross-spawn";
 import { debug } from "./debug";
 import { sideEffectsBlocked } from "./sandbox";
 import { childStdin } from "./unattended";
+import { restoreTerminalTitle } from "./title";
 
 export interface ExecResult {
   ok: boolean;
@@ -30,6 +31,7 @@ export function exec(command: string, args: string[], timeoutMs = 10_000, input?
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      restoreTerminalTitle();
       resolve(result);
     };
 
@@ -96,7 +98,10 @@ export function execTee(command: string, args: string[]): Promise<TeeResult> {
         keep(chunk);
       });
       child.on("error", (error) => resolve({ code: null, output: output + String(error) }));
-      child.on("close", (code) => resolve({ code, output }));
+      child.on("close", (code) => {
+        restoreTerminalTitle();
+        resolve({ code, output });
+      });
     } catch (error) {
       resolve({ code: null, output: String(error) });
     }
@@ -125,7 +130,10 @@ export function execCapture(command: string, args: string[], onChunk: (text: str
       child.stdout?.on("data", keep);
       child.stderr?.on("data", keep);
       child.on("error", (error) => resolve({ code: null, output: output + String(error) }));
-      child.on("close", (code) => resolve({ code, output }));
+      child.on("close", (code) => {
+        restoreTerminalTitle();
+        resolve({ code, output });
+      });
     } catch (error) {
       resolve({ code: null, output: String(error) });
     }

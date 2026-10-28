@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { log } from "@clack/prompts";
+import { log } from "./ui/log";
 import { ask, CANCELLED, choose, QUIT } from "./ui/prompts";
 import { tone } from "./ui/theme";
 import { exec } from "./utils/exec";
