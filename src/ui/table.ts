@@ -1,12 +1,13 @@
-import { log } from "@clack/prompts";
+import { log } from "./log";
 import { stripVTControlCharacters } from "node:util";
 import pc from "./colors";
 import { GROUP_LABELS, TOOL_GROUPS, type InstallMethod, type ToolNote, type ToolScan } from "../types";
 import { displayVersion, formatAgo } from "./format";
 import { icons, stateStyle } from "./symbols";
 import { tone } from "./theme";
+import { displayWidth, fitWidth } from "./width";
 
-const visibleLength = (s: string) => stripVTControlCharacters(s).length;
+const visibleLength = (s: string) => displayWidth(s);
 const pad = (s: string, width: number) => s + " ".repeat(Math.max(0, width - visibleLength(s)));
 
 /** Results in group order (AI agents, then Dev CLIs), registry order inside each group. */
@@ -36,6 +37,8 @@ const SHORT_STATE: Partial<Record<ToolScan["state"], string>> = { outdated: "out
 export function renderTable(results: readonly ToolScan[], columns: number = Number.POSITIVE_INFINITY, pending?: PendingRows): string {
   let table = tableAt(results, 0, pending);
   for (let level = 1; level <= 4 && table.width > columns; level++) table = tableAt(results, level, pending);
+  // Still too wide (a very narrow window): cut each row at the edge rather than let it wrap.
+  if (table.width > columns) return table.text.split("\n").map((l) => (displayWidth(l) > columns ? fitWidth(stripVTControlCharacters(l), columns, icons.ellipsis) : l)).join("\n");
   return table.text;
 }
 

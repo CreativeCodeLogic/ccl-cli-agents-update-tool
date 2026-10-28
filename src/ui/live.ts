@@ -1,7 +1,9 @@
 import { S_BAR, unicodeOr } from "@clack/prompts";
 import { stripVTControlCharacters } from "node:util";
 import pc from "./colors";
+import { icons } from "./symbols";
 import { tone } from "./theme";
+import { displayWidth, fitWidth } from "./width";
 
 const FRAMES = unicode() ? ["◒", "◐", "◓", "◑"] : ["-", "\\", "|", "/"];
 const TICK_MS = 100;
@@ -16,22 +18,41 @@ export function formatElapsed(ms: number): string {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-/** Cut a line to `width` visible columns (ANSI-free input). */
+/** Cut a line to `width` columns (display width; escape codes, tabs and trailing spaces removed). */
 export function fitToWidth(text: string, width: number): string {
-  const clean = stripVTControlCharacters(text).replace(/\s+$/, "");
-  return clean.length <= width ? clean : `${clean.slice(0, Math.max(0, width - 1))}…`;
+  const clean = stripVTControlCharacters(text).replace(/\t/g, "  ").replace(/\s+$/, "");
+  return fitWidth(clean, width, icons.ellipsis);
 }
 
 /**
- * A two-line live status for one running update, redrawn every 100ms:
- *   ◐  Updating Codex CLI  0:07 · fetched 23 files
+ * The status line: spinner, title, then the elapsed time and counter. When it
+ * doesn't fit, the title gives way (the time and counter stay readable).
+ */
+export function statusLine(spinner: string, title: string, status: string, width: number): string {
+  const tail = status ? `  ${tone.muted(status)}` : "";
+  const full = `${spinner}  ${title}${tail}`;
+  if (displayWidth(full) <= width) return full;
+  const room = width - displayWidth(`${spinner}  `) - displayWidth(tail);
+  if (room < 8) return `${spinner}  ${fitToWidth(`${stripVTControlCharacters(title)}${tail ? `  ${status}` : ""}`, Math.max(1, width - displayWidth(`${spinner}  `)))}`;
+  return `${spinner}  ${fitToWidth(title, room)}${tail}`;
+}
+
+/**
+ * A three-line live status for one running update, redrawn every 100ms:
+ *   │
+ *   ◐  Updating Codex CLI  $ npm install -g @openai/codex@latest  0:07 · fetched 23 files
  *   │  <latest line of the updater's output, dimmed>
+ * Always three rows: every line is cut to the window, and a redraw erases the
+ * rows the last frame took (measured at the current width, in case the window
+ * was resized and the terminal reflowed them). A line the terminal wraps would
+ * otherwise leave a row behind on every redraw: a screen of empty "│" lines.
  * Not a TTY: one static line, no animation. stop() erases it.
  */
 export class LiveStatus {
   private frame = 0;
   private timer: NodeJS.Timeout | undefined;
-  private drawn = 0;
+  /** Display widths of the lines on screen (empty: nothing drawn). */
+  private drawn: number[] = [];
   private latest = "";
   private counter = "";
   private readonly startedAt = Date.now();
@@ -71,20 +92,34 @@ export class LiveStatus {
     this.out.write("\x1b[?25h"); // show cursor
   }
 
+  private columns(): number {
+    return this.out.columns && this.out.columns > 0 ? this.out.columns : 80;
+  }
+
   private erase(): void {
-    if (this.drawn === 0) return;
-    this.out.write(`\x1b[${this.drawn}A\r\x1b[J`);
-    this.drawn = 0;
+    if (this.drawn.length === 0) return;
+    const cols = this.columns();
+    // Rows the last frame takes now (a narrower window may have reflowed a line into two).
+    const rows = this.drawn.reduce((sum, w) => sum + Math.max(1, Math.ceil(w / cols)), 0);
+    this.out.write(`\x1b[${rows}A\r\x1b[J`);
+    this.drawn = [];
+  }
+
+  /** The frame's lines for a window this wide (each one row, the last column left free). */
+  lines(width = this.columns()): string[] {
+    const room = Math.max(10, width - 1);
+    const spinner = tone.action(FRAMES[this.frame % FRAMES.length] ?? "-");
+    const status = [this.elapsed(), this.counter].filter(Boolean).join(" · ");
+    const latest = this.latest ? tone.muted(fitToWidth(this.latest, room - 3)) : tone.muted(icons.ellipsis);
+    return [pc.gray(S_BAR), statusLine(spinner, this.title, status, room), `${pc.gray(S_BAR)}  ${latest}`];
   }
 
   private draw(): void {
-    const width = Math.max(20, (this.out.columns ?? 80) - 4);
-    const spinner = tone.action(FRAMES[this.frame++ % FRAMES.length] ?? "-");
-    const status = [this.elapsed(), this.counter].filter(Boolean).join(" · ");
-    const lines = [pc.gray(S_BAR), `${spinner}  ${this.title}  ${tone.muted(status)}`];
-    if (this.latest) lines.push(`${pc.gray(S_BAR)}  ${tone.muted(fitToWidth(this.latest, width))}`);
+    const lines = this.lines();
+    this.frame++;
     this.erase();
     this.out.write(`${lines.join("\n")}\n`);
-    this.drawn = lines.length;
+    this.drawn = lines.map((l) => displayWidth(l));
   }
 }
+

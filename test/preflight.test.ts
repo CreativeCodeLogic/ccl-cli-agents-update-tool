@@ -4,6 +4,7 @@ import { gcloud } from "../src/registry/gcloud";
 import { countRunning, processSignatures, splitUnattended, type ProcessInfo } from "../src/processes";
 import { computeNeedsAdmin } from "../src/scan";
 import { fitToWidth, formatElapsed } from "../src/ui/live";
+import { icons } from "../src/ui/symbols";
 import { CANCELLED, checklist, choose, QUIT, RETRY } from "../src/ui/prompts";
 import { OutputTracker, withNpmProgress } from "../src/ui/update";
 import { setHost } from "../src/utils/host";
@@ -176,7 +177,7 @@ describe("live update progress", () => {
   it("formats elapsed time as m:ss and fits lines to the terminal", () => {
     expect(formatElapsed(7_400)).toBe("0:07");
     expect(formatElapsed(83_000)).toBe("1:23");
-    expect(fitToWidth("x".repeat(30), 10)).toBe(`${"x".repeat(9)}…`);
+    expect(fitToWidth("x".repeat(30), 10)).toBe(`${"x".repeat(10 - icons.ellipsis.length)}${icons.ellipsis}`);
     expect(fitToWidth("short  ", 10)).toBe("short");
   });
 

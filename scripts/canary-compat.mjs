@@ -16,6 +16,13 @@ const fail = (message) => {
 if (!tool?.installed) fail("not detected");
 console.error(`${id}: ${tool.installMethod} ${tool.installedVersion} -> ${tool.latestVersion} (${tool.state})`);
 if (mode === "plan") {
+  // The scenario needs a latest release that drops the job's Python (Vibe 3.0.0 needed >=3.14;
+  // 3.0.1 went back to >=3.12). When the latest installed fine here, the right answer is
+  // "up to date, no note": check that, print nothing (no command to run) and say so.
+  if (!tool.compatibility && tool.state === "up-to-date" && tool.plan?.kind !== "manual") {
+    console.error(`::notice title=${id}::the latest release (${tool.latestVersion}) supports this Python: nothing to reinstall, the reinstall scenario is not available right now`);
+    process.exit(0);
+  }
   if (!tool.compatibility) fail("expected a compatibility note (latest release needs another Python)");
   if (tool.plan?.kind !== "manual") fail(`expected a manual plan, got ${JSON.stringify(tool.plan)}`);
   console.error(`note: ${tool.compatibility}`);

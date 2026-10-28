@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-beta.4] - 2026-10-28
+
+Fourth beta of 1.2: `npm i -g ccl-caut@next`.
+
+### Fixed
+
+- **npm 12 left some CLIs broken after an update.** npm 12 skips install scripts it wasn't told to allow, also for `npm install -g`, and still exits 0. Claude Code, Amp and OpenCode ship a placeholder binary that their own install script replaces, so updating them left a command that doesn't start ("claude.exe … is not a valid application for this OS platform").
+  - CCL CAUT now adds `--allow-scripts=<that package>` for those packages only, on npm 11.16.0 and later (older npm doesn't know the flag). The flag replaces the `allow-scripts` list in your `.npmrc` for that install, so your own entries are passed along with it.
+  - If you turned install scripts off (`ignore-scripts=true`), CCL CAUT doesn't override that. It gives you the command that allows the script once, and says why.
+  - After an npm update, a tool whose own script npm skipped, or that no longer starts, is reported as **BROKEN** with the repair command (also under *Still to do*), never as "unchanged". At scan time, a tool installed with npm whose command doesn't start gets a note and the repair command (`broken` in `--json`, `--pending` and *Still to do*).
+  - Per-tool findings and sources: [docs/npm-install-scripts.md](docs/npm-install-scripts.md). A new weekly canary job updates every npm CLI on the latest npm on Linux and Windows and checks that each one runs.
+- **Long messages broke at narrow widths** (e.g. Windows Terminal at half the screen, ~95 columns). Deprecation and retirement notices, pre-flight warnings, manual-plan reasons and project notes were printed as one long line. The terminal then cut them mid-word, and the continuation lost the `│` gutter ("Antigravity C" / "LI (agy)").
+  - These messages are now word-wrapped to the window: CJK and emoji count double, continuation lines keep the gutter, and URLs and commands aren't split.
+  - Commands you copy (*run this yourself*, *Still to do*) stay on one line.
+  - The table cuts its widest cells instead of letting a row wrap.
+- **Blank `│` lines filled the screen during long updates, with the progress line floating among them.** The live status erased its previous frame by moving the cursor up one row per line, but a status line wider than the window takes two rows. Every redraw (10 a second) left a `│` behind. Now:
+  - The status area is always three rows, each cut to the window by display width, and the title shortens first so the time and counter stay readable.
+  - Each redraw erases exactly the rows the last frame took, recounted after a resize.
+  - Output redrawn with `\r` (progress bars, spinners) counts once, in its final state, and lines that are blank once escape codes are stripped are dropped.
+- **The terminal title stayed "npm install netlify-cli@latest" (or "node-gyp") after an update on Windows.** The commands CCL CAUT runs share its console and rename it. CCL CAUT now puts the title back after every command and on exit. Windows doesn't let Node read the console title, so it reads "ccl-caut" while running and is cleared at the end (cmd.exe then shows its own title again). Only in a terminal; macOS and Linux weren't affected.
+
 ## [1.2.0-beta.3] - 2026-10-23
 
 Third beta of 1.2: `npm i -g ccl-caut@next`.
@@ -176,7 +197,8 @@ First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. 
 - Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
-[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.3...HEAD
+[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.4...HEAD
+[1.2.0-beta.4]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.3...v1.2.0-beta.4
 [1.2.0-beta.3]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.2...v1.2.0-beta.3
 [1.2.0-beta.2]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.1...v1.2.0-beta.2
 [1.2.0-beta.1]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0...v1.2.0-beta.1

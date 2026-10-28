@@ -221,4 +221,9 @@ export interface ToolScan {
   compatibility: string | null;
   /** "winget" while winget doesn't offer the latest version yet (nothing to run until then). */
   waitingFor: "winget" | null;
+  /**
+   * Installed with npm but the command doesn't start (e.g. npm 12 skipped the install
+   * script that puts the native binary in place): the command that repairs it.
+   */
+  broken: { command: string; reason: string } | null;
 }

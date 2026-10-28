@@ -22,7 +22,7 @@ function scan(id: string, plan: UpdatePlan | null, overrides: Partial<ToolScan> 
     id, name: id.toUpperCase(), shortName: id, group: "agents", docsUrl: "", installed: true, installMethod: "npm",
     binaryPath: `/bin/${id}`, installedVersion: "1.0.0", latestVersion: "1.1.0", latestStaleCachedAt: null,
     state: "outdated", updateAvailable: true, needsAdmin: false, plan, shadowed: [], deprecation: null,
-    notes: [], projectPin: null, compatibility: null, waitingFor: null, ...overrides,
+    notes: [], projectPin: null, compatibility: null, waitingFor: null, broken: null, ...overrides,
   };
 }
 const manual = (command: string, extra: Partial<Extract<UpdatePlan, { kind: "manual" }>> = {}): UpdatePlan => ({ kind: "manual", command, reason: "because", ...extra });

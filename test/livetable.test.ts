@@ -13,7 +13,7 @@ function scan(id: string, overrides: Partial<ToolScan> = {}): ToolScan {
     id, name: id.toUpperCase(), shortName: id, group: "agents", docsUrl: "", installed: true, installMethod: "npm",
     binaryPath: `/bin/${id}`, installedVersion: "1.0.0", latestVersion: "1.1.0", latestStaleCachedAt: null,
     state: "outdated", updateAvailable: true, needsAdmin: false, plan: null, shadowed: [], deprecation: null,
-    notes: [], projectPin: null, compatibility: null, waitingFor: null, ...overrides,
+    notes: [], projectPin: null, compatibility: null, waitingFor: null, broken: null, ...overrides,
   };
 }
 const pendingOf = (r: ToolScan): ToolScan => ({ ...r, latestVersion: null, state: "unknown", updateAvailable: false });

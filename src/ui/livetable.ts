@@ -5,6 +5,7 @@ import pc from "./colors";
 import { createProgress, type Progress } from "./progress";
 import { icons } from "./symbols";
 import { renderTable, type PendingRows } from "./table";
+import { displayWidth, fitWidth } from "./width";
 import { tone } from "./theme";
 
 /*
@@ -54,14 +55,13 @@ export function renderFrame({ rows, pending, tick, message, columns }: FrameInpu
 
 /** Lines are never wider than the terminal, so each one is exactly one row on screen. */
 function fitLine(line: string, width: number): string {
-  const plain = stripVTControlCharacters(line);
-  if (plain.length <= width) return line;
-  return `${plain.slice(0, Math.max(0, width - icons.ellipsis.length))}${icons.ellipsis}`;
+  if (displayWidth(line) <= width) return line;
+  return fitWidth(stripVTControlCharacters(line), width, icons.ellipsis);
 }
 
 /** Rows a block of lines takes after the terminal rewrapped it to `columns`. */
 export function screenRows(lines: readonly string[], columns: number): number {
-  return lines.reduce((sum, line) => sum + Math.max(1, Math.ceil(stripVTControlCharacters(line).length / Math.max(1, columns))), 0);
+  return lines.reduce((sum, line) => sum + Math.max(1, Math.ceil(displayWidth(line) / Math.max(1, columns))), 0);
 }
 
 export interface LiveKeys {

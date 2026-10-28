@@ -90,7 +90,7 @@ export async function selfUpdateRow(options: {
     notes: [],
     projectPin: null,
     compatibility: null,
-    waitingFor: null,
+    waitingFor: null, broken: null,
   };
   return { scan, instance };
 }

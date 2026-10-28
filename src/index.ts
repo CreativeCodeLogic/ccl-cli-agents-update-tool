@@ -1,4 +1,6 @@
-import { cancel, intro, log, outro } from "@clack/prompts";
+import { cancel, intro, outro } from "@clack/prompts";
+import { log } from "./ui/log";
+import { keepTerminalTitle, releaseTerminalTitle } from "./utils/title";
 import pc from "./ui/colors";
 import pkg from "../package.json" with { type: "json" };
 import { createDemoRuntime } from "./demo/runtime";
@@ -36,7 +38,7 @@ import { preflightQuestion } from "./ui/preflight";
 import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
 import { CANCELLED, checklist, choose, NOTES, QUIT, RESCAN, RETRY } from "./ui/prompts";
 import { demoBlock, demoMode, setDemoMode, simulated } from "./ui/demo-notice";
-import { collectPending, leftOverPending, pendingForResults, pendingForSelection, renderPending, type PendingItem } from "./pending";
+import { brokenPending, collectPending, leftOverPending, pendingForResults, pendingForSelection, renderPending, withBroken, type PendingItem } from "./pending";
 import { getNetwork, networkProblem } from "./utils/http";
 import { doctorReport } from "./doctor";
 import { reportBugLine, shouldShowStar, starLine, supportsHyperlinks } from "./ui/links";
@@ -105,6 +107,8 @@ interface Runtime {
   selfFixture?: { latest: string; context: InstallContext; entryPath?: string };
   /** CCL CAUT's own update re-check (the demo replaces it; default: `ccl-caut --version`). */
   selfTool?: ToolDescriptor;
+  /** Repairs for tools whose npm install doesn't run, from the last scan (always in Still to do). */
+  broken?: PendingItem[];
 }
 
 /** Cache key of ccl-caut's own latest version (shares the 1h latest-version cache). */
@@ -368,7 +372,7 @@ async function scanWithProgress(runtime: Runtime, center: boolean, selfRow = fal
   const networkIssue = networkIssueLine(results);
   check.stop(networkIssue ? "Latest versions could not be checked" : "Latest versions checked");
 
-  console.log(`${pc.gray(icons.bar)}\n${renderTable(results, process.stdout.isTTY ? (process.stdout.columns ?? 80) : Number.POSITIVE_INFINITY)}`);
+  console.log(`${pc.gray(icons.bar)}\n${renderTable(results, process.stdout.isTTY ? (process.stdout.columns ?? 80) - 1 : Number.POSITIVE_INFINITY)}`);
   printNotes(results, getHost().platform);
   const lateNotice = takeSelfNotice();
   if (lateNotice) log.message(pc.dim(lateNotice));
@@ -678,6 +682,7 @@ async function runWhatsNew(runtime: Runtime, options: CliOptions, id: string): P
 /** One pass: scan, checklist, pre-flight, updates, summary, then Rescan / Quit. */
 async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<RoundResult> {
   const { results, detections, networkIssue, self } = await scanWithProgress(runtime, Boolean(process.stdout.isTTY), true);
+  runtime.broken = brokenPending(results);
   const summary = summarize(results);
   const selfRow = await selfUpdateRowFor(self);
   const offered = [...(selfRow ? [selfRow.scan] : []), ...results.filter(isOffered)];
@@ -854,6 +859,8 @@ async function main(): Promise<number> {
     return 2;
   }
   const { options } = parsed;
+  // Windows: the commands we run (npm, node-gyp) rename the console; put its title back after each.
+  if (keepTerminalTitle()) process.on("exit", releaseTerminalTitle);
   // --demo --json stays pure JSON (it carries "demo": true instead).
   setDemoMode(options.demo && !options.json);
   const header = headerStyle(options, Boolean(process.stdout.isTTY), process.env);
@@ -918,8 +925,9 @@ async function main(): Promise<number> {
   const code = finish(run.code);
   maybeShowStar(runtime, options);
   // Last (only the demo notice comes after it): the commands still to run.
-  process.stdout.write(renderPending(run.pending));
-  if (run.pending.length > 0 && demoMode()) process.stdout.write("\n");
+  const pending = withBroken(runtime.broken ?? [], run.pending);
+  process.stdout.write(renderPending(pending));
+  if (pending.length > 0 && demoMode()) process.stdout.write("\n");
   return withDemoFooter(code);
 }
 

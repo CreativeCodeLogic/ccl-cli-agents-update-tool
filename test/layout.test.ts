@@ -43,7 +43,7 @@ export function manyToolsFixture(): ToolScan[] {
       latestStaleCachedAt: tool.id === "amp" || tool.id === "gcloud" ? nineHoursAgo : null,
       state, updateAvailable: state === "outdated", needsAdmin: tool.id === "gcloud" || tool.id === "gh",
       plan: null, shadowed: tool.id === "kimi" || tool.id === "gh" ? [{ path: "/x", installMethod: "npm", version: "1.0.0" }] : [],
-      deprecation: null, notes: [], projectPin: null, compatibility: null, waitingFor: null,
+      deprecation: null, notes: [], projectPin: null, compatibility: null, waitingFor: null, broken: null,
     };
   });
 }

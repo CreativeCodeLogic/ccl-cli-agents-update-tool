@@ -9,9 +9,13 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Run one job group only (npm, uv, pipx, python-compat, winget, whats-new); empty = all"
+        description: "Run one job group only (npm, npm12, uv, pipx, python-compat, winget, whats-new); empty = all"
         required: false
         default: ""
+      npm12_caut:
+        description: "npm12 job: the ccl-caut to test: 'build' (this checkout) or a published version, e.g. 1.2.0-beta.3"
+        required: false
+        default: "build"
   schedule:
     - cron: "17 6 * * 1" # Mondays 06:17 UTC
 
@@ -108,6 +112,68 @@ jobs:
           # 21 GitHub API requests: past the shared runner IP's unauthenticated limit.
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/canary-whats-new.mjs aider antigravity claude cline codex copilot firebase gcloud gemini gh goose kimi netlify npm opencode qwen supabase vibe wrangler ccl-caut
+
+  # npm 12 blocks install scripts by default, also for `npm install -g`, and still exits 0.
+  # Some CLIs ship a placeholder binary that their own install script replaces
+  # (Claude Code, Amp, OpenCode): updating them without --allow-scripts leaves a
+  # command that doesn't start. This job updates every npm CLI with ccl-caut --yes
+  # on the latest npm and checks that each one is on the latest version AND runs.
+  canary-npm12:
+    if: ${{ !inputs.only || inputs.only == 'npm12' }}
+    name: npm 12 updates (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      TOOLS: "claude codex copilot opencode gemini qwen kimi cline amp firebase wrangler vercel netlify"
+      PKGS: "@anthropic-ai/claude-code @openai/codex @github/copilot opencode-ai @google/gemini-cli @qwen-code/qwen-code @moonshot-ai/kimi-code cline @ampcode/cli firebase-tools wrangler vercel netlify-cli"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Upgrade npm to the latest
+        run: |
+          npm install -g npm@latest
+          echo "npm $(npm -v)"
+          major="$(npm -v | cut -d. -f1)"
+          if [ "$major" -lt 12 ]; then echo "::error::expected npm 12 or later, got $(npm -v)"; exit 1; fi
+
+      # One version back, with every install script allowed (a working starting point,
+      # independent of what ccl-caut knows), so ccl-caut has an update to make.
+      - name: Install the previous version of each npm CLI
+        run: |
+          for pkg in $PKGS; do
+            latest="$(npm view "$pkg" dist-tags.latest)"
+            # The release before latest, of the same kind (no alpha/beta in between; Amp's versions all carry a suffix).
+            prev="$(npm view "$pkg" versions --json | node -e 'const v=JSON.parse(require("fs").readFileSync(0,"utf8"));const l=process.argv[1];const same=l.includes("-")?v:v.filter((x)=>!x.includes("-"));const i=same.lastIndexOf(l);if(i<1){console.error("no version before "+l);process.exit(1)}console.log(same[i-1])' "$latest")"
+            echo "::group::$pkg@$prev"
+            npm install -g --dangerously-allow-all-scripts "$pkg@$prev"
+            echo "::endgroup::"
+          done
+
+      - name: ccl-caut --yes updates them (every other tool skipped)
+        env:
+          CI: ""
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ inputs.npm12_caut || 'build' }}" = build ]; then caut="node dist/index.js"; else npm install -g "ccl-caut@${{ inputs.npm12_caut }}"; caut="ccl-caut"; fi
+          echo "testing: $($caut --version)"
+          cfg="$RUNNER_TEMP/cfg"; mkdir -p "$cfg/ccl-caut"
+          if [ "$RUNNER_OS" = Windows ]; then export APPDATA="$(cygpath -w "$cfg")"; else export XDG_CONFIG_HOME="$cfg"; fi
+          $caut --json --refresh > before.json || true
+          node -e 'const s=require("./before.json");const keep=process.argv[2].split(" ");const tools={};for(const t of s.tools)tools[t.id]=keep.includes(t.id)?"update":"skip";tools["ccl-caut"]="skip";require("fs").writeFileSync(process.argv[1],JSON.stringify({schema:1,tools}))' "$cfg/ccl-caut/config.json" "$TOOLS"
+          set +e; $caut --yes > yes.log 2>&1; code=$?; set -e
+          cat yes.log; echo "--yes exit code: $code"
+          $caut --json --refresh > after.json || true
+          node scripts/canary-npm12.mjs after.json yes.log $TOOLS
 
   # PyPI tools installed with uv (aider-install and the Vibe install script both use uv tool).
   canary-uv:
@@ -225,6 +291,8 @@ jobs:
         run: |
           node dist/index.js --json --refresh > before.json || true
           cmd="$(node scripts/canary-compat.mjs before.json vibe plan)"
+          # Empty: the latest release supports this Python (checked: up to date, no note).
+          if [ -z "$cmd" ]; then exit 0; fi
           echo "planned: $cmd"
           # pipx may only be reachable as a module on some runners.
           if [ "${{ matrix.manager }}" = pipx ] && ! command -v pipx >/dev/null; then cmd="python -m $cmd"; fi
