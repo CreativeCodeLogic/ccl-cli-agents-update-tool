@@ -9,7 +9,7 @@ const strip = (s: string) => s.replace(ANSI, "");
 const row = (id: string, state: ToolScan["state"]): ToolScan => ({
   id, name: id, shortName: id, group: "agents", docsUrl: "", installed: true, installMethod: "npm", binaryPath: `/bin/${id}`,
   installedVersion: "1.0.0", latestVersion: "1.0.0", latestStaleCachedAt: null, state, updateAvailable: false,
-  needsAdmin: false, plan: null, shadowed: [], deprecation: null, notes: [], projectPin: null, compatibility: null, waitingFor: null,
+  needsAdmin: false, plan: null, shadowed: [], deprecation: null, notes: [], projectPin: null, compatibility: null, waitingFor: null, broken: null,
 });
 
 /** Classic Windows console: none of the variables modern terminals set. */

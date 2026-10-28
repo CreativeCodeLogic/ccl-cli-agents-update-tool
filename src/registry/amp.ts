@@ -3,7 +3,7 @@ import { envVar, getHost, pathFor, type Host } from "../utils/host";
 import { fetchLatestNpmVersion, readPackageVersionNear } from "../utils/npm";
 import { isInside } from "../utils/paths";
 import { fromBrewToken, ownedByNpmPackage } from "./detect-helpers";
-import { npmGlobalPlan, versionFromCommand } from "./shared";
+import { npmGlobalPlan, npmInstallPlan, versionFromCommand } from "./shared";
 
 /*
  * ampcode.com/docs/cli: install script (recommended) puts the binary in
@@ -74,7 +74,11 @@ export const amp: ToolDescriptor = {
 
   async getUpdatePlan(instance): Promise<UpdatePlan> {
     if (isOldPackage(instance)) {
-      return { kind: "manual", command: MIGRATE, reason: `${OLD_PKG} was renamed to ${PKG}; reinstall under the new name.` };
+      // npm 12: the new package's install script puts the native binary in place (--allow-scripts).
+      const install = await npmInstallPlan(PKG, "latest");
+      const command = install.kind === "auto" ? `npm uninstall -g ${OLD_PKG} && ${install.command.join(" ")}` : `npm uninstall -g ${OLD_PKG} && ${install.command}`;
+      const reason = `${OLD_PKG} was renamed to ${PKG}; reinstall under the new name.${install.kind === "manual" ? ` ${install.reason}` : ""}`;
+      return { kind: "manual", command, reason };
     }
     const npm = await npmGlobalPlan(instance, PKG);
     if (npm) return npm;

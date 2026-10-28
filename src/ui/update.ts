@@ -3,9 +3,10 @@ import { log } from "@clack/prompts";
 import type { BinaryInstance, ToolDescriptor, ToolScan } from "../types";
 import type { VersionCache } from "../utils/cache";
 import { debug } from "../utils/debug";
-import { execCapture, type TeeResult } from "../utils/exec";
+import { exec, execCapture, type TeeResult } from "../utils/exec";
 import { getHost } from "../utils/host";
 import { getNpmGlobalPaths } from "../utils/npm";
+import { getNpmScriptPolicy, installedPackageOf, npmRepairCommand, parseBlockedScripts } from "../utils/npm-scripts";
 import { isUnderProgramFiles } from "../utils/paths";
 import { sameVersion } from "../utils/version";
 import { LiveStatus } from "./live";
@@ -99,6 +100,13 @@ export interface UpdateOutcome {
   updatedIds: string[];
   /** Tools whose update command failed (they go on the "still to do" list). */
   failedIds: string[];
+  /** Broken after the update (npm skipped a needed install script): the command that repairs it. */
+  repairs: Map<string, { command: string; reason: string }>;
+}
+
+/** Does the binary start at all? (`--version`, else `version`.) */
+export async function binaryRuns(path: string): Promise<boolean> {
+  return (await exec(path, ["--version"], 20_000)).ok || (await exec(path, ["version"], 20_000)).ok;
 }
 
 /**
@@ -153,8 +161,10 @@ export async function applyUpdates(
   targets: readonly UpdateTarget[],
   cache: VersionCache | null = null,
   executor: UpdateExecutor = runForReal,
+  /** Whether a tool's binary starts (after an npm install whose version can't be read). */
+  probe: (path: string) => Promise<boolean> = binaryRuns,
 ): Promise<UpdateOutcome> {
-  const outcome: UpdateOutcome = { updated: 0, unchanged: 0, held: 0, current: 0, failed: 0, manual: 0, interrupted: false, updatedIds: [], failedIds: [] };
+  const outcome: UpdateOutcome = { updated: 0, unchanged: 0, held: 0, current: 0, failed: 0, manual: 0, interrupted: false, updatedIds: [], failedIds: [], repairs: new Map() };
 
   // The running child gets Ctrl+C too and cleans up after itself; we just
   // stop before the next tool instead of exiting mid-install.
@@ -221,6 +231,26 @@ export async function applyUpdates(
       // Re-check the copy that actually runs: catches shadowing and PATH caching.
       const before = scan.installedVersion;
       const after = await tool.getInstalledVersion(instance).catch(() => null);
+
+      // npm 12 skips install scripts it wasn't told to allow and still exits 0. If the
+      // tool's own package was skipped, or the tool no longer runs, it is broken.
+      if (isNpmInstall(command, args)) {
+        const blocked = parseBlockedScripts(result.output);
+        const pkg = installedPackageOf(args);
+        const ownBlocked = pkg !== null && blocked.some((b) => b.pkg === pkg);
+        if (pkg && (ownBlocked || (after === null && !(await probe(instance.path))))) {
+          const repair = npmRepairCommand(pkg, blocked, await getNpmScriptPolicy());
+          outcome.failed++;
+          outcome.failedIds.push(scan.id);
+          outcome.repairs.set(scan.id, repair);
+          log.error(tone.bad(`${scan.name} is BROKEN: npm installed it but ${ownBlocked ? "skipped its install script" : "the command doesn't run"}  ${tone.muted(elapsed)}`));
+          printManualCommand(scan.name, repair.command, repair.reason);
+          continue;
+        }
+        if (blocked.length > 0) {
+          log.message(tone.muted(`npm skipped install scripts it doesn't need to run ${scan.name}: ${blocked.map((b) => b.pkg).join(", ")}`));
+        }
+      }
       if (after && !sameVersion(before, after)) {
         outcome.updated++;
         outcome.updatedIds.push(scan.id);

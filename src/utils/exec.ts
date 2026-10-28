@@ -131,3 +131,8 @@ export function execCapture(command: string, args: string[], onChunk: (text: str
     }
   });
 }
+
+/** Does this command start at all? (`--version`, else `version`; a placeholder binary fails both.) */
+export async function binaryRuns(path: string): Promise<boolean> {
+  return (await exec(path, ["--version"], 20_000)).ok || (await exec(path, ["version"], 20_000)).ok;
+}

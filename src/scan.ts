@@ -1,8 +1,11 @@
+import path from "node:path";
 import type { BinaryInstance, InstallMethod, ToolDescriptor, ToolScan, ToolState, UpdatePlan } from "./types";
 import type { VersionCache } from "./utils/cache";
 import { getHost, pathFor, type Host } from "./utils/host";
 import { classifyInstall } from "./utils/installMethod";
 import { getNpmGlobalPaths } from "./utils/npm";
+import { binaryRuns } from "./utils/exec";
+import { getNpmScriptPolicy, installedPackageOf, npmRepairCommand } from "./utils/npm-scripts";
 import { compareVersions } from "./utils/version";
 import { projectPinFor, projectPinNote, type ProjectManifest } from "./project";
 import { findAllExecutables } from "./utils/which";
@@ -219,7 +222,7 @@ export function pendingScan({ tool, instances }: Detection): ToolScan {
     notes: [],
     projectPin: null,
     compatibility: null,
-    waitingFor: null,
+    waitingFor: null, broken: null,
   };
 }
 
@@ -251,7 +254,10 @@ async function resolveOne({ tool, instances }: Detection, latest: LatestResolver
   const npmRoot = (await getNpmGlobalPaths())?.root ?? null;
   const needsAdmin = computeNeedsAdmin(tool, active, plan, getHost(), npmRoot);
   const projectPin = projectPinFor(tool, project, getHost());
+  // npm-installed but no version: does the command start at all? (npm 12 skips install scripts.)
+  const broken = active?.installMethod === "npm" && !active.version ? await safe(() => brokenNpmInstall(tool, active, plan), null) : null;
   const notes = [
+    ...(broken ? [{ kind: "info" as const, message: `${tool.binNames[0] ?? tool.id} doesn't run: the npm install looks incomplete. The repair command is under Still to do.` }] : []),
     ...(tool.notes ?? []),
     ...(active && tool.instanceNotes ? safeSync(() => tool.instanceNotes!(active), []) : []),
     ...(projectPin ? [projectPinNote(projectPin, tool.binNames[0] ?? tool.id)] : []),
@@ -278,7 +284,27 @@ async function resolveOne({ tool, instances }: Detection, latest: LatestResolver
     projectPin,
     compatibility: compatibility?.message ?? null,
     waitingFor: compatibility?.waiting ?? null,
+    broken,
   };
+}
+
+/**
+ * An npm-installed tool whose command doesn't start (e.g. the placeholder
+ * claude.exe left when npm 12 skipped its install script): the repair command.
+ * null when it starts (the version just wasn't readable).
+ */
+export async function brokenNpmInstall(
+  tool: ToolDescriptor,
+  active: BinaryInstance,
+  plan: UpdatePlan | null,
+  runs: (path: string) => Promise<boolean> = binaryRuns,
+): Promise<ToolScan["broken"]> {
+  if (await runs(active.path)) return null;
+  const fromPlan = plan?.kind === "auto" && path.parse(plan.command[0] ?? "").name.toLowerCase() === "npm" ? installedPackageOf(plan.command.slice(1)) : null;
+  const pkg = fromPlan ?? tool.npmPackage ?? null;
+  if (!pkg) return null;
+  const repair = npmRepairCommand(pkg, [], await getNpmScriptPolicy());
+  return { command: repair.command, reason: `${tool.name} is installed with npm but doesn't run. ${repair.reason}` };
 }
 
 export interface ScanSummary {

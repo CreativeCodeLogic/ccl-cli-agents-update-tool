@@ -29,7 +29,7 @@ import { preflightQuestion } from "./ui/preflight";
 import { INFO_SYMBOL, printNotes, renderTable } from "./ui/table";
 import { CANCELLED, checklist, choose, QUIT, RESCAN, RETRY } from "./ui/prompts";
 import { demoBlock, demoMode, setDemoMode, simulated } from "./ui/demo-notice";
-import { collectPending, leftOverPending, pendingForResults, pendingForSelection, renderPending, type PendingItem } from "./pending";
+import { brokenPending, collectPending, leftOverPending, pendingForResults, pendingForSelection, renderPending, withBroken, type PendingItem } from "./pending";
 import { getNetwork, networkProblem } from "./utils/http";
 import { doctorReport } from "./doctor";
 import { reportBugLine, shouldShowStar, starLine, supportsHyperlinks } from "./ui/links";
@@ -98,6 +98,8 @@ interface Runtime {
   selfFixture?: { latest: string; context: InstallContext; entryPath?: string };
   /** CCL CAUT's own update re-check (the demo replaces it; default: `ccl-caut --version`). */
   selfTool?: ToolDescriptor;
+  /** Repairs for tools whose npm install doesn't run, from the last scan (always in Still to do). */
+  broken?: PendingItem[];
 }
 
 /** Cache key of ccl-caut's own latest version (shares the 1h latest-version cache). */
@@ -565,6 +567,7 @@ function summaryLine(outcome: UpdateOutcome, upToDate: number, skipped: number):
 /** One pass: scan, checklist, pre-flight, updates, summary, then Rescan / Quit. */
 async function interactiveRound(runtime: Runtime, options: CliOptions): Promise<RoundResult> {
   const { results, detections, networkIssue, self } = await scanWithProgress(runtime, Boolean(process.stdout.isTTY), true);
+  runtime.broken = brokenPending(results);
   const summary = summarize(results);
   const selfRow = await selfUpdateRowFor(self);
   const offered = [...(selfRow ? [selfRow.scan] : []), ...results.filter(isOffered)];
@@ -772,8 +775,9 @@ async function main(): Promise<number> {
   const code = finish(run.code);
   maybeShowStar(runtime, options);
   // Last (only the demo notice comes after it): the commands still to run.
-  process.stdout.write(renderPending(run.pending));
-  if (run.pending.length > 0 && demoMode()) process.stdout.write("\n");
+  const pending = withBroken(runtime.broken ?? [], run.pending);
+  process.stdout.write(renderPending(pending));
+  if (pending.length > 0 && demoMode()) process.stdout.write("\n");
   return withDemoFooter(code);
 }
 

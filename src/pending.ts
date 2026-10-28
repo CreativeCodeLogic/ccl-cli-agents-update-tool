@@ -85,7 +85,7 @@ export function pendingForSelection(selected: readonly ToolScan[]): PendingItem[
 export function pendingForResults(results: readonly ToolScan[], choices: ToolChoices, groups: readonly ToolGroup[]): PendingItem[] {
   const offered = results.filter((r) => isOffered(r) && groups.includes(r.group));
   const initial = initialSelection(offered, choices);
-  return pendingForSelection(offered.filter((r) => initial.ids.includes(r.id)));
+  return withBroken(brokenPending(results.filter((r) => groups.includes(r.group))), pendingForSelection(offered.filter((r) => initial.ids.includes(r.id))));
 }
 
 /**
@@ -94,13 +94,18 @@ export function pendingForResults(results: readonly ToolScan[], choices: ToolCho
  */
 export function leftOverPending(
   selected: readonly ToolScan[],
-  outcome: { interrupted: boolean; failedIds: readonly string[] },
+  outcome: { interrupted: boolean; failedIds: readonly string[]; repairs?: ReadonlyMap<string, { command: string; reason: string }> },
   skippedWhy: ReadonlyMap<string, string> = new Map(),
 ): PendingItem[] {
   if (outcome.interrupted) return [];
   const leftOver = new Map(skippedWhy);
   for (const id of outcome.failedIds) leftOver.set(id, "update failed");
-  return collectPending(selected, leftOver);
+  // Broken by the update (npm skipped a needed install script): its repair command instead.
+  const repaired = selected.map((scan) => {
+    const repair = outcome.repairs?.get(scan.id);
+    return repair ? { ...scan, plan: { kind: "manual" as const, ...repair } } : scan;
+  });
+  return collectPending(repaired, leftOver).map((item) => (outcome.repairs?.has(item.id) ? { ...item, status: "broken" } : item));
 }
 
 function context(item: PendingItem): string {
@@ -120,4 +125,16 @@ export function renderPending(items: readonly PendingItem[]): string {
   for (const item of items) lines.push("", pc.dim(context(item)), item.command);
   lines.push("", tone.muted("Run ccl-caut --pending anytime to see what's left."));
   return `${lines.join("\n")}\n`;
+}
+/** Tools whose npm-installed command doesn't run (scan time): their repair command, always listed. */
+export function brokenPending(results: readonly ToolScan[]): PendingItem[] {
+  return results
+    .filter((r) => r.broken)
+    .map((r) => ({ id: r.id, name: r.name, command: r.broken!.command, reason: r.broken!.reason, needsAdmin: r.needsAdmin, shell: shellOf(r.broken!.command), status: "broken" }));
+}
+
+/** Broken tools' repairs first, then the rest (a broken tool is listed once, with its repair). */
+export function withBroken(broken: readonly PendingItem[], items: readonly PendingItem[]): PendingItem[] {
+  const ids = new Set(broken.map((b) => b.id));
+  return [...broken, ...items.filter((i) => !ids.has(i.id))];
 }
