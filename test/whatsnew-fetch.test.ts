@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough, Writable } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registry } from "../src/registry";
 import type { ToolScan } from "../src/types";
 import { checklist, choose, NOTES, NOTES_TOO_SMALL, QUIT } from "../src/ui/prompts";
@@ -417,6 +417,13 @@ describe("GitHub refusals, from recorded answers (headers as GitHub sends them)"
   // Epoch seconds as in x-ratelimit-reset; 1792862088 = the reset in the recorded CI answer.
   const RESET = 1792862088;
   const NOW = (RESET - 600) * 1000;
+  // The message compares the reset time with the clock: pin the clock to the recorded moment
+  // (with the real clock this test broke once 2026-10-25 had passed).
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => vi.useRealTimers());
   const answer = (status: number, headers: Record<string, string>, body: string) =>
     new Network({
       fetch: async () => ({ ok: false, status, headers: new Headers(headers), json: async () => JSON.parse(body), text: async () => body }),
