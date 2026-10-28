@@ -129,7 +129,9 @@ jobs:
       - name: Install the previous version of each npm CLI
         run: |
           for pkg in $PKGS; do
-            prev="$(npm view "$pkg" versions dist-tags.latest --json | node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));const v=j.versions;const i=v.lastIndexOf(j["dist-tags.latest"]);console.log(v[Math.max(0,i-1)])')"
+            latest="$(npm view "$pkg" dist-tags.latest)"
+            # The release before latest, of the same kind (no alpha/beta in between; Amp's versions all carry a suffix).
+            prev="$(npm view "$pkg" versions --json | node -e 'const v=JSON.parse(require("fs").readFileSync(0,"utf8"));const l=process.argv[1];const same=l.includes("-")?v:v.filter((x)=>!x.includes("-"));const i=same.lastIndexOf(l);if(i<1){console.error("no version before "+l);process.exit(1)}console.log(same[i-1])' "$latest")"
             echo "::group::$pkg@$prev"
             npm install -g --dangerously-allow-all-scripts "$pkg@$prev"
             echo "::endgroup::"
@@ -267,6 +269,8 @@ jobs:
         run: |
           node dist/index.js --json --refresh > before.json || true
           cmd="$(node scripts/canary-compat.mjs before.json vibe plan)"
+          # Empty: the latest release supports this Python (checked: up to date, no note).
+          if [ -z "$cmd" ]; then exit 0; fi
           echo "planned: $cmd"
           # pipx may only be reachable as a module on some runners.
           if [ "${{ matrix.manager }}" = pipx ] && ! command -v pipx >/dev/null; then cmd="python -m $cmd"; fi
