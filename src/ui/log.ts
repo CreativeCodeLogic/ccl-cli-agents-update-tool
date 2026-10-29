@@ -16,7 +16,8 @@ export const terminalColumns = (out: { columns?: number } = process.stdout) => (
 
 /** Wrap a message for clack: to the window width minus the gutter. */
 export function wrapForGutter(message: string, columns = terminalColumns()): string {
-  return wrapWords(message, columns - GUTTER).join("\n");
+  // One column left free, like every fitted line (a full-width line can wrap early in some consoles).
+  return wrapWords(message, columns - 1 - GUTTER).join("\n");
 }
 
 type Options = Parameters<typeof clackLog.message>[1];
