@@ -283,7 +283,9 @@ describe("centered banner", () => {
   });
 
   it("falls back to the shared one-line header when the art doesn't fit", () => {
+    // 60 columns: the full line (66) would wrap, so " — by Creative Code Logic" goes.
     const lines = bannerLines("1.0.1", { columns: 60, center: false, color: (s) => s }).map(strip);
-    expect(lines).toEqual(["CCL CAUT v1.0.1 · CLI Agents Update Tool — by Creative Code Logic"]);
+    expect(lines).toEqual(["CCL CAUT v1.0.1 · CLI Agents Update Tool"]);
+    expect(bannerLines("1.0.1", { columns: 30, center: false, color: (s) => s }).map(strip)).toEqual(["CCL CAUT v1.0.1"]);
   });
 });

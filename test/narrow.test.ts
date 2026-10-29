@@ -37,8 +37,9 @@ describe("long messages are word-wrapped to the window (gutter and indent kept b
         const lines = wrapForGutter(message, width).split("\n");
         for (const line of lines) {
           const w = displayWidth(line);
-          // Only an unbreakable token (a URL) may be longer than the room, alone on its line.
-          if (w > width - GUTTER) expect(words(line)).toHaveLength(1);
+          // With the gutter, a line leaves the last column free. Only an unbreakable token
+          // (a URL) may be longer than the room, alone on its line.
+          if (w + GUTTER >= width) expect(words(line)).toHaveLength(1);
         }
         // No word was cut in two: the same words, in the same order.
         expect(lines.flatMap(words)).toEqual(words(message));

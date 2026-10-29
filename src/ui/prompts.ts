@@ -1,8 +1,10 @@
 import { PassThrough } from "node:stream";
+import { stripVTControlCharacters } from "node:util";
 import { isCancel, MultiSelectPrompt, SelectPrompt, TextPrompt } from "@clack/core";
 import { S_BAR, S_BAR_END, S_CHECKBOX_INACTIVE, S_CHECKBOX_SELECTED, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_SUBMIT } from "@clack/prompts";
 import pc from "./colors";
 import { demoMode, demoPromptLines } from "./demo-notice";
+import { fitLine, fitNames, fitRow, gutterLines, promptWidth } from "./rows";
 import { tone } from "./theme";
 
 /*
@@ -102,13 +104,14 @@ const CHOOSE_KEYS_NOTES = "↑/↓ move · enter confirm · n what's new · q qu
  * Header shared by both prompts; a blank gutter line separates the hint from the
  * options. In demo mode an open prompt starts (and ends, see footer) with the notice.
  */
-function header(state: string, message: string, hint?: string): string[] {
+function header(state: string, message: string, hint: string | undefined, width: number): string[] {
   const symbol =
     state === "submit" ? tone.done(S_STEP_SUBMIT) : state === "cancel" ? tone.bad(S_STEP_CANCEL) : tone.action(S_STEP_ACTIVE);
-  const lines = [bar, `${symbol}  ${message}`];
+  // Long questions and hints wrap under the gutter instead of running off the window.
+  const lines = [bar, ...gutterLines(`${symbol}  `, `${bar}  `, message, width)];
   const open = state !== "submit" && state !== "cancel";
   if (open && demoMode()) lines.push(...demoPromptLines().map((l) => `${bar}  ${l}`), bar);
-  if (hint && open) lines.push(`${bar}  ${tone.muted(hint)}`, bar);
+  if (hint && open) lines.push(...gutterLines(`${bar}  `, `${bar}  `, hint, width, tone.muted), bar);
   return lines;
 }
 
@@ -135,19 +138,19 @@ function withKeys(prompt: { on(event: "key", cb: (char: string | undefined) => v
 }
 
 /** Closed-prompt lines: a soft quit or retry reads calmly, Esc/Ctrl+C as cancelled. */
-function closed(state: string, flag: KeyFlags, message: string, text: string): string {
+function closed(state: string, flag: KeyFlags, message: string, text: string, width: number): string {
   if (state === "cancel") {
     const calm = flag.quit ? "quit" : flag.retry ? "retry" : flag.rescan ? "rescan" : flag.notes ? "what's new" : null;
-    return (calm ? [...header("submit", message), `${bar}  ${tone.muted(calm)}`] : header(state, message)).join("\n");
+    return (calm ? [...header("submit", message, undefined, width), `${bar}  ${tone.muted(calm)}`] : header(state, message, undefined, width)).join("\n");
   }
-  return [...header(state, message), `${bar}  ${tone.muted(text)}`].join("\n");
+  return [...header(state, message, undefined, width), fitLine(`${bar}  `, text, width, tone.muted)].join("\n");
 }
 
 /** Key hints (and the demo notice above them in demo mode). */
-function footer(keys: string, retry?: boolean, rescan?: boolean, notice?: string | null): string[] {
+function footer(keys: string, width: number, retry?: boolean, rescan?: boolean, notice?: string | null): string[] {
   const hints = rescan ? keys.replace(" · q quit", " · r rescan · q quit") : retry ? `${keys} · r retry` : keys;
   const demo = demoMode() ? [...demoPromptLines().map((l) => `${bar}  ${l}`), bar] : [];
-  return [...demo, `${bar}  ${notice ? tone.action(notice) : tone.muted(hints)}`];
+  return [...demo, ...(notice ? gutterLines(`${bar}  `, `${bar}  `, notice, width, tone.action) : gutterLines(`${bar}  `, `${bar}  `, hints, width, tone.muted))];
 }
 
 /** Multi-select: selected = amber filled box, unselected = dim empty box, focused row = bold label. */
@@ -173,19 +176,21 @@ export async function checklist<T extends string>(
     ...(opts.output && { output: opts.output as never }),
     render() {
       const value = (this.value ?? []) as T[];
-      const lines = header(this.state, opts.message, opts.hint);
+      const width = promptWidth(opts.output);
+      const lines = header(this.state, opts.message, opts.hint, width);
       if (this.state === "submit" || this.state === "cancel") {
-        const picked = opts.options.filter((o) => value.includes(o.value)).map((o) => o.label.split("  ")[0]);
-        return closed(this.state, flag, opts.message, picked.length > 0 ? picked.join(", ") : "nothing selected");
+        const picked = opts.options.filter((o) => value.includes(o.value)).map((o) => stripVTControlCharacters(o.label.split("  ")[0] ?? ""));
+        return closed(this.state, flag, opts.message, picked.length > 0 ? fitNames(picked, width - 3) : "nothing selected", width);
       }
       opts.options.forEach((option, i) => {
         if (option.group && option.group !== opts.options[i - 1]?.group) lines.push(`${bar}  ${tone.muted(option.group)}`);
         const selected = value.includes(option.value);
         const box = selected ? tone.action(S_CHECKBOX_SELECTED) : tone.muted(S_CHECKBOX_INACTIVE);
-        const label = i === this.cursor ? tone.focus(option.label) : selected ? option.label : tone.muted(option.label);
-        lines.push(`${bar}  ${box} ${label}${option.hint ? `  ${tone.muted(option.hint)}` : ""}`);
+        const style = i === this.cursor ? tone.focus : selected ? (l: string) => l : tone.muted;
+        // One row each: name and versions stay, the hint gives way (see fitHint for the order).
+        lines.push(fitRow(`${bar}  ${box} `, option.label, option.hint, width, style));
       });
-      lines.push(bar, ...footer(opts.notes?.hint ? CHECKLIST_KEYS_NOTES : CHECKLIST_KEYS, opts.retry, false, notice), pc.gray(S_BAR_END));
+      lines.push(bar, ...footer(opts.notes?.hint ? CHECKLIST_KEYS_NOTES : CHECKLIST_KEYS, width, opts.retry, false, notice), pc.gray(S_BAR_END));
       return lines.join("\n");
     },
   });
@@ -249,16 +254,17 @@ export async function choose<T extends string>(
     ...(opts.input && { input: opts.input as never }),
     ...(opts.output && { output: opts.output as never }),
     render() {
-      const lines = header(this.state, opts.message, opts.hint);
+      const width = promptWidth(opts.output);
+      const lines = header(this.state, opts.message, opts.hint, width);
       if (this.state === "submit" || this.state === "cancel") {
         const chosen = opts.options[this.cursor]?.label ?? "";
-        return closed(this.state, flag, opts.message, chosen);
+        return closed(this.state, flag, opts.message, chosen, width);
       }
       opts.options.forEach((option, i) => {
         const focused = i === this.cursor;
-        lines.push(`${bar}  ${focused ? tone.action(S_RADIO_ACTIVE) : tone.muted(S_RADIO_INACTIVE)} ${focused ? tone.focus(option.label) : tone.muted(option.label)}`);
+        lines.push(fitLine(`${bar}  ${focused ? tone.action(S_RADIO_ACTIVE) : tone.muted(S_RADIO_INACTIVE)} `, option.label, width, focused ? tone.focus : tone.muted));
       });
-      lines.push(bar, ...footer(opts.notes && opts.notesHint !== false ? CHOOSE_KEYS_NOTES : CHOOSE_KEYS, opts.retry, opts.rescan), pc.gray(S_BAR_END));
+      lines.push(bar, ...footer(opts.notes && opts.notesHint !== false ? CHOOSE_KEYS_NOTES : CHOOSE_KEYS, width, opts.retry, opts.rescan), pc.gray(S_BAR_END));
       return lines.join("\n");
     },
   });
@@ -282,14 +288,15 @@ export async function ask(opts: { message: string; initialValue?: string; valida
     ...(opts.input && { input: opts.input as never }),
     ...(opts.output && { output: opts.output as never }),
     render() {
-      const lines = header(this.state === "error" ? "active" : this.state, opts.message);
+      const width = promptWidth(opts.output);
+      const lines = header(this.state === "error" ? "active" : this.state, opts.message, undefined, width);
       if (this.state === "submit" || this.state === "cancel") {
         if (this.state === "submit") lines.push(`${bar}  ${tone.muted(this.value ?? "")}`);
         return lines.join("\n");
       }
       lines.push(`${bar}  ${this.userInputWithCursor}`);
       if (this.state === "error") lines.push(`${bar}  ${tone.action(this.error)}`);
-      lines.push(bar, `${bar}  ${tone.muted(ASK_KEYS)}`, pc.gray(S_BAR_END));
+      lines.push(bar, ...gutterLines(`${bar}  `, `${bar}  `, ASK_KEYS, width, tone.muted), pc.gray(S_BAR_END));
       return lines.join("\n");
     },
   });
