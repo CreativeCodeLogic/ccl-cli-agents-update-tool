@@ -16,6 +16,7 @@ export function brandColor(depth: number, enabled: boolean = pc.isColorSupported
 const BRAND = brandColor(process.stdout.getColorDepth?.() ?? 8);
 const TITLE = "CCL CAUT";
 const TAGLINE = "CLI Agents Update Tool — by Creative Code Logic";
+const SHORT_TAGLINE = "CLI Agents Update Tool";
 
 function figletArt(): string | null {
   try {
@@ -47,18 +48,22 @@ export function bannerLines(version: string, options: { columns: number; center:
   const artWidth = art ? Math.max(...artLines.map((line) => line.length)) : Infinity;
 
   if (art && artWidth <= columns) {
-    return [...place(artLines).map((line) => brand(line)), ...place([pc.dim(`${TAGLINE}  v${version}`)])];
+    // The tagline line under the art drops " — by Creative Code Logic" when the window is narrow.
+    const tagline = [`${TAGLINE}  v${version}`, `${SHORT_TAGLINE}  v${version}`, `v${version}`].find((t) => t.length <= columns) ?? `v${version}`;
+    return [...place(artLines).map((line) => brand(line)), ...place([pc.dim(tagline)])];
   }
   // Too narrow for the art: the same one-line header every option path uses.
-  return place([headerLine(version, brand)]);
+  return place([headerLine(version, brand, columns)]);
 }
 
 /**
  * The one compact header: "CCL CAUT v1.1.0 · CLI Agents Update Tool — by Creative Code Logic",
  * the name in the brand color, left-aligned. Shared by every option path.
  */
-export function headerLine(version: string, brand: (text: string) => string = BRAND): string {
-  return `${brand(TITLE)}${pc.dim(` v${version} · ${TAGLINE}`)}`;
+export function headerLine(version: string, brand: (text: string) => string = BRAND, columns = Number.POSITIVE_INFINITY): string {
+  // Narrow windows: without " — by Creative Code Logic", then without the tagline (never wrapped).
+  const rest = [` v${version} · ${TAGLINE}`, ` v${version} · ${SHORT_TAGLINE}`, ` v${version}`].find((r) => TITLE.length + r.length <= columns) ?? ` v${version}`;
+  return `${brand(TITLE)}${pc.dim(rest)}`;
 }
 
 /** banner: the big ASCII art; line: the compact header; none: nothing. */
@@ -87,7 +92,8 @@ export function headerStyle(
 export function printHeader(style: HeaderStyle, version: string, notice: string | null = null, center = false): void {
   if (style === "none") return;
   console.log();
-  const lines = style === "banner" ? bannerLines(version, { columns: process.stdout.columns ?? 80, center }) : [headerLine(version)];
+  const columns = process.stdout.isTTY ? (process.stdout.columns ?? 80) - 1 : Number.POSITIVE_INFINITY;
+  const lines = style === "banner" ? bannerLines(version, { columns: process.stdout.columns ?? 80, center }) : [headerLine(version, BRAND, columns)];
   for (const line of lines) console.log(line);
   if (notice) console.log(pc.dim(notice));
   console.log();

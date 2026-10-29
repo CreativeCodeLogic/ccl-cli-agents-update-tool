@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-beta.5] - 2026-10-29
+
+Fifth beta of 1.2: `npm i -g ccl-caut@next`.
+
+### Fixed
+
+- **Checklist rows wrapped in narrow windows** (e.g. Windows Terminal at half the screen). A row like "Google Cloud CLI  590.0.1 → 591.0.0  manual: command will be shown · needs admin" could be wider than the window, so "needs admin" wrapped to column 0 without the `│` gutter (beta.4 fixed this for notes, not for prompt rows).
+  - Every checklist row now fits on one line: the name and versions always stay, and the hint gives way to fit, counting characters by display width (CJK and emoji count double).
+  - The hint shortens in this order, least important first: (1) short forms "auto", "manual" and "updates itself"; (2) then those parts are dropped; (3) then "retired, opt-in" becomes "retired" and is dropped; (4) "needs admin" stays longest, then becomes "admin" and is finally cut with "…". It outranks the rest because without an elevated terminal that update fails.
+- **Other prompt lines also stay inside the window:**
+  - The collapsed "Select the CLIs to update" answer lists as many names as fit, then "+N more".
+  - Picker rows (pre-flight, *What next?*) are cut with "…".
+  - Long questions, hints and the key line wrap under the gutter.
+  - The header drops " — by Creative Code Logic" (then the tagline) when narrow, and the scan line drops the `--discover` hint rather than wrapping.
+  - Commands to copy still stay on one line.
+
 ## [1.2.0-beta.4] - 2026-10-28
 
 Fourth beta of 1.2: `npm i -g ccl-caut@next`.
@@ -197,7 +213,8 @@ First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. 
 - Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
-[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.4...HEAD
+[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.5...HEAD
+[1.2.0-beta.5]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.4...v1.2.0-beta.5
 [1.2.0-beta.4]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.3...v1.2.0-beta.4
 [1.2.0-beta.3]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.2...v1.2.0-beta.3
 [1.2.0-beta.2]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.1...v1.2.0-beta.2

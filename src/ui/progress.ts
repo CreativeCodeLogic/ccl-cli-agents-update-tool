@@ -1,5 +1,8 @@
 import { spinner } from "@clack/prompts";
 import { log } from "./log";
+import { stripVTControlCharacters } from "node:util";
+import { icons } from "./symbols";
+import { displayWidth, fitWidth } from "./width";
 
 export interface Progress {
   start(message: string): void;
@@ -36,11 +39,23 @@ function spinnerProgress(): Progress {
     },
     stop(message) {
       process.off("exit", markCancelled);
-      s.stop(message);
+      s.stop(fitStepLine(message));
     },
   };
 }
 
 export function createProgress(): Progress {
   return process.stdout.isTTY ? spinnerProgress() : plainProgress();
+}
+
+/**
+ * A spinner's final line ("◇  Found 8 of 23 supported CLIs · ccl-caut --discover to see all")
+ * on one row: trailing " · " parts go first (they are extras), then a cut with "…".
+ */
+export function fitStepLine(message: string, columns = (process.stdout.columns ?? 80) - 1): string {
+  const room = columns - 3;
+  const parts = message.split(" · ");
+  while (parts.length > 1 && displayWidth(parts.join(" · ")) > room) parts.pop();
+  const text = parts.join(" · ");
+  return displayWidth(text) <= room ? text : fitWidth(stripVTControlCharacters(text), room, icons.ellipsis);
 }
