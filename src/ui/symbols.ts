@@ -37,7 +37,16 @@ export function iconSet(unicode: boolean) {
     ellipsis: or("…", "..."),
     retired: or("⊘", "x"),
     selfUpdating: or("↻", "~"),
+    bullet: or("•", "-"),
+    upDown: or("↑/↓", "Up/Down"),
   };
+}
+
+/** The "What's new" panel frame: double lines, or +--+ on classic consoles. */
+export function frameSet(unicode: boolean) {
+  return unicode
+    ? { tl: "╔", tr: "╗", bl: "╚", br: "╝", h: "═", v: "║", ml: "╟", mr: "╢", m: "─" }
+    : { tl: "+", tr: "+", bl: "+", br: "+", h: "-", v: "|", ml: "+", mr: "+", m: "-" };
 }
 
 /** The icons for this terminal (decided once, like clack's). Tests derive expected glyphs from here. */

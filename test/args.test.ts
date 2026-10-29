@@ -5,7 +5,7 @@ describe("parseArgs", () => {
   it("defaults to the interactive flow", () => {
     expect(parseArgs([])).toEqual({
       ok: true,
-      options: { only: null, hideGroup: null, showGroup: null, output: null, force: false, check: false, json: false, refresh: false, discover: false, doctor: false, pending: false, noClear: false, resetSelection: false, yes: false, demo: false, help: false, version: false },
+      options: { only: null, hideGroup: null, showGroup: null, output: null, force: false, check: false, json: false, refresh: false, discover: false, doctor: false, pending: false, whatsNew: null, hideWhatsNew: false, showWhatsNew: false, noClear: false, resetSelection: false, yes: false, demo: false, help: false, version: false },
     });
   });
 
@@ -13,7 +13,7 @@ describe("parseArgs", () => {
     const parsed = parseArgs(["--check", "--json", "--refresh", "--discover", "--doctor", "--pending", "--no-clear", "--reset-selection", "-y", "--demo", "--no-color", "-h", "-v"]);
     expect(parsed).toEqual({
       ok: true,
-      options: { only: null, hideGroup: null, showGroup: null, output: null, force: false, check: true, json: true, refresh: true, discover: true, doctor: true, pending: true, noClear: true, resetSelection: true, yes: true, demo: true, help: true, version: true },
+      options: { only: null, hideGroup: null, showGroup: null, output: null, force: false, check: true, json: true, refresh: true, discover: true, doctor: true, pending: true, whatsNew: null, hideWhatsNew: false, showWhatsNew: false, noClear: true, resetSelection: true, yes: true, demo: true, help: true, version: true },
     });
   });
 
@@ -24,6 +24,18 @@ describe("parseArgs", () => {
     expect(parseArgs(["--only"])).toEqual({ ok: false, error: "--only needs a group: agents or dev" });
     expect(parseArgs(["--only", "games"])).toEqual({ ok: false, error: "--only needs a group: agents or dev" });
     expect(parseArgs(["--hide-group", "dev", "--show-group", "dev"])).toEqual({ ok: false, error: "--hide-group and --show-group both name dev" });
+  });
+
+  it("parses --whats-new <tool> (space or =) and the hide/show flags", () => {
+    expect(parseArgs(["--whats-new", "codex"])).toMatchObject({ ok: true, options: { whatsNew: "codex" } });
+    expect(parseArgs(["--whats-new=ccl-caut", "--json"])).toMatchObject({ ok: true, options: { whatsNew: "ccl-caut", json: true } });
+    expect(parseArgs(["--whats-new"])).toEqual({ ok: false, error: "--whats-new needs a tool id (e.g. --whats-new codex)" });
+    expect(parseArgs(["--whats-new", "--json"])).toEqual({ ok: false, error: "--whats-new needs a tool id (e.g. --whats-new codex)" });
+    expect(parseArgs(["--hide-whats-new"])).toMatchObject({ ok: true, options: { hideWhatsNew: true, showWhatsNew: false } });
+    expect(parseArgs(["--show-whats-new"])).toMatchObject({ ok: true, options: { hideWhatsNew: false, showWhatsNew: true } });
+    expect(parseArgs(["--hide-whats-new", "--show-whats-new"])).toEqual({ ok: false, error: "--hide-whats-new and --show-whats-new can't be used together" });
+    const help = helpText("1.3.0");
+    for (const flag of ["--whats-new <tool>", "--hide-whats-new", "--show-whats-new", "n what's new"]) expect(help).toContain(flag);
   });
 
   it("rejects unknown options", () => {

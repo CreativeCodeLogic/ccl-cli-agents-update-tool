@@ -7,6 +7,7 @@ import { distInfoVersion, pythonUpdatePlan } from "../utils/python";
 import { pythonCompatibility, pythonInstallOf } from "./python-package-tool";
 import { extractVersion } from "../utils/version";
 import { npmGlobalPlan, versionFromCommand } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 /*
  * Two products ship a `kimi` binary:
@@ -70,6 +71,7 @@ export const kimi: ToolDescriptor = {
   shortName: "Kimi",
   description: "Moonshot AI's Kimi Code agent for the terminal",
   docsUrl: "https://moonshotai.github.io/kimi-code/",
+  releaseNotes: (method) => (isPython(method ?? undefined) ? githubRelease("MoonshotAI/kimi-cli", (v) => v) : githubRelease("MoonshotAI/kimi-code", (v) => `@moonshot-ai/kimi-code@${v}`)),
   binNames: ["kimi"],
   npmPackage: NPM_PKG,
 

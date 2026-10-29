@@ -1,6 +1,7 @@
 import type { ToolDescriptor, UpdatePlan } from "../types";
 import { fetchLatestGithubRelease, GITHUB_CACHE_TTL_MS } from "../utils/github";
 import { versionFromCommand } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 /*
  * supabase.com/docs/guides/local-development/cli/getting-started: Homebrew
@@ -19,6 +20,7 @@ export const supabase: ToolDescriptor = {
   shortName: "Supabase",
   description: "Supabase's CLI for local development and project management",
   docsUrl: "https://supabase.com/docs/guides/local-development/cli/getting-started",
+  releaseNotes: githubRelease("supabase/cli"),
   binNames: ["supabase"],
   // npm is for projects only: the project-copy check looks for "supabase".
   projectPackages: ["supabase"],

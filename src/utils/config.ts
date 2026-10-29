@@ -24,6 +24,8 @@ interface ConfigFile {
   starShownVersion?: string;
   /** 1.2+: true once --discover has run; the scan line stops suggesting it. */
   discoverUsed?: boolean;
+  /** 1.3+: --hide-whats-new (the "n what's new" key hint is left out; n still works). */
+  hideWhatsNew?: boolean;
 }
 
 const isGroup = (value: unknown): value is ToolGroup => (TOOL_GROUPS as readonly unknown[]).includes(value);
@@ -61,6 +63,7 @@ export class UserConfig {
     private hidden: ToolGroup[],
     private starShown: string | null = null,
     private discover = false,
+    private hideNotesHint = false,
   ) {}
 
   static load(host: Host = getHost()): UserConfig {
@@ -70,16 +73,25 @@ export class UserConfig {
     const hidden: ToolGroup[] = [];
     let starShown: string | null = null;
     let discover = false;
+    let hideNotesHint = false;
     let migrate = false;
     if (file && !sideEffectsBlocked()) {
       try {
-        const parsed = JSON.parse(readFileSync(file, "utf8")) as { schema?: unknown; tools?: unknown; hiddenGroups?: unknown; starShownVersion?: unknown; discoverUsed?: unknown } | null;
+        const parsed = JSON.parse(readFileSync(file, "utf8")) as {
+          schema?: unknown;
+          tools?: unknown;
+          hiddenGroups?: unknown;
+          starShownVersion?: unknown;
+          discoverUsed?: unknown;
+          hideWhatsNew?: unknown;
+        } | null;
         if ((parsed?.schema !== 1 && parsed?.schema !== 2) || typeof parsed.tools !== "object" || parsed.tools === null) {
           throw new Error("unexpected config format");
         }
         for (const [id, choice] of Object.entries(parsed.tools)) if (isChoice(choice)) choices[id] = choice;
         if (typeof parsed.starShownVersion === "string") starShown = parsed.starShownVersion;
         discover = parsed.discoverUsed === true;
+        hideNotesHint = parsed.hideWhatsNew === true;
         if (Array.isArray(parsed.hiddenGroups)) {
           for (const group of parsed.hiddenGroups) if (isGroup(group) && !hidden.includes(group)) hidden.push(group);
         }
@@ -88,7 +100,7 @@ export class UserConfig {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") debug(`ignoring config ${file}: ${String(error)}`);
       }
     }
-    const config = new UserConfig(file, choices, hidden, starShown, discover);
+    const config = new UserConfig(file, choices, hidden, starShown, discover, hideNotesHint);
     // A 1.1 development build wrote schema 2, which 1.0.x ignores: put it back in the shape 1.0.x reads.
     if (migrate && host) config.write(host);
     return config;
@@ -117,6 +129,17 @@ export class UserConfig {
     this.write(host);
   }
 
+  /** --hide-whats-new (kept by --reset-selection). */
+  get whatsNewHidden(): boolean {
+    return this.hideNotesHint;
+  }
+
+  /** --hide-whats-new / --show-whats-new. Never throws. */
+  setWhatsNewHidden(hidden: boolean, host: Host = getHost()): void {
+    this.hideNotesHint = hidden;
+    this.write(host);
+  }
+
   get hiddenGroups(): readonly ToolGroup[] {
     return this.hidden;
   }
@@ -138,6 +161,7 @@ export class UserConfig {
         ...(this.hidden.length > 0 && { hiddenGroups: this.hidden }),
         ...(this.starShown && { starShownVersion: this.starShown }),
         ...(this.discover && { discoverUsed: true }),
+        ...(this.hideNotesHint && { hideWhatsNew: true }),
       };
       writeFileSync(tmp, `${JSON.stringify(data, null, 2)}\n`);
       renameSync(tmp, this.file);
@@ -160,7 +184,7 @@ export class UserConfig {
   reset(host: Host = getHost()): void {
     this.choices = {};
     if (!this.file || sideEffectsBlocked()) return;
-    if (this.hidden.length > 0 || this.starShown || this.discover) return this.write(host);
+    if (this.hidden.length > 0 || this.starShown || this.discover || this.hideNotesHint) return this.write(host);
     try {
       rmSync(this.file, { force: true });
     } catch (error) {

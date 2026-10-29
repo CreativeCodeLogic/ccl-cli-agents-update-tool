@@ -79,6 +79,7 @@ export interface Compatibility {
 }
 
 import type { WingetPackage } from "./utils/winget";
+import type { ReleaseNotesSpec } from "./whatsnew/sources";
 
 /** One copy of a tool's executable found on PATH. */
 export interface BinaryInstance {
@@ -103,6 +104,8 @@ export interface ToolDescriptor {
   description: string;
   /** The tool's OFFICIAL install docs (ccl-caut never installs tools). */
   docsUrl: string;
+  /** Where its official release notes are, for "What's new" (docs/whats-new-sources.md). */
+  releaseNotes: ReleaseNotesSpec;
   /** npm package that ships this CLI, if any (used in messages and the project-copy check). */
   npmPackage?: string;
   /**
