@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-01
+
+CCL CAUT 1.2 "Polish": a live table, CCL CAUT updating itself from the checklist, a *Still to do* list at the end of every run, automatic winget updates, npm 12 support and narrow-window fixes. Update with `npm i -g ccl-caut` or run `npx ccl-caut`. This release is the code of 1.2.0-beta.5; the beta sections below list every change in detail. Published from GitHub Actions with npm provenance and approved by a maintainer.
+
+### Added
+
+- **Live table:** the table appears right away and each row fills in as its latest-version check finishes, redrawn in place. The finished table stays in your scrollback. `q` stops the check, and `CCL_CAUT_NO_LIVE=1` turns it off.
+- **CCL CAUT updates itself from the checklist:** a global npm install gets the newer ccl-caut as its own first row. It installs last, is checked with `ccl-caut --version`, and then offers only Quit. Other prefixes (nvm, fnm, Volta) get the command.
+- **"Still to do" at the end of every run:** the commands you still have to run yourself, each as a plain line that copies cleanly under a `#` comment. This includes manual updates, automatic ones that failed or were skipped, and repairs for broken npm installs. `ccl-caut --pending` prints only that list (exit 1 while something is left), and `--json` includes it as `pending`.
+- **Automatic winget updates** for per-user installs of OpenCode, Antigravity CLI and GitHub CLI. When winget doesn't offer the vendor's latest version yet, the row says *waiting for winget* and nothing is attempted. Verified end to end by the weekly canary.
+- **Python version check** for uv, pipx and pip installs: when the latest release needs another Python, the update becomes a reinstall command with a fitting Python, and it is never preselected.
+- **Scheduled runs:** [docs/scheduling.md](docs/scheduling.md) has cron, launchd and Task Scheduler recipes for `--check` and `--yes`.
+- **Demo mode is unmistakable:** a DEMO MODE notice under the header, at the end and on every prompt, and every update is labelled "(simulated)".
+- *What next?* takes `r` to rescan.
+
+### Changed
+
+- **`--yes` now exits with 1 when a selected tool was skipped** (running, needs admin rights, or Claude Code inside a Claude Code session). In 1.1 it exited with 0. Like a failed update, a skipped one did not apply.
+- `--yes` skips automatic updates that need admin rights (ccl-caut never elevates), and unattended runs never wait for input.
+- After *Re-check*, the pre-flight says what it found instead of asking "Ready to update?" again.
+- The scan line stops suggesting `--discover` once you've used it.
+
+### Fixed
+
+- **npm 12 and install scripts:** npm 12 skips install scripts it wasn't told to allow, also for `npm install -g`, and still exits 0. Claude Code, Amp and OpenCode need theirs to put the real binary in place.
+  - CCL CAUT allows exactly that script, per tool (`--allow-scripts=<your list>,<package>`, npm 11.16+), and never uses a wildcard.
+  - It respects `ignore-scripts=true` (you get a one-time command and the reason).
+  - A tool left unable to start is reported as **BROKEN** with its repair command, after an update and at scan time.
+  - Details: [docs/npm-install-scripts.md](docs/npm-install-scripts.md).
+- **Narrow windows:** messages, checklist rows and prompt lines now fit the window by display width. The `│` gutter stays on continuation lines, checklist hints shorten by importance ("needs admin" survives longest), and commands to copy are never wrapped.
+- **No more blank `│` lines during long updates:** the live status is always three rows and erases exactly what it drew.
+- On Windows, the console title no longer stays "npm install …" after an update.
+- "Ready to update?" no longer appears twice, and the first key at the pre-flight is no longer lost.
+- Output redirected to a file on Windows no longer contains color codes, and classic consoles no longer get a Unicode bar between ASCII ones.
+
 ## [1.2.0-beta.5] - 2026-10-29
 
 Fifth beta of 1.2: `npm i -g ccl-caut@next`.
@@ -52,6 +87,7 @@ Third beta of 1.2: `npm i -g ccl-caut@next`.
 
 - **"Still to do" at the end of every run:** when a run ends (`q` at the checklist or at *What next?*, after updates, after a self-update, in `--yes` and scheduled runs), the last lines list the commands you still have to run yourself: ticked tools whose update is a command to copy (Python reinstalls included), and automatic updates that failed or were skipped (running, needs admin rights), with their command. Each command is a plain line (no symbol, indent or color) under a `#` comment with its context, so a triple-click copies exactly the command, and pasting both lines works in bash, zsh and PowerShell. Nothing is printed when there's nothing left, after Ctrl+C, or for unticked, up-to-date or *waiting for winget* tools. In `--demo` the demo notice stays the very last block.
 - **`ccl-caut --pending`:** rescans and prints only that list, for the tools that would be selected (remembered choices, else the defaults; `--only` and hidden groups apply). Exit code 1 while something is left, 0 when not. `--pending --json` prints the list as JSON; `--json` includes it as `pending` (`id`, `name`, `command`, `reason`, `needsAdmin`, `shell`).
+
 ## [1.2.0-beta.2] - 2026-10-21
 
 Second beta of 1.2, with fixes from team testing: `npm i -g ccl-caut@next`.
@@ -213,7 +249,8 @@ First public release of CCL CAUT, the CLI Agents Update Tool, published on npm. 
 - Banner in the solid brand color #53d2ff (24-bit, closest 256-color shade as a fallback, off with NO_COLOR); the demo GIF shows the full flow.
 - Demo mode for documentation and recordings, with no real detection, network access, process launches or config writes.
 
-[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.5...HEAD
+[Unreleased]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.1.0...v1.2.0
 [1.2.0-beta.5]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.4...v1.2.0-beta.5
 [1.2.0-beta.4]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.3...v1.2.0-beta.4
 [1.2.0-beta.3]: https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool/compare/v1.2.0-beta.2...v1.2.0-beta.3
