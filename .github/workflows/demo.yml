@@ -26,10 +26,11 @@ jobs:
       # BtbN release, which since 2026-10-31 is the development (master) build: with it the
       # same tape rendered 2.3 MB instead of ~0.9 MB. So the action only warms up here...
       - name: Install VHS, ttyd and fonts
-        run: printf 'Output /tmp/warmup.gif\nType "ok"\n' > /tmp/warmup.tape
+        # VHS takes only a relative Output path.
+        run: printf 'Output warmup.gif\nType "ok"\n' > warmup.tape
       - uses: charmbracelet/vhs-action@v2
         with:
-          path: /tmp/warmup.tape
+          path: warmup.tape
 
       # ...and the demo is rendered with the stable ffmpeg the earlier GIFs used (n9.0.2).
       - name: Pin ffmpeg (stable n9.0, BtbN build of 2026-10-22)
