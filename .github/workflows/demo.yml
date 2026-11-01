@@ -10,9 +10,7 @@ permissions:
 
 jobs:
   render:
-    # Pinned: on ubuntu-latest = 26.04 (Nov 2026) the image's ffmpeg no longer merges
-    # identical frames, and the same tape rendered 2.2 MB (407 frames) instead of ~0.9 MB.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
