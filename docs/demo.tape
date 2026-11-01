@@ -21,9 +21,6 @@ Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful
 Set TypingSpeed 45ms
 Set CursorBlink false
-# 12 fps: a terminal demo looks the same, and the GIF stays under ~1 MB (current
-# ffmpeg/ttyd builds no longer merge identical frames).
-Set Framerate 12
 
 # Make `ccl-caut` resolve to this checkout's build without a global install.
 Hide

@@ -22,9 +22,28 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+      # vhs-action installs VHS, ttyd and the fonts. It also takes ffmpeg from the newest
+      # BtbN release, which since 2026-10-31 is the development (master) build: with it the
+      # same tape rendered 2.3 MB instead of ~0.9 MB. So the action only warms up here...
+      - name: Install VHS, ttyd and fonts
+        run: printf 'Output /tmp/warmup.gif\nType "ok"\n' > /tmp/warmup.tape
       - uses: charmbracelet/vhs-action@v2
         with:
-          path: docs/demo.tape
+          path: /tmp/warmup.tape
+
+      # ...and the demo is rendered with the stable ffmpeg the earlier GIFs used (n9.0.2).
+      - name: Pin ffmpeg (stable n9.0, BtbN build of 2026-10-22)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download autobuild-2026-10-22-13-06 --repo BtbN/FFmpeg-Builds --pattern 'ffmpeg-n9.0.2-33-g4cf298e66a-linux64-gpl-9.0.tar.xz' --dir "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/ffmpeg" && tar -xJf "$RUNNER_TEMP"/ffmpeg-n9.0.2-*.tar.xz --strip-components=1 -C "$RUNNER_TEMP/ffmpeg"
+          echo "$RUNNER_TEMP/ffmpeg/bin" >> "$GITHUB_PATH"
+
+      - name: Render docs/demo.tape
+        run: |
+          ffmpeg -version | head -1
+          vhs docs/demo.tape
 
       - uses: actions/upload-artifact@v7
         with:
