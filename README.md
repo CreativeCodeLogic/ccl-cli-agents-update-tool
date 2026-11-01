@@ -11,7 +11,7 @@ Twenty-three CLIs. Twelve ways to install them. One checklist.
 
 CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed, compares what you run with what's released, and lets you pick what to update from a single checklist. It supports 23 tools. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini, Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro and Goose. Dev CLIs: Firebase, the Google Cloud CLI, npm, Wrangler, Vercel, Netlify, Supabase and the GitHub CLI.
 
-![CCL CAUT demo: scan, the live table filling in, notes, the checklist with CCL CAUT itself on top, and updates](https://raw.githubusercontent.com/CreativeCodeLogic/ccl-cli-agents-update-tool/36859c5f799db8f082e84e104c1f937f7e39ad71/docs/demo.gif)
+![CCL CAUT demo: scan, the live table filling in, notes, the checklist with CCL CAUT itself on top, and updates](https://raw.githubusercontent.com/CreativeCodeLogic/ccl-cli-agents-update-tool/a6f2bbc7519e28ed2aedc38321dee1b868617fe4/docs/demo.gif)
 
 <sub>Recorded with `ccl-caut --demo` (sample data, nothing real is updated; the demo says so on every screen) using [VHS](https://github.com/charmbracelet/vhs); see [`docs/demo.tape`](docs/demo.tape).</sub>
 
@@ -241,6 +241,17 @@ For CLIs installed from PyPI, CCL CAUT recognizes [uv](https://docs.astral.sh/uv
 
 A new release can need a newer Python than the one a tool was installed with (Mistral Vibe 3.0 needs Python 3.14+). `uv tool upgrade` and `pipx upgrade` can't move such an install, so CCL CAUT reads the environment's Python version (`pyvenv.cfg`) and the release's `requires_python` from PyPI. If they don't match, the row still says *update available*, a note explains why, and the update is a command to copy that rebuilds the environment with a fitting Python: `uv tool upgrade --python 3.14 mistral-vibe` or `pipx reinstall --python 3.14 mistral-vibe` (pip: the matching `pip install --upgrade`). It is never preselected. When either version is unknown, nothing changes.
 
+### npm 12 and install scripts
+
+npm 12 no longer runs a package's install scripts unless they are allowed, also for `npm install -g`. A blocked install still exits 0, and npm prints only a warning. Most CLIs don't need theirs. Claude Code, Amp and OpenCode do: their script puts the real binary in place of a small placeholder, and without it the command doesn't start.
+
+- **Only what a tool needs, per tool.** For those packages only, the update command adds `--allow-scripts=<package>`, on npm 11.16 and later (older npm runs scripts anyway and doesn't know the flag). It never uses a wildcard and never allows a dependency's script.
+- **Your own allow list is kept.** The flag replaces the `allow-scripts` list in your `.npmrc` for that install, so CCL CAUT passes your entries along with it.
+- **`ignore-scripts=true` is respected.** If you turned install scripts off, CCL CAUT doesn't override that. The update becomes a command to run once, with the reason.
+- **BROKEN, never "unchanged".** If npm skipped a script a tool needs, or the tool no longer starts after an update, CCL CAUT reports it as **BROKEN** with the repair command, also under *Still to do*. A scan also flags an npm install whose command doesn't start (`broken` in `--json`).
+
+The per-tool findings and sources are in [docs/npm-install-scripts.md](docs/npm-install-scripts.md). A weekly canary updates every npm CLI on the latest npm and checks that each one runs.
+
 ### Remembered selections
 
 When you confirm the checklist, CCL CAUT remembers your choice per tool: ticked tools are preselected next time, unticked ones start unticked ("Selection remembered from your last run" appears under the prompt). Tools you've never decided on follow the defaults: preselected if outdated, unticked if retired or self-updating. `--yes` applies the same selection without asking, which makes it handy for a scheduled task. `--reset-selection` forgets every tool selection (hidden groups and other settings stay).
@@ -368,7 +379,7 @@ In a terminal, `--json` prints the JSON and then offers **Copy to clipboard** (P
   ]
 }```
 
-`state` is one of `up-to-date`, `outdated`, `not-installed`, `unknown` (a version could not be determined; never reported as outdated), `retired` or `self-updating`. `updateAvailable` tells you whether a newer version exists, even for retired tools. `latestStaleCachedAt` is set (the time it was cached) when the live lookup failed and `latestVersion` comes from an expired cache entry; `summary.stale` counts those. `network.failures` lists failed lookups (`url`, `kind`: timeout, dns, offline, proxy, tls, http or connection, and `detail`), and `network.problem` holds the one-line explanation when most or all of them failed. `needsAdmin` is `true` when the update needs administrator rights (or `sudo`) that this run doesn't have. `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`). `group` is `agents` or `dev`, and `hiddenGroups` lists the groups hidden with `--hide-group` (every tool is still included). `notes` holds info notes (`kind`, `message`, optional `url`); `projectPin` is set when the project in the current folder pins the tool (`packageJson`, `pkg`, `range`, `field`, `installedVersion`). `compatibility` is set when the latest release can't simply be installed over this copy, with the reason (for example *needs Python >=3.14* or *waiting for winget*); `plan` then holds the command to run instead, and the tool is never preselected. `installMethod` can also be `uv` or `pipx`. CCL CAUT's own version is in `self` (`latest`, and `next` for beta users), not in `tools`.
+`state` is one of `up-to-date`, `outdated`, `not-installed`, `unknown` (a version could not be determined; never reported as outdated), `retired` or `self-updating`. `updateAvailable` tells you whether a newer version exists, even for retired tools. `latestStaleCachedAt` is set (the time it was cached) when the live lookup failed and `latestVersion` comes from an expired cache entry; `summary.stale` counts those. `network.failures` lists failed lookups (`url`, `kind`: timeout, dns, offline, proxy, tls, http or connection, and `detail`), and `network.problem` holds the one-line explanation when most or all of them failed. `needsAdmin` is `true` when the update needs administrator rights (or `sudo`) that this run doesn't have. `plan.kind` is `auto` (CCL CAUT would run `command`) or `manual` (`command` is shown with a `reason`). `group` is `agents` or `dev`, and `hiddenGroups` lists the groups hidden with `--hide-group` (every tool is still included). `notes` holds info notes (`kind`, `message`, optional `url`); `projectPin` is set when the project in the current folder pins the tool (`packageJson`, `pkg`, `range`, `field`, `installedVersion`). `compatibility` is set when the latest release can't simply be installed over this copy, with the reason (for example *needs Python >=3.14* or *waiting for winget*); `plan` then holds the command to run instead, and the tool is never preselected. `broken` is set (`command`, `reason`) when a tool installed with npm doesn't start, for example after npm 12 skipped its install script; the repair command is also in `pending`. `installMethod` can also be `uv` or `pipx`. CCL CAUT's own version is in `self` (`latest`, and `next` for beta users), not in `tools`.
 
 ## Adding a new tool
 
@@ -394,7 +405,7 @@ Then add it to the list in [`src/registry/index.ts`](src/registry/index.ts). Too
 
 ## Roadmap
 
-What 1.2 brings, what comes after it, and what's deliberately not planned: see [ROADMAP.md](ROADMAP.md).
+What 1.2 is, what comes next (1.3, *What's new*), and what's deliberately not planned: see [ROADMAP.md](ROADMAP.md).
 
 ## License
 

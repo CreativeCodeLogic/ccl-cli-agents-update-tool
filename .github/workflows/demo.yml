@@ -26,6 +26,15 @@ jobs:
         with:
           path: docs/demo.tape
 
+      # The same tape renders ~2.2 MB on today's runners (it was ~0.9 MB in Oct 2026):
+      # optimize with gifsicle from Ubuntu's repository, as for the earlier GIFs.
+      - name: Optimize the GIF
+        run: |
+          sudo apt-get install -y --no-install-recommends gifsicle
+          ls -l docs/demo.gif
+          gifsicle -O3 --lossy=40 --colors 64 docs/demo.gif -o docs/demo.gif
+          ls -l docs/demo.gif
+
       - uses: actions/upload-artifact@v7
         with:
           name: demo-gif
