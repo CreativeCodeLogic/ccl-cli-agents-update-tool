@@ -38,9 +38,18 @@ Enter
 # which starts with the newer CCL CAUT itself.
 Sleep 5s
 
+# What's new: n on Codex CLI (2nd item) opens its release notes (demo fixture text,
+# no network) in a panel over the checklist; q closes it and the checklist is back.
+Down@450ms 1
+Sleep 500ms
+Type "n"
+Sleep 3.5s
+Type "q"
+Sleep 900ms
+
 # Untick Kimi Code (5th item), then confirm: CCL CAUT (runs last), Codex (npm),
 # Aider (uv), gcloud (manual), Netlify (npm).
-Down@450ms 4
+Down@450ms 3
 Sleep 500ms
 Space
 Sleep 1.2s
