@@ -27,7 +27,9 @@
 
 **1.2.x patches** fix what people report.
 
-## Next: 1.3 — What's new
+## In beta: 1.3 — What's new
+
+`npx ccl-caut@next` or `npm i -g ccl-caut@next` (1.3.0-beta.1).
 
 - **`n` shows a tool's release notes, on demand:** in the checklist and on *What next?* (for what was just updated), in a scrollable popup over the screen. Notes are fetched only when you press `n`, never during the scan.
 - **Only the latest release's notes,** exactly that version, never older ones, from the vendor's GitHub release or changelog file; tools that publish notes only on a web page get the link (`o` opens it).
@@ -35,7 +37,7 @@
 - **Polish:**
   - Hide npm's ".npmrc allow-scripts setting is being ignored" warning when CCL CAUT passes your own list along.
   - Leave zero counts out of the summary ("1 updated" instead of "1 updated, 0 manual").
-  - Show install-script progress during long updates.
+  - Say when npm runs a tool's install script during a long update (*running Claude Code's install script…*).
 
 ## Later (ideas)
 

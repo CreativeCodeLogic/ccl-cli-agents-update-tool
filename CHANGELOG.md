@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0-beta.1] - 2026-11-02
+
+First beta of 1.3 "What's new": `npm i -g ccl-caut@next` (back to stable: `npm i -g ccl-caut@latest`).
+
+### Added
+
+- **What's new:** `n` on a row of the checklist shows the official release notes of that tool's latest version in a framed panel over the screen (CCL CAUT's own row too). On *What next?*, `n` shows what was just updated: one tool opens directly, several get a picker (not offered after a self-update). The panel renders Markdown and scrolls (`↑/↓`, `PgUp/PgDn`, `Home/End`), follows resizes, `o` opens the official notes in your browser, and `q` or `Esc` closes it and restores the screen exactly. Only the notes of exactly the version shown as *Latest* are used, never an older release's, from the vendor's GitHub release or changelog file ([docs/whats-new-sources.md](docs/whats-new-sources.md)). Amp, Cursor, Kiro and Vercel publish their notes on a web page only and get the link. Notes are fetched only on `n` or `--whats-new`, never during the scan, cached by tool and version for 7 days ("no notes" for 1 hour, 2 MB at most), sanitized (cached text too) and cut at about 64 KB with a link to the rest. A GitHub rate limit says when to try again and is never cached. New hosts: `raw.githubusercontent.com` (Wrangler and Aider changelogs), plus release notes from `api.github.com` and `dl.google.com`.
+- **`--whats-new <tool>`** prints the notes of a tool's latest version and the official link, with no prompt. Exit code 0 when notes were shown, 1 when there are none or they couldn't be fetched, 2 for an unknown tool. `--json` has `whatsNewUrl` per tool (nothing is fetched).
+- **`--hide-whats-new` / `--show-whats-new`** hide or show the `n what's new` key hint from now on (saved in your config, kept by `--reset-selection`); `n` works either way.
+- Weekly canary job `whats-new`: fails only when a tool's notes mapping breaks.
+
+### Changed
+
+- The summary after updates leaves out zero counts: *2 updated, 5 up-to-date* instead of *2 updated, 0 manual, 5 up-to-date*.
+- npm updates run with `--loglevel=info` instead of `http`, because npm reports install scripts only at that level. While one runs, the progress line says so (*running Claude Code's install script…*). npm's other info lines never become the progress line.
+
+### Fixed
+
+- npm 12's *.npmrc allow-scripts setting is being ignored because --allow-scripts was passed on the command line* warning is no longer shown as the progress line: CCL CAUT expects it whenever it passes your own allow list along. Only that exact warning is hidden; it stays in the output shown on a failure.
+
 ## [1.2.0] - 2026-11-01
 
 CCL CAUT 1.2 "Polish": a live table, CCL CAUT updating itself from the checklist, a *Still to do* list at the end of every run, automatic winget updates, npm 12 support and narrow-window fixes. Update with `npm i -g ccl-caut` or run `npx ccl-caut`. This release is the code of 1.2.0-beta.5; the beta sections below list every change in detail. Published from GitHub Actions with npm provenance and approved by a maintainer.

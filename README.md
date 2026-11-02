@@ -97,7 +97,25 @@ Each command is a line of its own, with no symbol, indent or color, so a triple-
 
 ### What's new
 
-Press `n` on a row of the checklist to read that tool's official release notes for its latest version, in a panel on top of the checklist (`↑/↓` scroll, `o` opens them in your browser, `q` closes it and brings the checklist back as it was). On "What next?", `n` shows the notes of what was just updated. Notes are fetched only when you ask (one request, cached for 7 days), never during the scan, and every control sequence in them is stripped before anything is shown. Tools that publish their notes on a web page only (Amp, Cursor, Kiro, Vercel) get the link. Most notes come from the GitHub API: if its rate limit is reached, the panel says when to try again; setting `GITHUB_TOKEN` raises the limit. `ccl-caut --whats-new codex` prints the notes without a prompt; `--hide-whats-new` hides the key hint (the key keeps working). The sources per tool are in [docs/whats-new-sources.md](docs/whats-new-sources.md).
+Press `n` to read a tool's official release notes without leaving the terminal:
+
+- **In the checklist**, `n` opens the notes of the highlighted row's latest version (CCL CAUT's own row too).
+- **On *What next?*** after updates, `n` shows what was just updated: one tool opens directly, several get a picker. It isn't offered after CCL CAUT has updated itself.
+
+The notes open in a framed panel on top of the screen: `↑/↓` (or `j/k`) scroll, `PgUp/PgDn` (or `space`) page, `Home/End` (or `g/G`) jump, `o` opens the official notes in your browser, and `q` or `Esc` closes the panel and brings the screen back exactly as it was. While the notes load, `q` cancels the fetch.
+
+- **Latest release only.** You get the notes of exactly the version shown as *Latest*, never an older release's. If the vendor hasn't published notes for that version, the panel says so and gives the link.
+- **Link-only tools.** Amp, Cursor, Kiro and Vercel publish their notes on a web page only, so the panel shows the link (`o` opens it); CCL CAUT never scrapes web pages.
+- **On demand.** Notes are fetched only when you press `n` or run `--whats-new`, never during the scan. Long notes are cut at about 64 KB with a link to the rest, and every control sequence is stripped, cached text included.
+- **GitHub rate limit.** Most notes come from the GitHub API. If its limit is reached, the panel says when to try again; setting `GITHUB_TOKEN` raises the limit.
+
+`ccl-caut --whats-new <tool>` prints the notes of that tool's latest version and the official link, with no prompt (for example `ccl-caut --whats-new codex` or `ccl-caut --whats-new ccl-caut`). It exits with 0 when notes were shown, 1 when there are none or they couldn't be fetched, and 2 for an unknown tool (the valid ids are listed).
+
+`--hide-whats-new` takes the `n what's new` hint out of the key line from now on and `--show-whats-new` brings it back; it is saved in your config and `--reset-selection` keeps it. `n` works either way.
+
+Notes are cached by tool and version in the `whats-new` folder of your OS cache folder (`%LOCALAPPDATA%\ccl-caut\whats-new`, `~/Library/Caches/ccl-caut/whats-new` or `$XDG_CACHE_HOME/ccl-caut/whats-new`): 7 days for notes, 1 hour for "no notes yet", 2 MB at most. Offline, cached notes are still shown.
+
+Where each tool's notes come from, and how a version maps to them: [docs/whats-new-sources.md](docs/whats-new-sources.md).
 
 ## Supported tools
 
@@ -264,17 +282,18 @@ Run `ccl-caut --check` (notify only, recommended) or `ccl-caut --yes` (update) w
 
 ### Privacy & network
 
-CCL CAUT only reads public version information. It contacts exactly these hosts, and only to fetch latest-version metadata:
+CCL CAUT only reads public version information. It contacts exactly these hosts, and only to fetch latest-version metadata, and release notes when you ask for them (`n`, `--whats-new`):
 
 | Host | What for |
 | --- | --- |
 | `registry.npmjs.org` | Latest versions of npm-distributed tools (and Amp), and of ccl-caut itself |
-| `api.github.com` | Latest releases of Antigravity CLI, Supabase CLI, GitHub CLI and Goose, and for winget installs on the allowlist the versions published in `microsoft/winget-pkgs` (cached for 6 hours) |
-| `dl.google.com` | The Google Cloud SDK release feed |
+| `api.github.com` | Latest releases of Antigravity CLI, Supabase CLI, GitHub CLI and Goose, and for winget installs on the allowlist the versions published in `microsoft/winget-pkgs` (cached for 6 hours). What's new: the release notes of every tool that publishes them as GitHub releases, and of ccl-caut itself |
+| `raw.githubusercontent.com` | What's new only: the changelog files of Wrangler (`cloudflare/workers-sdk`) and Aider (`HISTORY.md`), read with a Range request |
+| `dl.google.com` | The Google Cloud SDK release feed, and for What's new its `RELEASE_NOTES` file (Range request) |
 | `pypi.org` | Aider, Mistral Vibe and legacy `kimi-cli` (latest version, and the Python version it requires) |
 | `prod.download.cli.kiro.dev` | Kiro CLI's release manifest |
 
-Nothing about you or your machine is sent: no identifiers, no list of installed tools, no telemetry or analytics of any kind. Requests are plain GETs (with a `ccl-caut` user agent), plus one tiny warm-up request to `registry.npmjs.org/-/ping`; `--doctor` sends a HEAD request to each host. If `GITHUB_TOKEN` (or `GH_TOKEN`) is set, it is sent to `api.github.com` only, to raise GitHub's limit of 60 unauthenticated requests per hour; it is never printed, logged or cached, and `--doctor` only says whether it is set. Results are cached for an hour in your OS cache folder (6 hours for GitHub releases), and your remembered selections stay in your OS config folder (see above). Update commands you choose to run (for example `claude update` or `npm install -g …`) contact their own vendors, exactly as if you ran them yourself.
+Nothing about you or your machine is sent: no identifiers, no list of installed tools, no telemetry or analytics of any kind. Requests are plain GETs (with a `ccl-caut` user agent), plus one tiny warm-up request to `registry.npmjs.org/-/ping`; `--doctor` sends a HEAD request to each host. If `GITHUB_TOKEN` (or `GH_TOKEN`) is set, it is sent to `api.github.com` only, to raise GitHub's limit of 60 unauthenticated requests per hour; it is never printed, logged or cached, and `--doctor` only says whether it is set. Results are cached for an hour in your OS cache folder (6 hours for GitHub releases, 7 days for release notes), and your remembered selections stay in your OS config folder (see above). Update commands you choose to run (for example `claude update` or `npm install -g …`) contact their own vendors, exactly as if you ran them yourself.
 
 ### Slow or offline networks, proxies
 
