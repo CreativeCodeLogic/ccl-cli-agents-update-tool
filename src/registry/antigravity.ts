@@ -1,6 +1,7 @@
 import type { ToolDescriptor, UpdatePlan } from "../types";
 import { fetchLatestGithubRelease, GITHUB_CACHE_TTL_MS } from "../utils/github";
 import { versionFromCommand } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 // antigravity.google/docs/cli/install: install scripts put `agy` in ~/.local/bin
 // (POSIX) or %LOCALAPPDATA%/agy/bin (Windows); `agy update` updates it, and it
@@ -15,6 +16,7 @@ export const antigravity: ToolDescriptor = {
   shortName: "Antigravity",
   description: "Google's Antigravity CLI (agy), Gemini CLI's successor",
   docsUrl: "https://antigravity.google/docs/cli/install",
+  releaseNotes: githubRelease("google-antigravity/antigravity-cli", (v) => v),
   binNames: ["agy"],
   // winget allowlist: per-user upgrade 1.3.6 -> 1.4.0 passed silently (Windows runner, winget 1.11).
   winget: { id: "Google.AntigravityCLI", auto: true },

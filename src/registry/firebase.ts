@@ -1,5 +1,6 @@
 import { getHost } from "../utils/host";
 import { createNpmPackageTool } from "./npm-package-tool";
+import { githubRelease } from "../whatsnew/sources";
 
 function standaloneCommand(): string {
   return getHost().platform === "win32"
@@ -14,6 +15,7 @@ export const firebase = createNpmPackageTool({
   shortName: "Firebase",
   description: "Deploy and manage Firebase projects",
   docsUrl: "https://firebase.google.com/docs/cli",
+  releaseNotes: githubRelease("firebase/firebase-tools"),
   binNames: ["firebase"],
   pkg: "firebase-tools",
   // Anything not under npm is almost certainly the standalone binary.

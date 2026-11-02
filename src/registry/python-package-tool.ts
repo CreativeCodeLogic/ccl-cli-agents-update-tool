@@ -16,6 +16,7 @@ export interface PythonPackageToolConfig {
   shortName?: string;
   description: string;
   docsUrl: string;
+  releaseNotes: ToolDescriptor["releaseNotes"];
   notes?: ToolDescriptor["notes"];
   identify?: ToolDescriptor["identify"];
   deprecation?: ToolDescriptor["deprecation"];
@@ -65,6 +66,7 @@ export function createPythonPackageTool(config: PythonPackageToolConfig): ToolDe
     binNames: config.binNames,
     description: config.description,
     docsUrl: config.docsUrl,
+    releaseNotes: config.releaseNotes,
     ...(config.shortName && { shortName: config.shortName }),
     ...(config.notes && { notes: config.notes }),
     ...(config.identify && { identify: config.identify }),

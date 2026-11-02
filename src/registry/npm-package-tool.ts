@@ -14,6 +14,7 @@ export interface NpmPackageToolConfig {
   projectPackages?: string[];
   description: string;
   docsUrl: string;
+  releaseNotes: ToolDescriptor["releaseNotes"];
   deprecation?: ToolDescriptor["deprecation"];
   refineInstallMethod?: ToolDescriptor["refineInstallMethod"];
   identify?: ToolDescriptor["identify"];
@@ -42,6 +43,7 @@ export function createNpmPackageTool(config: NpmPackageToolConfig): ToolDescript
     ...(config.projectPackages && { projectPackages: config.projectPackages }),
     description: config.description,
     docsUrl: config.docsUrl,
+    releaseNotes: config.releaseNotes,
     ...(config.shortName && { shortName: config.shortName }),
     ...(config.deprecation && { deprecation: config.deprecation }),
     ...(config.refineInstallMethod && { refineInstallMethod: config.refineInstallMethod }),

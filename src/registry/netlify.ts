@@ -1,4 +1,5 @@
 import { createNpmPackageTool } from "./npm-package-tool";
+import { githubRelease } from "../whatsnew/sources";
 
 // docs.netlify.com/api-and-cli-guides/cli-guides/get-started-with-cli/:
 // `npm install -g netlify-cli` (bins netlify and ntl; Node >= 22.13). Netlify
@@ -12,4 +13,5 @@ export const netlify = createNpmPackageTool({
   pkg: "netlify-cli",
   description: "Netlify's CLI for sites, functions and deploys",
   docsUrl: "https://docs.netlify.com/api-and-cli-guides/cli-guides/get-started-with-cli/",
+  releaseNotes: githubRelease("netlify/cli"),
 });

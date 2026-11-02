@@ -4,6 +4,7 @@ import { fetchLatestNpmVersion, readPackageVersionNear } from "../utils/npm";
 import { isInside } from "../utils/paths";
 import { fromBrewToken, ownedByNpmPackage } from "./detect-helpers";
 import { npmGlobalPlan, npmInstallPlan, versionFromCommand } from "./shared";
+import { linkOnly } from "../whatsnew/sources";
 
 /*
  * ampcode.com/docs/cli: install script (recommended) puts the binary in
@@ -46,6 +47,7 @@ export const amp: ToolDescriptor = {
   name: "Amp",
   description: "Amp's coding agent for the terminal (ampcode.com)",
   docsUrl: "https://ampcode.com/docs/cli",
+  releaseNotes: linkOnly("https://ampcode.com/news"),
   binNames: ["amp"],
   npmPackage: PKG,
   projectPackages: [PKG, OLD_PKG],

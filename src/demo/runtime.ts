@@ -178,7 +178,14 @@ function memorySelections(initial: Record<string, ToolChoice>): SelectionStore {
   let starShown: string | null = pkg.version;
   // In memory only: every demo run starts with the --discover hint.
   let discoverUsed = false;
+  let whatsNewHidden = false;
   return {
+    get whatsNewHidden() {
+      return whatsNewHidden;
+    },
+    setWhatsNewHidden: (hide) => {
+      whatsNewHidden = hide;
+    },
     get discoverUsed() {
       return discoverUsed;
     },

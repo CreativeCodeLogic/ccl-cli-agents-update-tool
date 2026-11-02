@@ -1,4 +1,5 @@
 import { createNpmPackageTool } from "./npm-package-tool";
+import { changelogFile } from "../whatsnew/sources";
 
 // developers.cloudflare.com/workers/wrangler/install-and-update/: npm only
 // (bins wrangler, wrangler2, cf-wrangler; Node >= 22). Cloudflare recommends a
@@ -14,5 +15,6 @@ export const wrangler = createNpmPackageTool({
   pkg: "wrangler",
   description: "Cloudflare's CLI for Workers and the developer platform",
   docsUrl: DOCS,
+  releaseNotes: changelogFile("https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/CHANGELOG.md", "https://github.com/cloudflare/workers-sdk/blob/main/packages/wrangler/CHANGELOG.md", "## "),
   notes: [{ kind: "info", message: "Cloudflare recommends installing Wrangler per project (npm i -D wrangler).", url: DOCS }],
 });

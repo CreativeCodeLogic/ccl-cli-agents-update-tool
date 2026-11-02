@@ -6,6 +6,7 @@ import { isVoltaPath } from "./utils/installMethod";
 import { getNpmGlobalPaths, isInCurrentNpmGlobal } from "./utils/npm";
 import { findAllExecutables } from "./utils/which";
 import type { InstallContext } from "./self";
+import { SELF_NOTES } from "./whatsnew/sources";
 
 /*
  * CCL CAUT itself as a checklist row ("CCL CAUT", first). Only for a global
@@ -41,6 +42,7 @@ export const selfTool: ToolDescriptor = {
   binNames: [PKG],
   description: "This tool",
   docsUrl: "https://github.com/CreativeCodeLogic/ccl-cli-agents-update-tool",
+  releaseNotes: SELF_NOTES,
   npmPackage: PKG,
   getInstalledVersion: () => versionFromCommand(PKG),
   getLatestVersion: async () => null,

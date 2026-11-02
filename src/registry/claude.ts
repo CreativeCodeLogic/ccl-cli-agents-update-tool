@@ -1,5 +1,6 @@
 import { createNpmPackageTool } from "./npm-package-tool";
 import { brewPlan } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 // The npm package ships the same native binary as the native installer
 // (bin/claude.exe), so npm's "latest" is valid for both install types.
@@ -10,6 +11,7 @@ export const claude = createNpmPackageTool({
   shortName: "Claude",
   description: "Anthropic's agentic coding assistant in your terminal",
   docsUrl: "https://code.claude.com/docs/en/setup",
+  releaseNotes: githubRelease("anthropics/claude-code"),
   binNames: ["claude"],
   pkg: "@anthropic-ai/claude-code",
   otherPlan: (instance) => {

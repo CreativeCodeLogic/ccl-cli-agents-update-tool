@@ -5,6 +5,7 @@ import { getHost, pathFor, type Host } from "../utils/host";
 import { fetchJson, stringField } from "../utils/http";
 import { isUnderProgramFiles, normalizePath } from "../utils/paths";
 import { brewPlan } from "./shared";
+import { changelogFile } from "../whatsnew/sources";
 
 // Release feed of the official SDK; its top-level "version" is the current release.
 const COMPONENTS_URL = "https://dl.google.com/dl/cloudsdk/channels/rapid/components-2.json";
@@ -62,6 +63,7 @@ export const gcloud: ToolDescriptor = {
   shortName: "gcloud",
   description: "Manage Google Cloud resources (gcloud, bq, gsutil)",
   docsUrl: "https://cloud.google.com/sdk/docs/install",
+  releaseNotes: changelogFile("https://dl.google.com/dl/cloudsdk/channels/rapid/RELEASE_NOTES", "https://cloud.google.com/sdk/docs/release-notes", "## ", " \\("),
   binNames: ["gcloud"],
   // Anything that isn't a package-manager install is the official installer/archive.
   refineInstallMethod: (method) => (method === "unknown" ? "native" : method),

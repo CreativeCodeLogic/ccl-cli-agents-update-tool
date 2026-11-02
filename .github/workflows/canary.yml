@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Run one job group only (npm, npm12, uv, pipx, python-compat, winget); empty = all"
+        description: "Run one job group only (npm, npm12, uv, pipx, python-compat, winget, whats-new); empty = all"
         required: false
         default: ""
       npm12_caut:
@@ -90,6 +90,28 @@ jobs:
         run: |
           node dist/index.js --json --refresh > scan.json || true
           node scripts/canary-check.mjs scan.json claude codex copilot opencode gemini qwen firebase wrangler vercel netlify cline amp
+
+  # "What's new": every tool whose notes CCL CAUT shows in the terminal must still map
+  # its Latest version to its notes (release tag or changelog heading). A version
+  # without notes is fine; a changed tag/heading format or a moved file fails.
+  canary-whats-new:
+    if: ${{ !inputs.only || inputs.only == 'whats-new' }}
+    name: What's new mappings
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Fetch the notes of every in-terminal tool
+        env:
+          # 21 GitHub API requests: past the shared runner IP's unauthenticated limit.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/canary-whats-new.mjs aider antigravity claude cline codex copilot firebase gcloud gemini gh goose kimi netlify npm opencode qwen supabase vibe wrangler ccl-caut
 
   # npm 12 blocks install scripts by default, also for `npm install -g`, and still exits 0.
   # Some CLIs ship a placeholder binary that their own install script replaces

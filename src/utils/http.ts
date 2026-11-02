@@ -39,7 +39,16 @@ export type FetchImpl = (url: string, init: { headers: Record<string, string>; s
   status: number;
   headers?: { get(name: string): string | null };
   json(): Promise<unknown>;
+  /** Text bodies (release notes) are read from the stream, up to a byte cap. */
+  body?: ReadableStream<Uint8Array> | null;
+  text?(): Promise<string>;
 }>;
+
+/** A text document (release notes): `capped` = the body was longer than maxBytes and was cut there. */
+export type TextResult = { ok: true; status: number; text: string; capped: boolean } | { ok: false; failure: NetFailure; status?: number };
+
+/** One text download: a single attempt, this long at most. */
+export const TEXT_TIMEOUT_MS = 10_000;
 
 /**
  * Rate limit from an HTTP answer: 429, or 403 with x-ratelimit-remaining: 0 or
@@ -269,6 +278,37 @@ export class Network {
     return pending;
   }
 
+  /**
+   * GET a text document on demand (release notes): one attempt, outside the
+   * scan's budget and report, never de-duplicated (a second press after a
+   * failure tries again). Reads at most `maxBytes`; `signal` cancels it.
+   * Headers are sent but never stored or logged.
+   */
+  async fetchText(
+    url: string,
+    { headers = {}, maxBytes, signal, timeoutMs = TEXT_TIMEOUT_MS }: { headers?: Record<string, string>; maxBytes: number; signal?: AbortSignal; timeoutMs?: number },
+  ): Promise<TextResult> {
+    const timeout = this.timeout(timeoutMs);
+    try {
+      const dispatcher = this.dispatcher;
+      const res = await this.fetchImpl(url, {
+        headers: { "user-agent": USER_AGENT, ...headers },
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+        ...(dispatcher && { dispatcher }),
+      });
+      if (!res.ok) {
+        const rateLimit = rateLimitOf(res.status, res.headers, this.now());
+        await res.body?.cancel().catch(() => {});
+        return { ok: false, status: res.status, failure: { kind: "http", detail: `HTTP ${res.status}`, ...(rateLimit && { rateLimit }) } };
+      }
+      const { text, capped } = await readCapped(res, maxBytes);
+      return { ok: true, status: res.status, text, capped };
+    } catch (error) {
+      debug(`GET ${url} failed: ${String(error)}`);
+      return { ok: false, failure: classifyError(error, timeout.aborted ? timeoutMs : undefined) };
+    }
+  }
+
   /** Lookups finished so far, and how the failed ones failed. */
   report(): NetworkReport {
     const failures = [...this.outcomes.entries()].flatMap(([url, r]) => (r.ok ? [] : [{ url, ...r.failure }]));
@@ -298,6 +338,38 @@ const WORDING: Record<NetFailureKind, string> = {
   http: "HTTP error",
   connection: "connection failed",
 };
+
+/** A failure in a few words: "timed out after 10.0s", "no network connection (ENETUNREACH)", "HTTP 503". */
+export function describeFailure(f: NetFailure): string {
+  if (f.kind === "http" || f.kind === "timeout") return f.detail;
+  return `${WORDING[f.kind]} (${f.detail})`;
+}
+
+/** Read a body up to maxBytes, then stop downloading. */
+async function readCapped(res: Awaited<ReturnType<FetchImpl>>, maxBytes: number): Promise<{ text: string; capped: boolean }> {
+  if (!res.body) {
+    const text = (await res.text?.()) ?? "";
+    const bytes = Buffer.from(text, "utf8");
+    return bytes.length > maxBytes ? { text: bytes.subarray(0, maxBytes).toString("utf8"), capped: true } : { text, capped: false };
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  let capped = false;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    size += value.length;
+    if (size > maxBytes) {
+      capped = true;
+      await reader.cancel().catch(() => {});
+      break;
+    }
+  }
+  const all = Buffer.concat(chunks);
+  return { text: (capped ? all.subarray(0, maxBytes) : all).toString("utf8"), capped };
+}
 
 /**
  * One line for a network-wide problem (most or all lookups failed), else null:

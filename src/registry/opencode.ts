@@ -3,6 +3,7 @@ import { getHost } from "../utils/host";
 import { fetchLatestNpmVersion, readPackageVersionNear } from "../utils/npm";
 import { normalizePath } from "../utils/paths";
 import { brewPlan, npmGlobalPlan, versionFromCommand } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 // opencode.ai/docs (repo: github.com/anomalyco/opencode). Two release lines:
 // v1 = npm opencode-ai (also Homebrew tap anomalyco/tap/opencode, Chocolatey,
@@ -23,6 +24,7 @@ export const opencode: ToolDescriptor = {
   name: "OpenCode",
   description: "Open-source AI coding agent for the terminal",
   docsUrl: "https://opencode.ai/docs",
+  releaseNotes: githubRelease("anomalyco/opencode"),
   binNames: ["opencode"],
   // winget allowlist: per-user upgrade 1.19.0 -> 1.19.1 passed silently (Windows runner, winget 1.11).
   winget: { id: "SST.opencode", auto: true },

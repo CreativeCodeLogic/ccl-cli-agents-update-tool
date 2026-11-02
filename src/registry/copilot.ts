@@ -3,6 +3,7 @@ import { getHost } from "../utils/host";
 import { normalizePath } from "../utils/paths";
 import { createNpmPackageTool } from "./npm-package-tool";
 import { brewPlan } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 // docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli
 // and the CLI command reference (`copilot update`). npm and GitHub releases share
@@ -24,6 +25,7 @@ const tool = createNpmPackageTool({
   shortName: "Copilot",
   description: "GitHub Copilot's coding agent for the terminal",
   docsUrl: "https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli",
+  releaseNotes: githubRelease("github/copilot-cli"),
   binNames: ["copilot"],
   pkg: "@github/copilot",
   // The install script uses ~/.local/bin, or /usr/local/bin when run as root.

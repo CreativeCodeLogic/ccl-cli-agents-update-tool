@@ -1,5 +1,6 @@
 import { createNpmPackageTool } from "./npm-package-tool";
 import { brewPlan } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 export const codex = createNpmPackageTool({
   id: "codex",
@@ -8,6 +9,7 @@ export const codex = createNpmPackageTool({
   shortName: "Codex",
   description: "OpenAI's coding agent for the terminal",
   docsUrl: "https://developers.openai.com/codex/cli",
+  releaseNotes: githubRelease("openai/codex", (v) => `rust-v${v}`),
   binNames: ["codex"],
   pkg: "@openai/codex",
   otherPlan: (instance) => {

@@ -129,6 +129,21 @@ describe("UserConfig on disk", () => {
     expect(UserConfig.load(host).discoverUsed).toBe(true);
   });
 
+  it("--hide-whats-new / --show-whats-new persist as an extra key on schema 1; --reset-selection keeps it", () => {
+    const { host, file } = tempHost();
+    expect(UserConfig.load(host).whatsNewHidden).toBe(false);
+    const config = UserConfig.load(host);
+    config.saveChoices({ codex: "skip" }, host);
+    config.setWhatsNewHidden(true, host);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: { codex: "skip" }, hideWhatsNew: true });
+    expect(UserConfig.load(host).whatsNewHidden).toBe(true);
+    UserConfig.load(host).reset(host);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: {}, hideWhatsNew: true });
+    UserConfig.load(host).setWhatsNewHidden(false, host);
+    expect(JSON.parse(readFileSync(file, "utf8"))).toEqual({ schema: 1, tools: {} });
+    expect(UserConfig.load(host).whatsNewHidden).toBe(false);
+  });
+
   it("--reset-selection forgets the selections but keeps discoverUsed", () => {
     const { host, file } = tempHost();
     const config = UserConfig.load(host);

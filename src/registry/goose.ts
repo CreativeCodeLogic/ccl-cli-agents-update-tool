@@ -5,6 +5,7 @@ import { envVar, getHost, pathFor, type Host } from "../utils/host";
 import { isInside, normalizePath } from "../utils/paths";
 import { fromBrewToken } from "./detect-helpers";
 import { versionFromCommand } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 /*
  * goose-docs.ai/docs/getting-started/installation/: the download_cli.sh script
@@ -54,6 +55,7 @@ export const goose: ToolDescriptor = {
   name: "Goose",
   description: "Open-source AI agent for the terminal (formerly block/goose)",
   docsUrl: "https://goose-docs.ai/docs/getting-started/installation/",
+  releaseNotes: githubRelease("aaif-goose/goose"),
   binNames: ["goose"],
 
   async identify(instance) {

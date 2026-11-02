@@ -3,6 +3,7 @@ import { getHost, pathFor } from "../utils/host";
 import { fetchLatestNpmVersion, getNpmGlobalPaths, readPackageVersionNear } from "../utils/npm";
 import { samePath } from "../utils/paths";
 import { versionFromCommand } from "./shared";
+import { githubRelease } from "../whatsnew/sources";
 
 /** True when the global prefix of the npm on PATH holds its own npm package. */
 async function hasPrefixNpm(): Promise<boolean> {
@@ -22,6 +23,7 @@ export const npm: ToolDescriptor = {
   name: "npm",
   description: "The Node.js package manager",
   docsUrl: "https://docs.npmjs.com/downloading-and-installing-node-js-and-npm",
+  releaseNotes: githubRelease("npm/cli"),
   binNames: ["npm"],
   npmPackage: "npm",
 

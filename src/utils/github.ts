@@ -29,6 +29,11 @@ function authHeaders(env: Readonly<Record<string, string | undefined>> = process
   return source ? { authorization: `Bearer ${env[source]!.trim()}` } : {};
 }
 
+/** Headers for one api.github.com request: the JSON media type and the optional token (never logged). */
+export function githubApiHeaders(env: Readonly<Record<string, string | undefined>> = process.env): Record<string, string> {
+  return { accept: "application/vnd.github+json", ...authHeaders(env) };
+}
+
 let rateLimited: { resetAt: number | null } | null = null;
 let notified = false;
 
