@@ -1,3 +1,4 @@
+import { stripVTControlCharacters } from "node:util";
 import { PassThrough, Writable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { gcloud } from "../src/registry/gcloud";
@@ -6,7 +7,7 @@ import { computeNeedsAdmin } from "../src/scan";
 import { fitToWidth, formatElapsed } from "../src/ui/live";
 import { icons } from "../src/ui/symbols";
 import { CANCELLED, checklist, choose, QUIT, RETRY } from "../src/ui/prompts";
-import { OutputTracker, withNpmProgress } from "../src/ui/update";
+import { OutputTracker, summaryLine, withNpmProgress, type UpdateOutcome } from "../src/ui/update";
 import { setHost } from "../src/utils/host";
 import { fakeHost, instance, win } from "./helpers";
 
@@ -192,9 +193,66 @@ describe("live update progress", () => {
     expect(tracker.tail(20)).toHaveLength(3);
   });
 
-  it("adds --loglevel=http to npm installs only", () => {
-    expect(withNpmProgress("npm", ["install", "-g", "x@latest"])).toEqual(["install", "-g", "x@latest", "--loglevel=http"]);
+  it("adds --loglevel=info to npm installs only", () => {
+    expect(withNpmProgress("npm", ["install", "-g", "x@latest"])).toEqual(["install", "-g", "x@latest", "--loglevel=info"]);
     expect(withNpmProgress("/home/jane/.local/bin/claude", ["update"])).toEqual(["update"]);
     expect(withNpmProgress("npm", ["install", "--loglevel=silly"])).toEqual(["install", "--loglevel=silly"]);
+  });
+
+  it("never shows npm's expected allow-scripts warning as the live line, but every other warning", () => {
+    const tracker = new OutputTracker();
+    tracker.feed("npm http fetch GET 200 https://registry.npmjs.org/@anthropic-ai%2fclaude-code 412ms\r\n");
+    tracker.feed("npm warn install-scripts .npmrc allow-scripts setting is being ignored because --allow-scripts was passed on the command line\r\n");
+    expect(tracker.latest).toBe("");
+    // Still being written (no newline yet): not shown either.
+    tracker.feed("npm warn install-scripts .npmrc allow-scripts setting is being ignored because --allow-scripts was passed on the command line");
+    expect(tracker.latest).toBe("");
+    tracker.end();
+    // The package.json variant is a different warning and stays visible.
+    tracker.feed("npm warn install-scripts .npmrc allow-scripts setting is being ignored because package.json declares its own allowScripts field\n");
+    expect(tracker.latest).toContain("package.json declares");
+    tracker.feed("npm warn deprecated foo@1.0.0: use bar\n");
+    expect(tracker.latest).toBe("npm warn deprecated foo@1.0.0: use bar");
+    // Kept for the failure tail.
+    expect(tracker.tail(20).some((l) => l.includes("--allow-scripts was passed"))).toBe(true);
+  });
+
+  it("shows npm's install-script run (info level) and leaves npm's other info lines out", () => {
+    const tracker = new OutputTracker({ "@anthropic-ai/claude-code": "Claude Code" });
+    tracker.feed("npm info using npm@12.2.1\nnpm info using node@v24.11.0\n");
+    expect(tracker.latest).toBe("");
+    tracker.feed("npm http fetch GET 200 https://registry.npmjs.org/@anthropic-ai%2fclaude-code 412ms (cache revalidated)\n");
+    tracker.feed("npm http fetch GET 200 https://registry.npmjs.org/@anthropic-ai/claude-code-win32-x64/-/claude-code-win32-x64-2.1.316.tgz 380ms\n");
+    tracker.feed("npm info run @anthropic-ai/claude-code@2.1.316 postinstall node_modules/@anthropic-ai/claude-code node install.cjs\n");
+    expect(tracker.latest).toBe(`running Claude Code's install script${icons.ellipsis}`);
+    expect(tracker.counter()).toBe("fetched 2 files");
+    tracker.feed("npm info run @anthropic-ai/claude-code@2.1.316 postinstall { code: 0, signal: null }\n");
+    expect(tracker.latest).toBe("");
+    tracker.feed("\nchanged 2 packages in 12m\nnpm info ok\n");
+    expect(tracker.latest).toBe("changed 2 packages in 12m");
+  });
+
+  it("names a dependency's install script by its package", () => {
+    const tracker = new OutputTracker({ wrangler: "Wrangler" });
+    tracker.feed("npm info run esbuild@0.28.2 postinstall node_modules/wrangler/node_modules/esbuild node install.js\n");
+    expect(tracker.latest).toBe(`running esbuild's install script${icons.ellipsis}`);
+  });
+});
+
+describe("summary line", () => {
+  const outcome = (o: Partial<UpdateOutcome> = {}): UpdateOutcome => ({
+    updated: 0, unchanged: 0, held: 0, current: 0, failed: 0, manual: 0, interrupted: false,
+    updatedIds: [], failedIds: [], repairs: new Map(), ...o,
+  });
+  const plain = (s: string) => stripVTControlCharacters(s);
+
+  it("leaves out zero counts", () => {
+    expect(plain(summaryLine(outcome({ updated: 2 }), 5, 0))).toBe("2 updated, 5 up-to-date");
+    expect(plain(summaryLine(outcome({ manual: 1 }), 0, 0))).toBe("1 manual");
+    expect(plain(summaryLine(outcome({ updated: 1, failed: 1 }), 3, 2))).toBe("1 updated, 3 up-to-date, 2 skipped, 1 failed");
+  });
+
+  it("says 0 updated when every count is zero", () => {
+    expect(plain(summaryLine(outcome(), 0, 0))).toBe("0 updated");
   });
 });

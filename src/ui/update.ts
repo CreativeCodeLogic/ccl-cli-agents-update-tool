@@ -39,14 +39,25 @@ export type UpdateExecutor = (
 const isNpmInstall = (command: string, args: readonly string[]) =>
   path.parse(command).name.toLowerCase() === "npm" && args[0] === "install";
 
-/** npm hides its progress when not on a TTY; http-level logging gives us one line per fetched file. */
+/**
+ * npm hides its progress when not on a TTY. Info-level logging gives us one line per
+ * fetched file (http) and "npm info run" when an install script starts and ends.
+ */
 export function withNpmProgress(command: string, args: string[]): string[] {
-  return isNpmInstall(command, args) && !args.some((a) => a.startsWith("--loglevel")) ? [...args, "--loglevel=http"] : args;
+  return isNpmInstall(command, args) && !args.some((a) => a.startsWith("--loglevel")) ? [...args, "--loglevel=info"] : args;
 }
 
 const runForReal: UpdateExecutor = (command, args, _target, onChunk) => execCapture(command, withNpmProgress(command, args), onChunk);
 
 const NPM_HTTP = /^npm (?:http|verb) (?:fetch|cache) /;
+// npm's own info lines ("npm info using npm@12.2.1", "npm info ok"): never the live line.
+const NPM_INFO = /^npm info /;
+// npm (arborist rebuild, info level): "npm info run <pkg>@<version> <event> <location> <command>"
+// when a lifecycle script starts, "npm info run <pkg>@<version> <event> { code: 0, signal: null }" when it ends.
+const NPM_RUN = /^npm info run (@?[^@\s]+)@\S+ (preinstall|install|postinstall|prepare) (\{)?/;
+// Expected whenever CAUT passes the user's merged list with --allow-scripts (npm 12,
+// resolve-allow-scripts.js); the exact line only, every other warning still shows.
+const NPM_ALLOW_SCRIPTS_IGNORED = "npm warn install-scripts .npmrc allow-scripts setting is being ignored because --allow-scripts was passed on the command line";
 
 /** What a \r-redrawn line finally shows: its last non-blank segment, as plain text. */
 export function finalState(raw: string): string {
@@ -59,8 +70,14 @@ export function finalState(raw: string): string {
 export class OutputTracker {
   private pending = "";
   private readonly lines: string[] = [];
+  private beforeScript = "";
   latest = "";
   fetched = 0;
+  /** The package whose install script npm is running right now, if npm said so. */
+  scriptPackage: string | null = null;
+
+  /** `names`: package name -> display name ("@anthropic-ai/claude-code" -> "Claude Code"). */
+  constructor(private readonly names: Readonly<Record<string, string>> = {}) {}
 
   feed(text: string): void {
     const parts = (this.pending + text).split(/\r?\n/);
@@ -69,7 +86,7 @@ export class OutputTracker {
     for (const raw of parts) this.take(finalState(raw));
     // The line being redrawn right now: shown live, recorded once it ends.
     const live = finalState(this.pending);
-    if (live) this.latest = live;
+    if (live && !isQuiet(live)) this.latest = live;
   }
 
   /** Flush a final line without a newline. */
@@ -93,8 +110,50 @@ export class OutputTracker {
     this.lines.push(line);
     if (this.lines.length > 500) this.lines.shift();
     if (NPM_HTTP.test(line)) this.fetched++;
-    else this.latest = line;
+    else if (NPM_INFO.test(line)) this.npmInfo(line);
+    else if (!isQuiet(line)) this.latest = line;
   }
+
+  private npmInfo(line: string): void {
+    const run = NPM_RUN.exec(line);
+    if (!run) return;
+    const pkg = run[1]!;
+    if (run[3]) {
+      // The script ended: back to the line before it.
+      if (this.scriptPackage === pkg) {
+        this.scriptPackage = null;
+        this.latest = this.beforeScript;
+      }
+      return;
+    }
+    if (this.scriptPackage === null) this.beforeScript = this.latest;
+    this.scriptPackage = pkg;
+    this.latest = `running ${this.names[pkg] ?? pkg}'s install script${icons.ellipsis}`;
+  }
+}
+
+/** Output lines that are expected and say nothing about progress. */
+function isQuiet(line: string): boolean {
+  return line.trim() === NPM_ALLOW_SCRIPTS_IGNORED;
+}
+
+/**
+ * "2 updated, 5 up-to-date, 1 failed": counts that are zero are left out
+ * ("0 updated" only when there is nothing else to say).
+ */
+export function summaryLine(outcome: UpdateOutcome, upToDate: number, skipped: number): string {
+  const counts: [number, string, (s: string) => string][] = [
+    [outcome.updated, "updated", tone.done],
+    [outcome.manual, "manual", tone.action],
+    [upToDate, "up-to-date", tone.done],
+    [outcome.current, "already current", tone.done],
+    [skipped, "skipped", tone.action],
+    [outcome.held, "held", tone.action],
+    [outcome.unchanged, "unchanged", tone.action],
+    [outcome.failed, "failed", tone.bad],
+  ];
+  const parts = counts.filter(([n]) => n > 0).map(([n, label, color]) => color(`${n} ${label}`));
+  return parts.length > 0 ? parts.join(tone.muted(", ")) : tone.done("0 updated");
 }
 
 export interface UpdateOutcome {
@@ -201,7 +260,8 @@ export async function applyUpdates(
 
       const [command, ...args] = plan.command;
       if (!command) continue;
-      const tracker = new OutputTracker();
+      const npmPkg = isNpmInstall(command, args) ? installedPackageOf(args) : null;
+      const tracker = new OutputTracker(npmPkg ? { [npmPkg]: scan.name } : {});
       const live = new LiveStatus(`Updating ${tone.focus(scan.name)}${simulated()}  ${tone.muted(`$ ${displayCommand(plan.command)}`)}`);
       live.start();
       const result = await executor(command, args, target, (text) => {

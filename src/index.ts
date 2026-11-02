@@ -47,7 +47,7 @@ import { githubRateLimitNotice } from "./utils/github";
 import { findProjectManifest, type ProjectManifest } from "./project";
 import { GROUP_LABELS, TOOL_GROUPS, type ToolGroup } from "./types";
 import { tone } from "./ui/theme";
-import { applyUpdates, updateExitCode, type UpdateExecutor, type UpdateOutcome, type UpdateTarget } from "./ui/update";
+import { applyUpdates, summaryLine, updateExitCode, type UpdateExecutor, type UpdateOutcome, type UpdateTarget } from "./ui/update";
 import { helpText, parseArgs, type CliOptions } from "./utils/args";
 import { VersionCache } from "./utils/cache";
 import { UserConfig } from "./utils/config";
@@ -562,16 +562,6 @@ interface RoundResult {
   next: "done" | "rescan" | "retry";
   /** Commands the user still has to run themselves (printed last, at exit). */
   pending?: PendingItem[];
-}
-
-function summaryLine(outcome: UpdateOutcome, upToDate: number, skipped: number): string {
-  const parts = [tone.done(`${outcome.updated} updated`), tone.action(`${outcome.manual} manual`), tone.done(`${upToDate} up-to-date`)];
-  if (outcome.current > 0) parts.push(tone.done(`${outcome.current} already current`));
-  if (skipped > 0) parts.push(tone.action(`${skipped} skipped`));
-  if (outcome.held > 0) parts.push(tone.action(`${outcome.held} held`));
-  if (outcome.unchanged > 0) parts.push(tone.action(`${outcome.unchanged} unchanged`));
-  if (outcome.failed > 0) parts.push(tone.bad(`${outcome.failed} failed`));
-  return parts.join(tone.muted(", "));
 }
 
 /** Where a row's notes are: its registry source for the copy that runs (CCL CAUT's own row: its releases). */
