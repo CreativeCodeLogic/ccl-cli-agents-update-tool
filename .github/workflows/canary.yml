@@ -122,7 +122,7 @@ jobs:
     if: ${{ !inputs.only || inputs.only == 'npm12' }}
     name: npm 12 updates (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 60 # npm on the Windows runner alone can take ~30 min (2026-11-02)
     strategy:
       fail-fast: false
       matrix:
@@ -155,8 +155,11 @@ jobs:
             # The release before latest, of the same kind (no alpha/beta in between; Amp's versions all carry a suffix).
             prev="$(npm view "$pkg" versions --json | node -e 'const v=JSON.parse(require("fs").readFileSync(0,"utf8"));const l=process.argv[1];const same=l.includes("-")?v:v.filter((x)=>!x.includes("-"));const i=same.lastIndexOf(l);if(i<1){console.error("no version before "+l);process.exit(1)}console.log(same[i-1])' "$latest")"
             echo "::group::$pkg@$prev"
-            npm install -g --dangerously-allow-all-scripts "$pkg@$prev"
+            # A stalled download fails here, by name, instead of eating the job's time limit.
+            set +e; timeout 15m npm install -g --dangerously-allow-all-scripts "$pkg@$prev"; code=$?; set -e
             echo "::endgroup::"
+            if [ "$code" = 124 ]; then echo "::error title=npm stalled::npm install -g $pkg@$prev made no progress in 15 minutes (registry or download)"; exit 1; fi
+            if [ "$code" != 0 ]; then echo "::error::npm install -g $pkg@$prev failed (exit $code)"; exit 1; fi
           done
 
       - name: ccl-caut --yes updates them (every other tool skipped)
@@ -170,10 +173,17 @@ jobs:
           if [ "$RUNNER_OS" = Windows ]; then export APPDATA="$(cygpath -w "$cfg")"; else export XDG_CONFIG_HOME="$cfg"; fi
           $caut --json --refresh > before.json || true
           node -e 'const s=require("./before.json");const keep=process.argv[2].split(" ");const tools={};for(const t of s.tools)tools[t.id]=keep.includes(t.id)?"update":"skip";tools["ccl-caut"]="skip";require("fs").writeFileSync(process.argv[1],JSON.stringify({schema:1,tools}))' "$cfg/ccl-caut/config.json" "$TOOLS"
-          set +e; $caut --yes > yes.log 2>&1; code=$?; set -e
-          cat yes.log; echo "--yes exit code: $code"
+          # Live output (tee), and a CI-side limit for the whole run: real updates can take
+          # minutes each, but if one stalls the job says which tool, not just "timed out".
+          set +e; timeout 30m $caut --yes 2>&1 | tee yes.log; code=${PIPESTATUS[0]}; set -e
+          echo "--yes exit code: $code"
+          if [ "$code" = 124 ]; then
+            stalled="$(sed -E 's/\x1b\[[0-9;]*m//g' yes.log | grep -E 'Updating ' | tail -1 | sed -E 's/.*Updating ([^$]+)\$.*/\1/; s/ +$//')"
+            echo "::error title=update stalled::ccl-caut --yes was still updating ${stalled:-a tool} after 30 minutes (see the log above for its last output)"
+            exit 1
+          fi
           $caut --json --refresh > after.json || true
-          node scripts/canary-npm12.mjs after.json yes.log $TOOLS
+          node scripts/canary-npm12.mjs before.json after.json yes.log $TOOLS
 
   # PyPI tools installed with uv (aider-install and the Vibe install script both use uv tool).
   canary-uv:
