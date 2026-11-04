@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0-beta.2] - 2026-11-04
+
+Second beta of 1.3 "What's new", with two fixes from daily use: `npm i -g ccl-caut@next`.
+
+### Fixed
+
+- **Green ticks in Windows Terminal.** Up-to-date rows showed a purple ✔: U+2714 has the Unicode Emoji property, and Windows Terminal draws it from the colour emoji font, ignoring CCL CAUT's colour. Ticks are now ✓ (U+2713) and failures ✗ (U+2717), and the checklist's boxes are □/■ instead of clack's ◻/◼ (also emoji-capable). None of the symbols CCL CAUT draws has the Emoji property now, and a test keeps it that way. Classic consoles keep `√` and `x`.
+- **Cold network in the morning.** When most or all latest-version lookups fail in an interactive terminal, CCL CAUT waits 1.5 seconds and retries just the failed ones once on the same connections (one cold attempt, at most 9 seconds); the spinner says *Retrying…*. Only if that fails too do you get *Couldn't reach the version servers*, the cached results and `r`, as before. `--json`, piped and CI runs don't add this pass.
+
 ## [1.3.0-beta.1] - 2026-11-02
 
 First beta of 1.3 "What's new": `npm i -g ccl-caut@next` (back to stable: `npm i -g ccl-caut@latest`).

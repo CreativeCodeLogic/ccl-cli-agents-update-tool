@@ -29,7 +29,7 @@
 
 ## In beta: 1.3 — What's new
 
-`npx ccl-caut@next` or `npm i -g ccl-caut@next` (1.3.0-beta.1).
+`npx ccl-caut@next` or `npm i -g ccl-caut@next` (1.3.0-beta.2).
 
 - **`n` shows a tool's release notes, on demand:** in the checklist and on *What next?* (for what was just updated), in a scrollable popup over the screen. Notes are fetched only when you press `n`, never during the scan.
 - **Only the latest release's notes,** exactly that version, never older ones, from the vendor's GitHub release or changelog file; tools that publish notes only on a web page get the link (`o` opens it).
