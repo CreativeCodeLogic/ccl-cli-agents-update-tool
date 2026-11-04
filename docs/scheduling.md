@@ -184,7 +184,7 @@ Mon Oct 20 09:00:01 UTC 2026
      Tool              Installed  Latest   State             Via
   ─────────────────────────────────────────────────────────────────────────────
   AI agents
-  ✔  Claude Code       2.1.304    2.1.304  up-to-date        npm
+  ✓  Claude Code       2.1.304    2.1.304  up-to-date        npm
   ↑  Kimi Code         2.1.1      2.2.0    update available  native
   ...
 └  1 update available, 8 up-to-date, 1 retired

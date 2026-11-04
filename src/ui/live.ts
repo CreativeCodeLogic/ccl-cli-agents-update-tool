@@ -1,11 +1,11 @@
 import { S_BAR, unicodeOr } from "@clack/prompts";
 import { stripVTControlCharacters } from "node:util";
 import pc from "./colors";
-import { icons } from "./symbols";
+import { icons, spinnerFrames } from "./symbols";
 import { tone } from "./theme";
 import { displayWidth, fitWidth } from "./width";
 
-const FRAMES = unicode() ? ["◒", "◐", "◓", "◑"] : ["-", "\\", "|", "/"];
+const FRAMES = spinnerFrames(unicode());
 const TICK_MS = 100;
 
 function unicode(): boolean {

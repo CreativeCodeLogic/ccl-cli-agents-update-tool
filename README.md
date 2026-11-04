@@ -46,7 +46,7 @@ Requires Node.js 20 or newer to run; building from source needs Node 22.18 or ne
      Tool              Installed   Latest   State             Via
   ────────────────────────────────────────────────────────────────────────────
   AI agents
-  ✔  Claude Code       2.1.296     2.1.296  up-to-date        native
+  ✓  Claude Code       2.1.296     2.1.296  up-to-date        native
   ↑  Codex CLI         0.161.0     0.162.1  update available  npm
   ↻  Cursor CLI        2026.10.01  —        updates itself    native
   ⊘  Gemini CLI        0.62.1      0.63.0   retired           npm
@@ -54,8 +54,8 @@ Requires Node.js 20 or newer to run; building from source needs Node 22.18 or ne
   ↑  Aider             0.86.1      0.86.2   update available  uv
   Dev CLIs
   ↑  Google Cloud CLI  587.0.0     588.0.0  update available  apt needs admin
-  ✔  npm               12.2.0      12.2.0   up-to-date        node
-  ✔  Wrangler          4.149.0     4.149.0  up-to-date        npm
+  ✓  npm               12.2.0      12.2.0   up-to-date        node
+  ✓  Wrangler          4.149.0     4.149.0  up-to-date        npm
   ↑  Netlify CLI       27.11.0     27.12.0  update available  npm
 ▲  gemini: retired for consumer accounts since Jun 2026 -> use Antigravity CLI (agy).
    Still works with enterprise licenses / paid API keys.
@@ -299,9 +299,10 @@ Nothing about you or your machine is sent: no identifiers, no list of installed 
 
 A first run right after the machine wakes up can meet a cold network (DNS and TLS not ready yet). CCL CAUT handles that on its own:
 
-- One quick warm-up request goes first, then the lookups share a few keep-alive connections per host instead of opening a dozen at once. The first attempt gets 8 seconds on a cold start, there is one retry, and the whole check never takes more than about 15 seconds. After 5 seconds the spinner says *(slow connection)*.
+- One quick warm-up request goes first, then the lookups share a few keep-alive connections per host instead of opening a dozen at once. The first attempt gets 8 seconds on a cold start, there is one retry, and the check takes at most about 15 seconds (about 25 with the automatic retry below). After 5 seconds the spinner says *(slow connection)*.
 - If a lookup fails but an older answer is in the cache, that answer is used and marked, for example `0.162.1 cached 9h ago`. "unknown" only appears when there is nothing cached at all.
-- When most or all lookups fail, you get one line that says why, instead of a column of question marks: *Couldn't reach the version servers (timed out). Showing installed versions only.* The reason is one of timed out, DNS lookup failed, no network connection, the proxy refused the connection, a certificate problem, or HTTP errors. Press **r** to retry. When only one source is down, just that row shows "unknown"; `CCL_CAUT_DEBUG=1` prints the reason.
+- When most or all lookups fail in an interactive terminal, CCL CAUT waits a moment and tries the failed ones once more on the same connections (the spinner says *Retrying…*); a network that was still waking up usually answers then. Piped, `--json` and CI runs don't add this pass.
+- If that fails too, you get one line that says why, instead of a column of question marks: *Couldn't reach the version servers (timed out). Showing installed versions only.* The reason is one of timed out, DNS lookup failed, no network connection, the proxy refused the connection, a certificate problem, or HTTP errors. Press **r** to retry. When only one source is down, just that row shows "unknown"; `CCL_CAUT_DEBUG=1` prints the reason.
 
 Behind a corporate proxy, set `HTTPS_PROXY` (or `HTTP_PROXY`) and `NO_PROXY` as you would for curl or npm; CCL CAUT sends its lookups through it (credentials in the URL work, and are never printed).
 
@@ -311,11 +312,11 @@ Behind a corporate proxy, set `HTTPS_PROXY` (or `HTTP_PROXY`) and `NO_PROXY` as 
 ccl-caut 1.2.0 doctor · Node v22.22.3 · win32 x64
 
 Version servers
-  ✔ registry.npmjs.org          reachable · DNS 28ms · HTTPS 200 in 332ms  (npm packages, Amp, ccl-caut itself)
-  ✔ api.github.com              reachable · DNS 12ms · HTTPS 200 in 198ms  (Antigravity, Supabase, GitHub CLI, Goose, winget versions)
-  ✖ dl.google.com               unreachable · DNS 21ms · timeout (timed out after 8.0s)  (Google Cloud CLI)
-  ✔ pypi.org                    reachable · DNS 20ms · HTTPS 200 in 163ms  (Aider, Mistral Vibe, legacy kimi-cli)
-  ✔ prod.download.cli.kiro.dev  reachable · DNS 126ms · HTTPS 200 in 273ms  (Kiro CLI)
+  ✓ registry.npmjs.org          reachable · DNS 28ms · HTTPS 200 in 332ms  (npm packages, Amp, ccl-caut itself)
+  ✓ api.github.com              reachable · DNS 12ms · HTTPS 200 in 198ms  (Antigravity, Supabase, GitHub CLI, Goose, winget versions)
+  ✗ dl.google.com               unreachable · DNS 21ms · timeout (timed out after 8.0s)  (Google Cloud CLI)
+  ✓ pypi.org                    reachable · DNS 20ms · HTTPS 200 in 163ms  (Aider, Mistral Vibe, legacy kimi-cli)
+  ✓ prod.download.cli.kiro.dev  reachable · DNS 126ms · HTTPS 200 in 273ms  (Kiro CLI)
 
 Proxy
   HTTPS_PROXY  (not set)

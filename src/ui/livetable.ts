@@ -3,7 +3,7 @@ import { stripVTControlCharacters } from "node:util";
 import type { ToolScan } from "../types";
 import pc from "./colors";
 import { createProgress, type Progress } from "./progress";
-import { icons } from "./symbols";
+import { icons, spinnerFrames } from "./symbols";
 import { renderTable, type PendingRows } from "./table";
 import { displayWidth, fitWidth } from "./width";
 import { tone } from "./theme";
@@ -17,7 +17,7 @@ import { tone } from "./theme";
  * static output is printed, so the scrollback is the same as without it.
  */
 
-const FRAMES = unicodeOr("x", "") === "x" ? ["◒", "◐", "◓", "◑"] : ["-", "\\", "|", "/"];
+const FRAMES = spinnerFrames(unicodeOr("x", "") === "x");
 const TICK_MS = 100;
 /** After a resize, wait for the terminal to finish rewrapping before counting rows to erase. */
 export const RESIZE_SETTLE_MS = 150;

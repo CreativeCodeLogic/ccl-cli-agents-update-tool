@@ -1,10 +1,11 @@
 import { PassThrough } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
 import { isCancel, MultiSelectPrompt, SelectPrompt, TextPrompt } from "@clack/core";
-import { S_BAR, S_BAR_END, S_CHECKBOX_INACTIVE, S_CHECKBOX_SELECTED, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_SUBMIT } from "@clack/prompts";
+import { S_BAR, S_BAR_END, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_SUBMIT } from "@clack/prompts";
 import pc from "./colors";
 import { demoMode, demoPromptLines } from "./demo-notice";
 import { fitLine, fitNames, fitRow, gutterLines, promptWidth } from "./rows";
+import { icons } from "./symbols";
 import { tone } from "./theme";
 
 /*
@@ -185,7 +186,7 @@ export async function checklist<T extends string>(
       opts.options.forEach((option, i) => {
         if (option.group && option.group !== opts.options[i - 1]?.group) lines.push(`${bar}  ${tone.muted(option.group)}`);
         const selected = value.includes(option.value);
-        const box = selected ? tone.action(S_CHECKBOX_SELECTED) : tone.muted(S_CHECKBOX_INACTIVE);
+        const box = selected ? tone.action(icons.boxOn) : tone.muted(icons.boxOff);
         const style = i === this.cursor ? tone.focus : selected ? (l: string) => l : tone.muted;
         // One row each: name and versions stay, the hint gives way (see fitHint for the order).
         lines.push(fitRow(`${bar}  ${box} `, option.label, option.hint, width, style));

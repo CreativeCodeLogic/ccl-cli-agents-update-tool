@@ -22,16 +22,23 @@ export function isUnicodeSupported(env: Readonly<Record<string, string | undefin
   );
 }
 
-/** Status icons, Unicode or the ASCII-ish fallbacks for classic consoles. */
+/**
+ * Status icons, Unicode or the ASCII-ish fallbacks for classic consoles.
+ *
+ * No glyph may have the Unicode Emoji property, not even with default text
+ * presentation: Windows Terminal draws a character its font lacks from Segoe UI
+ * Emoji, in colour, ignoring ours (U+2714 ✔ showed as a purple tick). Hence ✓/✗
+ * and □/■ instead of ✔/✖ and clack's ◻/◼. A test checks every glyph.
+ */
 export function iconSet(unicode: boolean) {
   const or = (u: string, fallback: string) => (unicode ? u : fallback);
   return {
-    ok: or("✔", "√"),
+    ok: or("✓", "√"),
     update: or("↑", "^"),
     missing: or("–", "-"),
     unknown: "?",
     arrow: or("→", "->"),
-    fail: or("✖", "x"),
+    fail: or("✗", "x"),
     rule: or("─", "-"),
     bar: or("│", "|"),
     ellipsis: or("…", "..."),
@@ -39,7 +46,15 @@ export function iconSet(unicode: boolean) {
     selfUpdating: or("↻", "~"),
     bullet: or("•", "-"),
     upDown: or("↑/↓", "Up/Down"),
+    /** Checklist boxes (clack's ◻/◼ have the Emoji property); same ASCII as clack. */
+    boxOn: or("■", "[+]"),
+    boxOff: or("□", "[ ]"),
   };
+}
+
+/** Spinner frames for the live table and update progress. */
+export function spinnerFrames(unicode: boolean): string[] {
+  return unicode ? ["◒", "◐", "◓", "◑"] : ["-", "\\", "|", "/"];
 }
 
 /** The "What's new" panel frame: double lines, or +--+ on classic consoles. */
