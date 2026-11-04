@@ -19,6 +19,8 @@ export const COLD_TIMEOUT_MS = 8_000;
 export const WARM_TIMEOUT_MS = 5_000;
 export const RETRY_TIMEOUT_MS = 5_000;
 export const LOOKUP_BUDGET_MS = 14_000;
+/** The automatic second pass after a network-wide failure: one cold attempt, this long at most. */
+export const RETRY_PASS_BUDGET_MS = 9_000;
 const MIN_ATTEMPT_MS = 1_000;
 const USER_AGENT = "ccl-caut (+https://creativecodelogic.com)";
 
@@ -313,6 +315,22 @@ export class Network {
   report(): NetworkReport {
     const failures = [...this.outcomes.entries()].flatMap(([url, r]) => (r.ok ? [] : [{ url, ...r.failure }]));
     return { attempted: this.outcomes.size, failures };
+  }
+
+  /**
+   * The automatic second pass after a network-wide failure: forget only the
+   * failed lookups (successes stay), give them a fresh, shorter budget with the
+   * cold-start timeout, and keep the dispatcher (the same connection pool). No
+   * new warm-up request: the pass itself is the second try.
+   */
+  retryFailed(budgetMs = RETRY_PASS_BUDGET_MS): void {
+    for (const [url, r] of this.outcomes) {
+      if (r.ok) continue;
+      this.outcomes.delete(url);
+      this.results.delete(url);
+    }
+    this.warm = Promise.resolve(false);
+    this.deadline = this.now() + budgetMs;
   }
 
   /** Forget results (Retry): the next lookups go to the network again, with a fresh budget. */

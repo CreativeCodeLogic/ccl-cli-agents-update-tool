@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { doctorReport, type DoctorDeps } from "../src/doctor";
-import { LatestResolver, resolveLatest, summarize } from "../src/scan";
+import { AUTO_RETRY_PAUSE_MS, autoRetryAllowed, LatestResolver, resolveLatest, resolveWithRetry, summarize } from "../src/scan";
 import type { ToolDescriptor } from "../src/types";
 import { bannerLines, centerBlock } from "../src/ui/banner";
 import { formatAgo } from "../src/ui/format";
@@ -21,6 +21,7 @@ import {
   proxyFor,
   proxySettings,
   redactProxy,
+  RETRY_PASS_BUDGET_MS,
   RETRY_TIMEOUT_MS,
   WARM_TIMEOUT_MS,
   WARMUP_TIMEOUT_MS,
@@ -287,5 +288,103 @@ describe("centered banner", () => {
     const lines = bannerLines("1.0.1", { columns: 60, center: false, color: (s) => s }).map(strip);
     expect(lines).toEqual(["CCL CAUT v1.0.1 · CLI Agents Update Tool"]);
     expect(bannerLines("1.0.1", { columns: 30, center: false, color: (s) => s }).map(strip)).toEqual(["CCL CAUT v1.0.1"]);
+  });
+});
+
+describe("automatic retry after a network-wide failure", () => {
+  const URLS = ["https://registry.npmjs.org/@openai/codex/latest", "https://pypi.org/pypi/aider-chat/json", "https://api.github.com/repos/cli/cli/releases/latest"];
+  /** A tool whose latest version comes from one URL of the fake network. */
+  const netTool = (id: string, url: string, network: Network) =>
+    ({
+      id, name: id, binNames: [id], docsUrl: "https://example.test",
+      getLatestVersion: async () => {
+        const r = await network.get(url);
+        return r.ok ? (r.value as { version: string }).version : null;
+      },
+      getUpdatePlan: async () => null,
+      getInstalledVersion: async () => "0.9.0",
+    }) as unknown as ToolDescriptor;
+  const detectionsFor = (network: Network) => URLS.map((url, i) => ({ tool: netTool(`t${i}`, url, network), instances: [{ ...instance(`/usr/local/bin/t${i}`, "npm"), version: "0.9.0" }] }));
+
+  it("forgets only the failed lookups and retries them once, cold, on the same pool, without a new warm-up", async () => {
+    let pass = 1;
+    // Pass 1: the warm-up and two lookups time out, one answers. Pass 2: everything answers.
+    const { network, attempts, now } = clockNetwork((url) => (pass === 2 || url === URLS[2] ? "ok" : "hang"));
+    await Promise.all(URLS.map((u) => network.get(u)));
+    expect(networkProblem(network.report())).toBe("Couldn't reach the version servers (timed out).");
+    pass = 2;
+    const before = attempts.length;
+    const start = now();
+    network.retryFailed();
+    await Promise.all(URLS.map((u) => network.get(u)));
+    const second = attempts.slice(before);
+    expect(second.map((a) => a.url).sort()).toEqual([URLS[0], URLS[1]].sort()); // no warm-up, no re-fetch of the success
+    expect(second.every((a) => a.ms === COLD_TIMEOUT_MS)).toBe(true);
+    expect(now() - start).toBeLessThanOrEqual(RETRY_PASS_BUDGET_MS);
+    expect(network.report()).toEqual({ attempted: 3, failures: [] });
+  });
+
+  it("the retry works: no warning, the spinner says Retrying… once, after a short pause", async () => {
+    let pass = 1;
+    const { network } = clockNetwork(() => (pass === 1 ? "hang" : "ok"));
+    const events: string[] = [];
+    const results = await resolveWithRetry(detectionsFor(network), new LatestResolver(null), null, undefined, {
+      network,
+      enabled: true,
+      onRetry: () => events.push("Retrying…"),
+      sleep: async (ms) => {
+        events.push(`pause ${ms}`);
+        pass = 2;
+      },
+    });
+    expect(events).toEqual(["Retrying…", `pause ${AUTO_RETRY_PAUSE_MS}`]);
+    expect(AUTO_RETRY_PAUSE_MS).toBeLessThanOrEqual(2_000);
+    expect(results.map((r) => r.latestVersion)).toEqual(["1.0.0", "1.0.0", "1.0.0"]);
+    expect(networkProblem(network.report())).toBeNull();
+  });
+
+  it("the retry fails too: the warning and the cached results, as before (r still retries)", async () => {
+    const dir = mkdtempSync(path.join(os.tmpdir(), "ccl-caut-retry-"));
+    try {
+      const host: Host = { ...getHost(), homedir: dir, env: { LOCALAPPDATA: dir, XDG_CACHE_HOME: dir } };
+      let clock = 1_000_000;
+      const cache = VersionCache.load(host, () => clock);
+      cache.set("t0:default", "0.9.5");
+      clock += 9 * 60 * 60 * 1000;
+      const { network, attempts } = clockNetwork(() => "hang");
+      let retries = 0;
+      const results = await resolveWithRetry(detectionsFor(network), new LatestResolver(cache), null, undefined, {
+        network,
+        enabled: true,
+        onRetry: () => retries++,
+        sleep: async () => {},
+      });
+      expect(retries).toBe(1);
+      // Each failed URL was tried in both passes, never more.
+      for (const url of URLS) expect(attempts.filter((a) => a.url === url).length).toBeGreaterThanOrEqual(2);
+      expect(networkProblem(network.report())).toBe("Couldn't reach the version servers (timed out).");
+      expect(results[0]).toMatchObject({ latestVersion: "0.9.5", latestStaleCachedAt: new Date(1_000_000).toISOString() });
+      expect(results[1]).toMatchObject({ latestVersion: null, state: "unknown" });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("no second pass when it isn't allowed, or when only one source failed", async () => {
+    const off = clockNetwork(() => "hang");
+    let retried = false;
+    await resolveWithRetry(detectionsFor(off.network), new LatestResolver(null), null, undefined, { network: off.network, enabled: false, onRetry: () => (retried = true), sleep: async () => {} });
+    expect(retried).toBe(false);
+    expect(off.attempts.filter((a) => a.url === URLS[0])).toHaveLength(1);
+
+    const one = clockNetwork((url) => (url === URLS[0] ? "hang" : "ok"));
+    await resolveWithRetry(detectionsFor(one.network), new LatestResolver(null), null, undefined, { network: one.network, enabled: true, onRetry: () => (retried = true), sleep: async () => {} });
+    expect(retried).toBe(false);
+  });
+
+  it("is only allowed for a person at a terminal: not piped, not in CI", () => {
+    expect(autoRetryAllowed(true, {})).toBe(true);
+    expect(autoRetryAllowed(false, {})).toBe(false);
+    expect(autoRetryAllowed(true, { CI: "true" })).toBe(false);
   });
 });

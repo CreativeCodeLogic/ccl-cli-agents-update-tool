@@ -8,6 +8,7 @@ import { binaryRuns } from "./utils/exec";
 import { getNpmScriptPolicy, installedPackageOf, npmRepairCommand } from "./utils/npm-scripts";
 import { compareVersions } from "./utils/version";
 import { projectPinFor, projectPinNote, type ProjectManifest } from "./project";
+import { networkProblem, type Network } from "./utils/http";
 import { findAllExecutables } from "./utils/which";
 import { wingetAvailability, wingetPlan } from "./utils/winget";
 
@@ -48,6 +49,8 @@ export class LatestResolver {
   oldestCachedAt: number | null = null;
   /** Keys answered from an expired cache entry because the live lookup failed: key -> fetchedAt. */
   readonly stale = new Map<string, number>();
+  /** Keys whose live lookup failed this run (answered from a stale entry or not at all). */
+  private readonly missed = new Set<string>();
 
   constructor(
     readonly cache: VersionCache | null = null,
@@ -77,6 +80,15 @@ export class LatestResolver {
     return pending;
   }
 
+  /** Forget the keys whose live lookup failed, so the next get() tries the network again. */
+  forgetMisses(): void {
+    for (const key of this.missed) {
+      this.pending.delete(key);
+      this.stale.delete(key);
+    }
+    this.missed.clear();
+  }
+
   private async lookup(key: string, fetchLatest: () => Promise<string | null>, trackAge: boolean, ttlMs?: number): Promise<string | null> {
     const hit = this.refresh ? null : this.cache?.get(key, ttlMs);
     if (hit) {
@@ -88,6 +100,7 @@ export class LatestResolver {
       this.cache?.set(key, live);
       return live;
     }
+    this.missed.add(key);
     // Offline or a slow network: an old answer beats "unknown" (marked "cached 9h ago").
     const old = this.cache?.getStale(key);
     if (!old) return null;
@@ -193,6 +206,46 @@ export function resolveLatest(
       return scan;
     }),
   );
+}
+
+/** The automatic retry pass after a network-wide failure (see resolveWithRetry). */
+export interface AutoRetry {
+  network: Pick<Network, "report" | "retryFailed">;
+  /** Whether a second pass is allowed at all (an interactive terminal, not CI). */
+  enabled: boolean;
+  /** Called once, right before the pause ("Retrying…" on the spinner). */
+  onRetry: () => void;
+  pauseMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/** Pause before the second pass: a cold network often answers a moment later. */
+export const AUTO_RETRY_PAUSE_MS = 1_500;
+
+/**
+ * resolveLatest, and when most or all lookups failed (networkProblem), one
+ * more pass after a short pause for just the failed ones, on the same
+ * connection pool. What that pass can't fix is reported as before.
+ */
+export async function resolveWithRetry(
+  detections: readonly Detection[],
+  latest: LatestResolver,
+  project: ProjectManifest | null,
+  onResult: ((scan: ToolScan) => void) | undefined,
+  retry: AutoRetry,
+): Promise<ToolScan[]> {
+  const first = await resolveLatest(detections, latest, project, onResult);
+  if (!retry.enabled || !networkProblem(retry.network.report())) return first;
+  retry.onRetry();
+  await (retry.sleep ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms))))(retry.pauseMs ?? AUTO_RETRY_PAUSE_MS);
+  retry.network.retryFailed();
+  latest.forgetMisses();
+  return resolveLatest(detections, latest, project, onResult);
+}
+
+/** The automatic retry runs only for a person at a terminal: never in CI, piped or --json runs. */
+export function autoRetryAllowed(isTTY: boolean, env: Readonly<Record<string, string | undefined>> = process.env): boolean {
+  return isTTY && !env.CI;
 }
 
 /**

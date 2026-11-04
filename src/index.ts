@@ -7,11 +7,13 @@ import { createDemoRuntime } from "./demo/runtime";
 import { countRunning, listProcesses, processSignatures, splitUnattended, type ProcessInfo } from "./processes";
 import { registry } from "./registry";
 import {
+  autoRetryAllowed,
   detectAll,
   LatestResolver,
   pendingScan,
   prefetchLatest,
   resolveLatest,
+  resolveWithRetry,
   summarize,
   type Detection,
   type ScanSummary,
@@ -366,7 +368,14 @@ async function scanWithProgress(runtime: Runtime, center: boolean, selfRow = fal
     keys: { quit: quitDuringScan, cancel: exitCancelled },
   });
   const slow = setTimeout(() => check.message("Checking latest versions… (slow connection)"), SLOW_LOOKUP_MS);
-  const results = await resolveLatest(detections, latest, project(runtime), (scan) => check.update(scan));
+  const results = await resolveWithRetry(detections, latest, project(runtime), (scan) => check.update(scan), {
+    network: getNetwork(),
+    enabled: autoRetryAllowed(Boolean(process.stdout.isTTY)),
+    onRetry: () => {
+      clearTimeout(slow);
+      check.message("Retrying…");
+    },
+  });
   clearTimeout(slow);
   latest.cache?.save();
   const networkIssue = networkIssueLine(results);
