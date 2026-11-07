@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-07
+
+CCL CAUT 1.3 "What's new": read a tool's official release notes from the checklist with `n`, `--whats-new <tool>` in scripts, a second try on a cold network, and symbols that keep their colour in Windows Terminal. Update with `npm i -g ccl-caut` or run `npx ccl-caut`. This release is the code of 1.3.0-beta.2; the beta sections below list every change in detail. Published from GitHub Actions with npm provenance and approved by a maintainer.
+
+### Added
+
+- **What's new:** `n` on a checklist row opens the official release notes of that tool's latest version in a framed panel over the screen (CCL CAUT's own row too). On *What next?*, `n` shows what was just updated. The panel renders Markdown, scrolls (`↑/↓`, `PgUp/PgDn`, `Home/End`), `o` opens the notes in your browser, and `q` or `Esc` restores the screen exactly. Only the notes of exactly the version shown as *Latest* are used, from the vendor's GitHub release or changelog file ([docs/whats-new-sources.md](docs/whats-new-sources.md)); Amp, Cursor, Kiro and Vercel get the link. Notes are fetched only when you ask, never during the scan, cached for 7 days and sanitized. New host: `raw.githubusercontent.com` (Wrangler and Aider changelogs).
+- **`--whats-new <tool>`** prints a tool's latest release notes and the official link, with no prompt (exit 0 shown, 1 none or failed, 2 unknown tool). `--json` has `whatsNewUrl` per tool.
+- **`--hide-whats-new` / `--show-whats-new`** hide or show the `n what's new` key hint (saved in your config); `n` works either way.
+- **A second try on a cold network:** when most or all latest-version lookups fail in an interactive terminal, CCL CAUT waits 1.5 seconds and retries just the failed ones once (*Retrying…*) before it shows *Couldn't reach the version servers*. `--json`, piped and CI runs don't add this pass.
+- **Install-script progress:** during an npm update, the progress line says when npm runs a tool's install script (*running Claude Code's install script…*).
+- Weekly canary job `whats-new`, which fails only when a tool's notes mapping breaks.
+
+### Changed
+
+- **Symbols without emoji:** ticks are ✓ and failures ✗, and the checklist's boxes are □/■. The old ✔, ✖, ◻ and ◼ have the Unicode Emoji property, so Windows Terminal drew them in emoji colours (a purple tick). A test keeps every symbol emoji-free. Classic consoles keep `√` and `x`.
+- The summary after updates leaves out zero counts (*2 updated, 5 up-to-date*).
+- npm updates run with `--loglevel=info` (npm reports install scripts only at that level).
+
+### Fixed
+
+- npm 12's expected *.npmrc allow-scripts setting is being ignored* warning is no longer shown as the progress line when CCL CAUT passes your own allow list along.
+
 ## [1.3.0-beta.2] - 2026-11-04
 
 Second beta of 1.3 "What's new", with two fixes from daily use: `npm i -g ccl-caut@next`.

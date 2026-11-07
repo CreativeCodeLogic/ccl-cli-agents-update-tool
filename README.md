@@ -11,7 +11,7 @@ Twenty-three CLIs. Twelve ways to install them. One checklist.
 
 CCL CAUT (**C**LI **A**gents **U**pdate **T**ool) finds the AI and developer CLIs you have installed, compares what you run with what's released, and lets you pick what to update from a single checklist. It supports 23 tools. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini, Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro and Goose. Dev CLIs: Firebase, the Google Cloud CLI, npm, Wrangler, Vercel, Netlify, Supabase and the GitHub CLI.
 
-![CCL CAUT demo: scan, the live table filling in, notes, the checklist with CCL CAUT itself on top, and updates](https://raw.githubusercontent.com/CreativeCodeLogic/ccl-cli-agents-update-tool/a6f2bbc7519e28ed2aedc38321dee1b868617fe4/docs/demo.gif)
+![CCL CAUT demo: scan, the live table filling in, notes, the checklist with CCL CAUT itself on top, a look at the What's new panel, and updates](https://raw.githubusercontent.com/CreativeCodeLogic/ccl-cli-agents-update-tool/a6f2bbc7519e28ed2aedc38321dee1b868617fe4/docs/demo.gif)
 
 <sub>Recorded with `ccl-caut --demo` (sample data, nothing real is updated; the demo says so on every screen) using [VHS](https://github.com/charmbracelet/vhs); see [`docs/demo.tape`](docs/demo.tape).</sub>
 
@@ -114,6 +114,8 @@ The notes open in a framed panel on top of the screen: `↑/↓` (or `j/k`) scro
 `--hide-whats-new` takes the `n what's new` hint out of the key line from now on and `--show-whats-new` brings it back; it is saved in your config and `--reset-selection` keeps it. `n` works either way.
 
 Notes are cached by tool and version in the `whats-new` folder of your OS cache folder (`%LOCALAPPDATA%\ccl-caut\whats-new`, `~/Library/Caches/ccl-caut/whats-new` or `$XDG_CACHE_HOME/ccl-caut/whats-new`): 7 days for notes, 1 hour for "no notes yet", 2 MB at most. Offline, cached notes are still shown.
+
+`--json` includes each tool's `whatsNewUrl`, the link to those notes (nothing is fetched).
 
 Where each tool's notes come from, and how a version maps to them: [docs/whats-new-sources.md](docs/whats-new-sources.md).
 
@@ -225,7 +227,7 @@ Keys (interactive):
   updates need administrator rights (needs admin). It never kills or elevates.
 ```
 
-The big CCL CAUT banner appears only on the default interactive run (`ccl-caut` with no options). Every option (`--check`, `--discover`, `--doctor`, `--help`, `--only`, `--hide-group`, `--show-group`, `--reset-selection`, `--yes`) starts with one compact line instead: *CCL CAUT v1.2.0 · CLI Agents Update Tool — by Creative Code Logic*. `--json`, `--version` (just the version number), piped output and CI runs print no header at all. Output that doesn't go to a terminal has no colors, on every OS (`FORCE_COLOR=1` keeps them).
+The big CCL CAUT banner appears only on the default interactive run (`ccl-caut` with no options). Every option (`--check`, `--discover`, `--doctor`, `--help`, `--only`, `--hide-group`, `--show-group`, `--reset-selection`, `--yes`) starts with one compact line instead: *CCL CAUT v1.3.0 · CLI Agents Update Tool — by Creative Code Logic*. `--json`, `--version` (just the version number), piped output and CI runs print no header at all. Output that doesn't go to a terminal has no colors, on every OS (`FORCE_COLOR=1` keeps them).
 
 The interactive checklist starts on a clean screen: earlier output is pushed up into your scrollback, never erased. Use `--no-clear` to keep it in view; `--check`, `--json`, `--yes` and CI runs never clear.
 
@@ -233,7 +235,7 @@ The interactive checklist starts on a clean screen: earlier output is pushed up 
 
 When a newer ccl-caut is published, a one-line notice under the banner tells you how to upgrade for the way you run it (`npx ccl-caut@latest` or `npm i -g ccl-caut`). The check runs in the background, never slows a run down, stays silent when offline, and is off in CI or with `CCL_CAUT_NO_UPDATE_CHECK=1`. If you run a beta (`ccl-caut@next`), the notice compares both channels and suggests the higher version, so you move on to the next beta or to the stable release, never backwards; stable users are never pointed at a beta. `--json` reports it as `"self": { "version", "latest", "next" }`.
 
-If you installed ccl-caut globally with npm, the newer version is also a row of its own, **CCL CAUT**, at the top of the checklist: preselected, remembered like any tool, and applied by `--yes`. It runs `npm install -g ccl-caut@<version>` (the exact version) after every other update, then checks `ccl-caut --version`; the run ends with *CCL CAUT updated to 1.2.0. Run ccl-caut again to use it.* and offers only Quit, since the code still running is the old one. A copy under another Node version (nvm, fnm, Volta) gets the command to run instead; `npx` users already get the newest version with `npx ccl-caut@latest`, and source checkouts update with git, so neither gets the row.
+If you installed ccl-caut globally with npm, the newer version is also a row of its own, **CCL CAUT**, at the top of the checklist: preselected, remembered like any tool, and applied by `--yes`. It runs `npm install -g ccl-caut@<version>` (the exact version) after every other update, then checks `ccl-caut --version`; the run ends with *CCL CAUT updated to 1.3.0. Run ccl-caut again to use it.* and offers only Quit, since the code still running is the old one. A copy under another Node version (nvm, fnm, Volta) gets the command to run instead; `npx` users already get the newest version with `npx ccl-caut@latest`, and source checkouts update with git, so neither gets the row.
 
 ### Discover supported tools
 
@@ -309,7 +311,7 @@ Behind a corporate proxy, set `HTTPS_PROXY` (or `HTTP_PROXY`) and `NO_PROXY` as 
 `ccl-caut --doctor` checks the path to every version server and prints what it finds, ready to paste into a bug report:
 
 ```text
-ccl-caut 1.2.0 doctor · Node v22.22.3 · win32 x64
+ccl-caut 1.3.0 doctor · Node v22.22.3 · win32 x64
 
 Version servers
   ✓ registry.npmjs.org          reachable · DNS 28ms · HTTPS 200 in 332ms  (npm packages, Amp, ccl-caut itself)
@@ -359,8 +361,8 @@ In a terminal, `--json` prints the JSON and then offers **Copy to clipboard** (P
 ```json
 {
   "tool": "ccl-caut",
-  "version": "1.2.0",
-  "self": { "version": "1.2.0", "latest": "1.2.0", "next": null },
+  "version": "1.3.0",
+  "self": { "version": "1.3.0", "latest": "1.3.0", "next": null },
   "generatedAt": "2026-10-20T09:00:01.000Z",
   "platform": "linux",
   "node": "v22.22.3",
@@ -394,7 +396,8 @@ In a terminal, `--json` prints the JSON and then offers **Copy to clipboard** (P
       },
       "notes": [],
       "projectPin": null,
-      "compatibility": null
+      "compatibility": null,
+      "whatsNewUrl": "https://github.com/google-gemini/gemini-cli/releases/tag/v0.63.0"
     }
   ]
 }```
@@ -425,7 +428,7 @@ Then add it to the list in [`src/registry/index.ts`](src/registry/index.ts). Too
 
 ## Roadmap
 
-What 1.2 is, what comes next (1.3, *What's new*), and what's deliberately not planned: see [ROADMAP.md](ROADMAP.md).
+What 1.3 is, what might come next, and what's deliberately not planned: see [ROADMAP.md](ROADMAP.md).
 
 ## License
 

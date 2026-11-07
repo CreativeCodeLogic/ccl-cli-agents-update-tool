@@ -11,33 +11,28 @@
 5. **Honest results.** Every update is re-checked. You see "updates itself", "retired" or "held" instead of a guess.
 6. **No telemetry.**
 
-## Now: 1.2 (stable)
+## Now: 1.3 (stable)
 
-`npx ccl-caut` or `npm i -g ccl-caut`. 23 tools in two groups. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini (retired), Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro CLI and Goose. Dev CLIs: Firebase, Google Cloud CLI, npm, Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI. New in 1.2:
+`npx ccl-caut` or `npm i -g ccl-caut`. 23 tools in two groups. AI agents: Claude Code, Codex, GitHub Copilot, Cursor, OpenCode, Gemini (retired), Antigravity, Qwen Code, Kimi Code, Aider, Mistral Vibe, Cline, Amp, Kiro CLI and Goose. Dev CLIs: Firebase, Google Cloud CLI, npm, Wrangler, Vercel CLI, Netlify CLI, Supabase CLI and GitHub CLI. New in 1.3 "What's new":
 
-- **Live table:** the table appears right away and each row fills in as its check finishes.
-- **Update CCL CAUT from the checklist:** a newer CCL CAUT is the first row of the checklist, updated last, verified, then *Run ccl-caut again*.
-- **"Still to do"** at the end of every run, and `ccl-caut --pending`: the commands left for you to run, each on a line that copies cleanly.
-- **Automatic winget updates** for an allowlist of tools whose silent upgrade was verified (OpenCode, Antigravity CLI, GitHub CLI), per-user installs only, and only once winget has the vendor's version (*waiting for winget* until then).
-- **npm 12 and install scripts:** only the script a tool needs to run is allowed (Claude Code, Amp, OpenCode), per tool; `ignore-scripts` is respected; a tool that doesn't start is reported as BROKEN with its repair command.
-- **Python version check:** when a new release needs another Python than your uv, pipx or pip install, the update becomes a reinstall command with the right Python.
-- **Scheduled runs:** tested recipes for cron, launchd and Task Scheduler ([docs/scheduling.md](docs/scheduling.md)); `--yes` reports skipped tools in its exit code.
-- **Narrow windows:** messages, checklist rows and prompts fit the window; the progress area never leaves blank lines.
-- **Canary on Linux, macOS and Windows,** with real Python-reinstall, winget-upgrade and npm 12 update checks.
-
-**1.2.x patches** fix what people report.
-
-## In beta: 1.3 — What's new
-
-`npx ccl-caut@next` or `npm i -g ccl-caut@next` (1.3.0-beta.2).
-
-- **`n` shows a tool's release notes, on demand:** in the checklist and on *What next?* (for what was just updated), in a scrollable popup over the screen. Notes are fetched only when you press `n`, never during the scan.
+- **`n` shows a tool's release notes, on demand:** in the checklist and on *What next?* (for what was just updated), in a scrollable panel over the screen. Notes are fetched only when you press `n`, never during the scan.
 - **Only the latest release's notes,** exactly that version, never older ones, from the vendor's GitHub release or changelog file; tools that publish notes only on a web page get the link (`o` opens it).
 - **`--whats-new <tool>`** prints the notes in the terminal, and `--hide-whats-new` / `--show-whats-new` hide or show the key hint (the key keeps working).
-- **Polish:**
-  - Hide npm's ".npmrc allow-scripts setting is being ignored" warning when CCL CAUT passes your own list along.
-  - Leave zero counts out of the summary ("1 updated" instead of "1 updated, 0 manual").
-  - Say when npm runs a tool's install script during a long update (*running Claude Code's install script…*).
+- **A second try on a cold network:** when most lookups fail, CCL CAUT retries the failed ones once before it warns.
+- **Symbols without emoji:** green ✓ ticks and □/■ boxes in Windows Terminal.
+- **Polish:** install-script progress during long npm updates, no zero counts in the summary, no expected npm warning as the progress line.
+
+Still in 1.3, from 1.2: the live table, CCL CAUT updating itself from the checklist, *Still to do* and `--pending`, automatic winget updates, npm 12 install-script handling, the Python version check, scheduled runs, and the canary on Linux, macOS and Windows.
+
+**1.3.x patches** fix what people report.
+
+## Next: candidates
+
+Ideas under consideration for after 1.3, not promises:
+
+- **The "earlier changes" link in the What's new footer** is cut off in narrow panels; it should end with "…" or say "press o".
+- **`--doctor` checks the release-notes hosts** too (`raw.githubusercontent.com` and `dl.google.com` for notes).
+- **Amp shows "update available" on almost every run,** because it publishes a new build every 1–4 hours.
 
 ## Later (ideas)
 
